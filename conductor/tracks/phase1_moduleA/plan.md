@@ -30,15 +30,15 @@
     - **Deliverable:** `FitParser.parse(file_path) -> pd.DataFrame`
 
 ## 3. Vectorized Calculations (The "No-Loop" Rule)
-- [ ] **Task: Karoly's "Mixed Model" Load**
+- [x] **Task: Karoly's "Mixed Model" Load** [14cef55]
     - Implement the specific formula from `TrainingLoad.ipynb`:
         - Weighted HR Time in Zones (LT1-LT2).
         - Intensity Factor (IF) bins with custom multipliers.
         - `alpha_int` weighting.
-- [ ] **Task: Standard Power Metrics**
+- [x] **Task: Standard Power Metrics** [14cef55]
     - Normalized Power (NP) (standard Algo).
     - Training Stress Score (TSS) (as a comparative baseline).
-- [ ] **Task: Efficiency & Decoupling (Global Split)**
+- [x] **Task: Efficiency & Decoupling (Global Split)** [14cef55]
     - Calculate `Pw:Hr` ratio for 1st Half vs 2nd Half.
     - Apply `beta_dur` penalty logic if drift > 3%.
 
