@@ -22,7 +22,7 @@
     - Ensure Pydantic models for type safety.
 
 ## 2. Universal FIT Parser
-- [~] **Task: Implement FIT Loader**
+- [x] **Task: Implement FIT Loader** [bf4706d]
     - Use `fitdecode` library.
     - Extract standard streams: `timestamp`, `power`, `heart_rate`, `cadence`, `altitude`, `speed`, `effort_pace` (Coros).
     - **Sanity Check:** Implement "Smart Clipping" (filter obvious outliers).
