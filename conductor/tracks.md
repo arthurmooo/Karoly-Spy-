@@ -1,8 +1,70 @@
-# Project Tracks
+# Project Tracks - Project K
 
-This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
+This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-## [ ] Track: [Phase 1 - Week 1] Database, Physio Profiles & Data Enrichment Setup
-*Link: [./conductor/tracks/db_setup_20260111/](./conductor/tracks/db_setup_20260111/)*
+# 🏭 PHASE 1 : L'Industrialisation Logistique (CURRENT)
+**Objectif :** Transformer le "bricolage de scripts" en "Usine à Données".
+**Livrable Final :** `run_k.py` fonctionnel pour l'analyse automatisée.
+
+## [x] Track 1.1: Database & Athlete Registry (Module C & D)
+*Archived in conductor/archive/db_setup_20260111/*
+- **Module C (La Mémoire) :** Setup Supabase, Tables `athletes`, `physio_profiles`, `activities`.
+- **Module D (Le Bridge) :** Connecteur Python-DB sécurisé, gestion des secrets `.env`.
+- **Livrable :** Base de données initialisée et peuplée avec les 53 athlètes et leurs profils historiques.
+
+## [x] Track 1.2: The Processing Engine "Le Cerveau" (Module A)
+*Core Logic Implementation - The "Intelligence"*
+- **Refactoring OOP :** Création des classes `Activity` et `Athlete`.
+- **Parser FIT Universel :** Lecture robuste des fichiers `.fit` (Garmin/Wahoo/Zwift).
+- **Moteur de Calcul (Vectorisé) :**
+    - Normalized Power (NP).
+    - Charge (TSS/Load).
+    - Découplage (Aerobic Decoupling) & Durabilité.
+- **Validation :** Tests unitaires sur fichier sample pour garantir la précision mathématique.
+- **Livrable :** Une librairie Python `projectk-core` capable d'ingérer un fichier binaire et de sortir un objet JSON de métriques validées.
+
+## [ ] Track 1.3: Ingestion Pipeline & Nolio Sync (Module B)
+*Requires: Nolio API Credentials*
+- **Client API Nolio :** Authentification et récupération automatique des séances.
+- **Stockage Cloud :** Sauvegarde des `.fit` bruts dans Supabase Storage.
+- **Unicité :** Système de Hash global pour éviter les doublons.
+- **Mapping Hardware :** Attribution automatique via Serial Number (Montre -> Athlète).
+- **Livrable :** Script qui "écoute" Nolio et remplit la base automatiquement.
+
+## [ ] Track 1.4: The Master Script & Delivery (Integration)
+*Final Assembly of Phase 1*
+- **Script Maître `run_k.py` :** Orchestration (Ingestion -> Traitement -> Stockage).
+- **Migration Historique :** Import des archives passées de Karoly.
+- **Gestion Timezones :** Normalisation UTC complète.
+- **Livrable Final Phase 1 :** Déploiement et recette avec Karoly.
+
+---
+
+# 🧠 PHASE 2 : Analyse & Reporting (LOCKED)
+**Objectif :** Nettoyage scientifique, Détection de Dérive, Rapports PDF.
+*Démarre uniquement après validation de la Phase 1.*
+
+## [ ] Track 2.1: Advanced Signal Processing (WP2.1)
+- Filtres Scipy (Savitzky-Golay) pour lissage HR.
+- Algorithme de détection de Dérive (Drift > 5%).
+
+## [ ] Track 2.2: PDF Reporting Engine (WP2.2)
+- Génération HTML/CSS -> PDF.
+- Graphiques Matplotlib intégrés.
+- Encarts "Alerte Coach".
+
+---
+
+# 📊 PHASE 3 : Visualisation & Pilotage (LOCKED)
+**Objectif :** Dashboard Streamlit & Module Nutrition.
+*Démarre uniquement après validation de la Phase 2.*
+
+## [ ] Track 3.1: Dashboard Streamlit
+- Heatmap de Charge (Athlètes x Semaines).
+- Vue détaillée par clic.
+
+## [ ] Track 3.2: Module Nutrition MVP
+- Parsing simple des commentaires Nolio (Regex).
+- Affichage "Glucides/h".
