@@ -18,16 +18,22 @@
     - Run SQL migrations.
 - [ ] Task: Conductor - User Manual Verification 'Database Schema' (Protocol in workflow.md)
 
+## Phase 3: Import du "Passé" (Legacy Excel)
+- [~] **Task: Parser les CSV de Karoly** [commit: 61d1711]
+    - Create a script to transform Excel/CSV tabs into `athletes` and `profiles` rows. (Athletes imported)
+- [ ] **Task: Peupler les Profils Physio**
+    - Initialize LT1/LT2 thresholds for each athlete.
+
 ## Phase 4: Bridge & Logique de Profil
 - [x] **Task: Implement Base Database Connector** [commit: 80fa763]
     - Create OOP classes for Supabase interaction.
-- [ ] **Task: Implement Profile Retrieval Logic**
+- [x] **Task: Implement Profile Retrieval Logic** [commit: 229c534]
     - Code the logic to fetch the correct `physio_profile` for any given date.
 - [ ] **Task: Validation Script**
     - Write a script to verify the "Profile Loaded" requirement.
 - [ ] Task: Conductor - User Manual Verification 'Core Bridge & Profile Logic' (Protocol in workflow.md)
 
-## Phase 4: External Connectors Scaffolding
+## Phase 5: External Connectors Scaffolding
 - [ ] **Task: Nolio API Basic Client**
     - Implement authentication and basic activity listing.
 - [ ] **Task: OpenWeatherMap Basic Client**
