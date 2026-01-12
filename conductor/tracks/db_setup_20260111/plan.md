@@ -19,9 +19,9 @@
 - [ ] Task: Conductor - User Manual Verification 'Database Schema' (Protocol in workflow.md)
 
 ## Phase 3: Import du "Passé" (Legacy Excel)
-- [~] **Task: Parser les CSV de Karoly** [commit: 61d1711]
+- [x] **Task: Parser les CSV de Karoly** [commit: 61d1711]
     - Create a script to transform Excel/CSV tabs into `athletes` and `profiles` rows. (Athletes imported)
-- [ ] **Task: Peupler les Profils Physio**
+- [x] **Task: Peupler les Profils Physio** [commit: 1d71b42]
     - Initialize LT1/LT2 thresholds for each athlete.
 
 ## Phase 4: Bridge & Logique de Profil
