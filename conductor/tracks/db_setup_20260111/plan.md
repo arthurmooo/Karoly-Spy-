@@ -1,25 +1,25 @@
 # Plan: [Phase 1 - Week 1] Database & Athlete Registry Setup
 
 ## Phase 1: Infrastructure & Environment
-- [ ] **Task: Setup Supabase Project**
-    - Create project on Supabase.
+- [x] **Task: Setup Supabase Project** [commit: setup-supabase]
+    - Project 'Project K' created (ayczcnoxgaljkyiljill).
     - Setup `.env` with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
-- [ ] **Task: Environment Configuration**
+- [x] **Task: Environment Configuration** [commit: setup-env]
     - Initialize Python environment.
-    - Setup `.env` with `NOLIO_API_TOKEN` and `OPENWEATHER_API_KEY`.
-- [ ] Task: Conductor - User Manual Verification 'Infrastructure & Environment' (Protocol in workflow.md)
+    - Setup `.env` with `NOLIO_CLIENT_ID` and `OPENWEATHER_API_KEY`.
+- [x] Task: Conductor - User Manual Verification 'Infrastructure & Environment' (Protocol in workflow.md) [checkpoint: infra-ready]
 
 ## Phase 2: Database Schema
-- [ ] **Task: Define SQL Tables**
+- [x] **Task: Define SQL Tables** [commit: apply-schema]
     - Create `athletes` and `athlete_devices`.
     - Create `physio_profiles` with SCD Type 2 logic (valid_from, valid_to).
     - Create `activities` with enrichment columns.
-- [ ] **Task: Apply Schema to Supabase**
+- [x] **Task: Apply Schema to Supabase** [commit: apply-schema]
     - Run SQL migrations.
 - [ ] Task: Conductor - User Manual Verification 'Database Schema' (Protocol in workflow.md)
 
-## Phase 3: Core Bridge & Profile Logic
-- [ ] **Task: Implement Base Database Connector**
+## Phase 4: Bridge & Logique de Profil
+- [x] **Task: Implement Base Database Connector** [commit: 80fa763]
     - Create OOP classes for Supabase interaction.
 - [ ] **Task: Implement Profile Retrieval Logic**
     - Code the logic to fetch the correct `physio_profile` for any given date.
