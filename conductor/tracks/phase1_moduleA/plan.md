@@ -43,7 +43,7 @@
     - Apply `beta_dur` penalty logic if drift > 3%.
 
 ## 4. Integration & Storage
-- [ ] **Task: Database Writer**
+- [~] **Task: Database Writer**
     - Method to serialize `Activity` object to Supabase `activities` table format.
     - **Note:** Do NOT store time-series JSON in DB. Store only summary results.
 
