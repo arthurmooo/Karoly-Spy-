@@ -34,8 +34,8 @@
 - [x] Task: Conductor - User Manual Verification 'Core Bridge & Profile Logic' (Protocol in workflow.md) [checkpoint: core-bridge-ready]
 
 ## Phase 5: External Connectors Scaffolding
-- [ ] **Task: Nolio API Basic Client**
+- [x] **Task: Nolio API Basic Client** [commit: 7087277]
     - Implement authentication and basic activity listing.
-- [ ] **Task: OpenWeatherMap Basic Client**
+- [x] **Task: OpenWeatherMap Basic Client** [commit: 7087277]
     - Implement historical weather retrieval.
-- [ ] Task: Conductor - User Manual Verification 'External Connectors Scaffolding' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'External Connectors Scaffolding' (Protocol in workflow.md) [checkpoint: connectors-ready]
