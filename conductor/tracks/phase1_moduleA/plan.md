@@ -48,6 +48,6 @@
     - **Note:** Do NOT store time-series JSON in DB. Store only summary results.
 
 ## 5. Validation
-- [~] **Task: Unit Tests with Real Data**
+- [x] **Task: Unit Tests with Real Data** [9c5a16b]
     - Test against the provided sample `.fit` file.
     - Verify calculated "Karoly Load" matches his manual notebook results.
