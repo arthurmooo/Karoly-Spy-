@@ -7,7 +7,7 @@
     - `numpy`: For high-performance numerical operations.
     - `scipy.signal`: For signal processing and noise filtering (HR/Power smoothing).
 - **File Parsing:**
-    - `fitparse`: For extracting raw data from Garmin/Wahoo .FIT files. Configured to extract extended metrics: Grade (derived from Altitude/Distance), Cadence, and Stryd Power. Device temperature is extracted but used only as a fallback to Weather API data.
+    - `fitdecode`: For extracting raw data from Garmin/Wahoo/Coros .FIT files. It is more robust than `fitparse` for modern device formats. Configured to extract extended metrics: Grade (derived from Altitude/Distance), Cadence, and Stryd/Wrist Power. Device temperature is extracted but used only as a fallback to Weather API data.
 - **Data Validation:**
     - `pydantic`: For defining robust data models and schemas.
 
