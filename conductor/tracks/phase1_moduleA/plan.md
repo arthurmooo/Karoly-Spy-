@@ -22,9 +22,9 @@
     - Ensure Pydantic models for type safety.
 
 ## 2. Universal FIT Parser
-- [ ] **Task: Implement FIT Loader**
-    - Use `fitparse` library.
-    - Extract standard streams: `timestamp`, `power`, `heart_rate`, `cadence`, `altitude`, `speed`.
+- [~] **Task: Implement FIT Loader**
+    - Use `fitdecode` library.
+    - Extract standard streams: `timestamp`, `power`, `heart_rate`, `cadence`, `altitude`, `speed`, `effort_pace` (Coros).
     - **Sanity Check:** Implement "Smart Clipping" (filter obvious outliers).
     - **Zero Handling:** Keep 0s for power averages, drop gaps > 10s (Auto-Pause logic).
     - **Deliverable:** `FitParser.parse(file_path) -> pd.DataFrame`
