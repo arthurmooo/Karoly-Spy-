@@ -1,0 +1,31 @@
+📅 PHASE 2 : "ANALYSE & REPORTING" (Le Gros Morceau)
+Budget estimé : 45h (C'est intense, il faudra être efficace). Promesse à tenir : Nettoyage Scipy + Alerte Dérive + PDF.
+WP2.1 : Nettoyage & "Intelligence" (15h)
+	•	Nettoyage (Scipy) : On applique un filtre "Low-pass" (Savitzky-Golay) sur le signal cardiaque pour lisser les courbes. C'est rapide et ça fait "High Tech".
+	•	Détection Dérive (Drift) : On reprend la logique du notebook Calcul_Durability.ipynb.
+	•	Le Hack Budget : La "Notification" ne sera pas un système complexe de push mobile. Ce sera simple : si Drift > 5%, on ajoute un flag Alerte: OUI dans la base de données et on l'affiche en ROUGE dans le PDF. C'est ça, la "notification".
+WP2.2 : Le Moteur PDF "Lazy" (20h)
+C'est ici qu'on délivre la valeur perçue.
+	•	Stratégie : HTML + CSS -> PDF. On ne dessine pas à la main.
+	•	Contenu du PDF :
+	•	Header : Logo Karoly + Nom Athlète.
+	•	Le Chiffre Clé : Indice de Durabilité (ex: "-3%").
+	•	Le Graphique : La courbe FC/Puissance (générée via Matplotlib).
+	•	L'Alerte : Un encart "Focus Coach" qui apparaît uniquement si une dérive anormale est détectée (Ta promesse de "notification").
+	•	Automatisation : Le script run_k.py génère le PDF et le stocke dans un dossier "OUT".
+WP2.3 : Intégration Pipeline (10h)
+	•	Mise à jour du script principal pour qu'après l'analyse mathématique, il lance la génération du PDF automatiquement.
+
+📅 PHASE 3 : "VISUALISATION & PILOTAGE" (La Finition)
+Budget estimé : 25h (Plus relax, permet d'absorber les débordements de la Ph2). Promesse à tenir : Dashboard Heatmap + Module Nutrition.
+WP3.1 : Dashboard Streamlit "Flotte" (15h)
+	•	La Heatmap de Charge : C'est ta promesse "Coup d'œil".
+	•	Tech : Un tableau simple avec Streamlit Dataframe ou une Heatmap Altair.
+	•	Visuel : En ordonnée les athlètes, en abscisse les semaines. Les cases sont colorées du Vert au Rouge selon la Charge (Load).
+	•	Interaction : Clic sur une case -> Ouvre les détails (données brutes).
+WP3.2 : Module Nutrition "MVP" (10h)
+	•	Ingestion : On récupère le champ "Nutrition" ou "Commentaire" de Nolio.
+	•	Parsing Simple : On cherche des motifs simples (ex: "60g", "90g/h") via Regex.
+	•	Affichage : On ajoute une colonne "Glucides/h" dans le Dashboard.
+	•	Le Hack Budget : On ne fait pas de calculs métaboliques complexes ou de corrélations scientifiques (sauf si on a du temps rab). On se contente d'afficher la donnée pour que Karoly puisse "piloter", comme promis.
+
