@@ -29,9 +29,9 @@
     - Create OOP classes for Supabase interaction.
 - [x] **Task: Implement Profile Retrieval Logic** [commit: 229c534]
     - Code the logic to fetch the correct `physio_profile` for any given date.
-- [ ] **Task: Validation Script**
+- [x] **Task: Validation Script** [commit: 1676ace]
     - Write a script to verify the "Profile Loaded" requirement.
-- [ ] Task: Conductor - User Manual Verification 'Core Bridge & Profile Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Core Bridge & Profile Logic' (Protocol in workflow.md) [checkpoint: core-bridge-ready]
 
 ## Phase 5: External Connectors Scaffolding
 - [ ] **Task: Nolio API Basic Client**
