@@ -13,7 +13,7 @@
 - **Duplicates:** Prioritize the largest file (File Size = Info Density).
 
 ## 1. Setup & Scaffolding
-- [~] **Task: Configuration Schema**
+- [x] **Task: Configuration Schema** [567399a]
     - Create `processing_config` table in Supabase (key-value or JSON columns for `alpha_int`, `beta_dur`, etc.).
     - Create Python `AthleteConfig` class that fetches these values.
 - [ ] **Task: Activity & Athlete Classes**
