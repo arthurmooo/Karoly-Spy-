@@ -16,7 +16,7 @@
 - [x] **Task: Configuration Schema** [567399a]
     - Create `processing_config` table in Supabase (key-value or JSON columns for `alpha_int`, `beta_dur`, etc.).
     - Create Python `AthleteConfig` class that fetches these values.
-- [~] **Task: Activity & Athlete Classes**
+- [x] **Task: Activity & Athlete Classes** [7cdfcb4]
     - Define `Activity` class (holds dataframe, metadata, computed metrics).
     - Define `Athlete` class (holds ID, thresholds history).
     - Ensure Pydantic models for type safety.
