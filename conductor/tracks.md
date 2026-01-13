@@ -13,6 +13,7 @@ This file tracks the master plan, strictly aligned with the contract phases.
 - **Module C (La Mémoire) :** Setup Supabase, Tables `athletes`, `physio_profiles`, `activities`.
 - **Module D (Le Bridge) :** Connecteur Python-DB sécurisé, gestion des secrets `.env`.
 - **Livrable :** Base de données initialisée et peuplée avec les 53 athlètes et leurs profils historiques.
+- **Update (13/01/2026) :** Sécurisation RLS (Row Level Security) activée sur toutes les tables (Service Role Only).
 
 ## [x] Track 1.2: The Processing Engine "Le Cerveau" (Module A)
 *Core Logic Implementation - The "Intelligence"*
