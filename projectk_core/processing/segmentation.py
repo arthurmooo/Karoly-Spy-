@@ -1,0 +1,99 @@
+import pandas as pd
+import numpy as np
+from typing import Dict, List, Any, Optional
+from projectk_core.logic.models import SegmentData
+
+class SegmentCalculator:
+    """
+    Handles slicing of activity streams and calculation of phase-specific metrics.
+    """
+    
+    def calculate_segment(self, df: pd.DataFrame, activity_type: str) -> SegmentData:
+        """
+        Calculates HR, Speed/Power, Ratio and Torque for a given data slice.
+        """
+        if df.empty:
+            return SegmentData()
+            
+        # Common: Heart Rate
+        avg_hr = float(df['heart_rate'].mean()) if 'heart_rate' in df.columns else None
+        
+        # Sport Specific: Speed or Power
+        avg_speed = None
+        avg_power = None
+        avg_torque = None
+        ratio = None
+        
+        is_bike = activity_type.lower() in ["bike", "ride", "virtualride", "cycling"]
+        
+        if is_bike:
+            avg_power = float(df['power'].mean()) if 'power' in df.columns else None
+            avg_torque = float(df['torque'].mean()) if 'torque' in df.columns else None
+            if avg_power and avg_hr and avg_power > 0:
+                ratio = avg_hr / avg_power
+        else:
+            # Assume Run/Trail
+            avg_speed = float(df['speed'].mean()) if 'speed' in df.columns else None
+            if avg_speed and avg_hr and avg_speed > 0:
+                ratio = avg_hr / avg_speed
+                
+        return SegmentData(
+            hr=avg_hr,
+            speed=avg_speed,
+            power=avg_power,
+            ratio=ratio,
+            torque=avg_torque
+        )
+
+    def auto_split(self, df: pd.DataFrame, n_phases: int, activity_type: str) -> Dict[str, SegmentData]:
+        """
+        Splits the activity into N equal phases based on index.
+        """
+        if df.empty:
+            return {}
+            
+        n = len(df)
+        step = n // n_phases
+        splits = {}
+        
+        for i in range(n_phases):
+            start_idx = i * step
+            # For the last phase, take until the end to avoid rounding issues
+            end_idx = (i + 1) * step if i < n_phases - 1 else n
+            
+            phase_df = df.iloc[start_idx:end_idx]
+            splits[f"phase_{i+1}"] = self.calculate_segment(phase_df, activity_type)
+            
+        return splits
+
+    def manual_split(self, df: pd.DataFrame, manual_config: List[Dict[str, Any]], activity_type: str) -> Dict[str, SegmentData]:
+        """
+        Splits the activity based on manual time or distance markers.
+        """
+        if df.empty:
+            return {}
+            
+        splits = {}
+        for i, config in enumerate(manual_config):
+            start = config["start"]
+            end = config["end"]
+            unit = config["unit"]
+            
+            if unit == "km":
+                # Convert km to meters if distance is in meters in df
+                # Karoly usually gives km, FIT stores meters.
+                # Assuming 'distance' column is in meters.
+                phase_df = df[(df['distance'] >= start * 1000) & (df['distance'] <= end * 1000)]
+            else:
+                # Time in seconds (elapsed_time or similar)
+                # Assuming 'timestamp' or 'elapsed_time'
+                if 'elapsed_time' in df.columns:
+                    phase_df = df[(df['elapsed_time'] >= start) & (df['elapsed_time'] <= end)]
+                else:
+                    # Fallback to index if time not available correctly
+                    phase_df = df.iloc[int(start):int(end)]
+            
+            label = config.get("label", f"phase_{i+1}")
+            splits[label] = self.calculate_segment(phase_df, activity_type)
+            
+        return splits
