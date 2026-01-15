@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
+from pydantic import BaseModel
 from projectk_core.logic.models import Activity
 
 class ActivityWriter:
@@ -16,6 +17,13 @@ class ActivityWriter:
         """
         meta = activity.metadata
         metrics = activity.metrics
+        
+        # Handle Pydantic model
+        if isinstance(metrics, BaseModel):
+            metrics_dict = metrics.model_dump()
+        else:
+            metrics_dict = metrics or {}
+            
         df = activity.streams
         
         # Calculate raw averages if streams exist
@@ -41,9 +49,15 @@ class ActivityWriter:
             "weather_source": "device" if temp_avg is not None else None,
             
             # Metrics (Karoly)
-            "load_index": metrics.get("mls_load"),
-            "durability_index": metrics.get("dur_index"),
-            "decoupling_index": metrics.get("drift_pahr_percent"),
+            "load_index": metrics_dict.get("mls_load"),
+            "durability_index": metrics_dict.get("dur_index"),
+            "decoupling_index": metrics_dict.get("drift_pahr_percent"),
+            
+            # Interval Metrics
+            "interval_power_last": metrics_dict.get("interval_power_last"),
+            "interval_hr_last": metrics_dict.get("interval_hr_last"),
+            "interval_power_mean": metrics_dict.get("interval_power_mean"),
+            "interval_hr_mean": metrics_dict.get("interval_hr_mean"),
             
             # Averages
             "avg_power": avg_power,

@@ -56,16 +56,27 @@ This file tracks the master plan, strictly aligned with the contract phases.
 - Graphiques Matplotlib intégrés.
 - Encarts "Alerte Coach".
 
----
-
-# 📊 PHASE 3 : Visualisation & Pilotage (LOCKED)
-**Objectif :** Dashboard Streamlit & Module Nutrition.
-*Démarre uniquement après validation de la Phase 2.*
-
-## [ ] Track 3.1: Dashboard Streamlit
-- Heatmap de Charge (Athlètes x Semaines).
-- Vue détaillée par clic.
-
-## [ ] Track 3.2: Module Nutrition MVP
 - Parsing simple des commentaires Nolio (Regex).
 - Affichage "Glucides/h".
+
+---
+
+
+
+- [~] **Track: Auto-Detection of Interval Metrics (Nolio Plan Driven)**
+
+    - **Status:** 🟠 Logic completed & tested. Integration blocked by Nolio API permissions.
+
+    - **Link:** [./tracks/intervals_nolio_20260115/](./tracks/intervals_nolio_20260115/)
+
+
+
+- [~] **Track: Smart Segmentation & Multi-Phase Analysis**
+
+
+
+    - **Status:** 🟢 New track created. Ready for implementation.
+
+
+
+    - **Link:** [./tracks/smart_segmentation_20260115/](./tracks/smart_segmentation_20260115/)

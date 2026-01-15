@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from projectk_core.processing.parser import FitParser
 from projectk_core.processing.calculator import MetricsCalculator
-from projectk_core.logic.models import Activity, ActivityMetadata, PhysioProfile, Athlete
+from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetrics, PhysioProfile, Athlete
 from projectk_core.logic.config_manager import AthleteConfig
 from projectk_core.db.writer import ActivityWriter
 
@@ -17,11 +17,14 @@ def validate_pipeline(file_path):
     # 1. Parsing
     print("\n[1] Parsing...")
     try:
-        df = FitParser.parse(file_path)
+        df, meta_dev, laps = FitParser.parse(file_path)
         print(f"    OK. Rows: {len(df)}")
+        if meta_dev.get('serial_number'):
+            print(f"    Device: {meta_dev['manufacturer']} {meta_dev['product']} (S/N: {meta_dev['serial_number']})")
         print(f"    Duration: {len(df)/60:.1f} min")
         print(f"    Avg Power: {df['power'].mean():.1f} W")
         print(f"    Avg HR: {df['heart_rate'].mean():.1f} bpm")
+        print(f"    Laps: {len(laps)}")
     except Exception as e:
         print(f"    FAIL Parsing: {e}")
         return
@@ -45,19 +48,19 @@ def validate_pipeline(file_path):
         device_id="ValidationScript"
     )
     
-    activity = Activity(metadata=meta, streams=df)
+    activity = Activity(metadata=meta, streams=df, laps=laps)
     
     # 3. Calculation
     print("\n[3] Calculation (The Brain)...")
     calc = MetricsCalculator(config)
-    metrics = calc.compute(activity, profile)
-    activity.metrics = metrics
+    metrics_dict = calc.compute(activity, profile)
+    activity.metrics = ActivityMetrics(**metrics_dict)
     
-    for k, v in metrics.items():
+    for k, v in metrics_dict.items():
         print(f"    {k}: {v}")
         
     # Validation de cohérence
-    if metrics['mls_load'] > 0:
+    if metrics_dict['mls_load'] > 0:
         print("    -> MLS Load généré avec succès.")
     else:
         print("    WARNING: MLS Load is 0 or NaN.")

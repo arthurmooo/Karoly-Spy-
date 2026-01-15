@@ -62,3 +62,27 @@
 - **Nouveaux Champs Coros :** `Effort Pace` est extrait mais pas encore utilisé dans le calcul de charge (on utilise `Speed` ou `Power`). C'est une opportunité manquée pour l'instant.
 
 ---
+
+## [Track: Auto-Detection of Interval Metrics]
+**Date:** 15 Janvier 2026
+**Statut:** 🟠 Logic Terminé / Integration Bloquée
+
+### 🟢 Points de Succès
+1.  **Moteur de Détection Robuste:** L'algorithme (`IntervalDetector.py`) basé sur `scipy.signal` + `pandas` identifie correctement les intervalles sur 4 fichiers de test réels.
+2.  **Fallback "No Power":** Le système fonctionne même pour les séances sans capteur de puissance (détection sur Vitesse), validé avec une séance Seuil 2x10'.
+3.  **Clean Code:** Pydantic Models (`ActivityMetrics`) stricts implémentés partout.
+
+### 🔴 Failles Critiques (BLOCKER)
+1.  **Nolio API Permissions (Error 400):**
+    *   *Situation:* Impossible d'accéder aux endpoints `/get/training` et `/get/planned`.
+    *   *Impact:* On ne peut pas récupérer automatiquement la structure prévue ("3x1000m").
+    *   *Conséquence:* Le moteur d'intervalles est prêt mais n'a pas de carburant (JSON plan).
+    *   *Action:* Karoly doit faire whitelister son ClientID.
+
+### 🟠 Points Bancales
+1.  **Estimation Durée vs Distance:**
+    *   *Risque:* L'algo attend une **durée** (secondes). Si Nolio renvoie "1000m", je dois convertir. Pour l'instant, je convertis via la vitesse max de la séance. C'est précis pour les bons coureurs, mais pourrait être faussé sur terrain vallonné.
+    *   *Action:* Implanter une logique `Detect by Distance` native dans le futur.
+
+---
+- [DANGER] 2026-01-13: Injected DUMMY LT1/LT2 (135/165) for Adrien Claeyssen to test Nolio Ingestion. MUST BE REPLACED.

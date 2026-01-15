@@ -1,40 +1,86 @@
 import os
 import requests
-from typing import Optional, List, Dict, Any
+import time
+from typing import List, Dict, Optional, Any
+from ..auth.nolio_auth import NolioAuthenticator
 
 class NolioClient:
     """
-    Client for Nolio API to fetch activities and metadata.
+    Client for interacting with the Nolio API.
+    Handles rate limiting and token refreshing automatically.
     """
-    BASE_URL = "https://www.nolio.io/api/v1"
+    
+    BASE_URL = "https://www.nolio.io/api"
+    
+    def __init__(self):
+        self.auth = NolioAuthenticator()
+        self._token = None
+    
+    def _get_headers(self) -> Dict[str, str]:
+        """Ensures valid token and returns headers."""
+        self._token = self.auth.get_valid_token()
+        return {
+            "Authorization": f"Bearer {self._token}",
+            "Accept": "application/json"
+        }
 
-    def __init__(self, client_id: Optional[str] = None, client_secret: Optional[str] = None):
-        self.client_id = client_id or os.environ.get("NOLIO_CLIENT_ID")
-        self.client_secret = client_secret or os.environ.get("NOLIO_CLIENT_SECRET")
-        self.access_token = None
-
-    def authenticate(self) -> bool:
-        """
-        Authenticate with Nolio using OAuth2.
-        (Requires Client Secret)
-        """
-        if not self.client_id or not self.client_secret:
-            return False
+    def get_managed_athletes(self) -> List[Dict[str, Any]]:
+        """Fetches list of athletes managed by the coach."""
+        url = f"{self.BASE_URL}/get/athletes/"
+        response = requests.get(url, headers=self._get_headers())
+        
+        if response.status_code == 429:
+            print("⚠️ Nolio Rate Limit hit. Waiting 60s...")
+            time.sleep(60)
+            return self.get_managed_athletes()
             
-        # Placeholder for OAuth2 token exchange
-        # url = f"{self.BASE_URL}/oauth/token"
-        # ...
-        return False
+        response.raise_for_status()
+        return response.json()
 
-    def list_activities(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_activities(self, athlete_id: int, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
-        List activities for the authenticated user within a date range.
+        Fetches COMPLETED activities for a specific athlete.
+        Uses the 'limit' param to avoid pagination hell if possible,
+        but for range queries we rely on date filters.
         """
-        # Placeholder for API call
-        return []
+        # Note: Nolio endpoint is /get/training/
+        # Parameters: athlete_id (if coach), from, to
+        url = f"{self.BASE_URL}/get/training/"
+        params = {
+            "athlete_id": athlete_id,
+            "from": date_from,
+            "to": date_to,
+            "limit": 50 # Max reasonable batch
+        }
+        
+        response = requests.get(url, headers=self._get_headers(), params=params)
+        
+        if response.status_code == 429:
+            print("⚠️ Nolio Rate Limit hit. Waiting 60s...")
+            time.sleep(60)
+            return self.get_activities(athlete_id, date_from, date_to)
+        
+        if response.status_code == 400:
+            print(f"❌ Nolio API 400 Error: {response.text}")
+            
+        response.raise_for_status()
+        return response.json()
 
-    def get_activity_details(self, activity_id: str) -> Dict[str, Any]:
+    def download_fit_file(self, file_url: str) -> Optional[bytes]:
         """
-        Get full details for a specific activity (including FIT file URL).
+        Downloads the FIT file from the temporary URL provided by Nolio.
+        Returns raw bytes.
         """
-        return {}
+        if not file_url:
+            return None
+            
+        try:
+            # Note: The file_url is usually a signed AWS/GCS link, 
+            # so we don't need the Nolio Auth header for this specific call,
+            # just a standard GET.
+            response = requests.get(file_url, stream=True)
+            response.raise_for_status()
+            return response.content
+        except Exception as e:
+            print(f"❌ Download failed for {file_url}: {e}")
+            return None

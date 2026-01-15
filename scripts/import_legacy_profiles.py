@@ -57,17 +57,17 @@ def extract_profiles():
                         continue
                         
                     # Create profile entry
-                    # Simplified logic: use Test HRmean as LT2 placeholder for now
-                    # and valid_from = test date
+                    # NO APPROXIMATION: Leave thresholds null until explicitly provided
                     db.client.table("physio_profiles").insert({
                         "athlete_id": athlete_id,
                         "sport": sport,
-                        "lt2_hr": int(hr_mean),
-                        "lt2_power_pace": float(power) if not pd.isna(power) else None,
+                        "lt1_hr": None,
+                        "lt2_hr": None,
+                        "lt2_power_pace": None,
                         "valid_from": dt.isoformat(),
                         "valid_to": None
                     }).execute()
-                    print(f"  -> Profile created for {name} ({sport}) on {date_str}")
+                    print(f"  -> Test date placeholder created for {name} ({sport}) on {date_str}")
                     
                 except Exception as e:
                     pass # Skip rows with unparseable dates

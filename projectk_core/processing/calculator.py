@@ -70,19 +70,32 @@ class MetricsCalculator:
              mech_source = pd.Series(np.zeros(len(df)))
              mech_ref = 1
 
-        # 3. Energy (kJ)
+        # 3. Energy (kJ) & Intensity Fallback
         # Only valid for Power. For speed, Karoly returns None.
         if has_power:
             # sum(Watts * seconds) / 1000 = kJ
             # We assume NaNs are 0 (coast/stop)
             energy_kj = df['power'].fillna(0).sum() * dt / 1000.0
+        elif 'heart_rate' in df.columns and profile.lt2_hr:
+            # FALLBACK: Estimate Energy/Power via HR if no power meter
+            # Very rough proxy: IF ~ HR / LT2_HR (assuming LT2 is roughly FTP HR)
+            # Power ~ IF * CP
+            hr_avg = df['heart_rate'].mean()
+            if_est = hr_avg / profile.lt2_hr if profile.lt2_hr else 0.6
+            power_est = if_est * profile.cp if profile.cp else 150
+            energy_kj = (power_est * total_seconds) / 1000.0
+            
+            # Update intensity series for IF calc later
+            # We construct a synthetic constant intensity series
+            intensity_series = pd.Series([if_est] * len(df))
+            mech_source = pd.Series([power_est] * len(df)) # Synthetic flat power
         else:
             energy_kj = 0.0 # Or None, but float logic prefers 0.0
 
         # 4. IF (Intensity Factor)
         # Mean of intensity series (zeros included? Yes, IF includes zeros usually)
         # Karoly's notebook: df["intensity"].mean() (includes zeros if present)
-        if_mean = intensity_series.mean()
+        if_mean = intensity_series.mean() if not intensity_series.empty else 0.0
 
         # 5. Mechanical Load (MEC)
         # f_int based on IF
@@ -118,19 +131,23 @@ class MetricsCalculator:
         # Note: Karoly uses non-zero values for averages usually, or keeps zeros?
         # Code: "first['power'].mean()". Includes zeros.
         
-        p1 = mech_source.iloc[:mid_idx].mean()
-        p2 = mech_source.iloc[mid_idx:].mean()
-        
-        h1 = hr_smooth.iloc[:mid_idx].mean()
-        h2 = hr_smooth.iloc[mid_idx:].mean()
-        
-        pahr_1 = p1 / h1 if h1 > 0 else np.nan
-        pahr_2 = p2 / h2 if h2 > 0 else np.nan
-        
-        if np.isnan(pahr_1) or np.isnan(pahr_2) or pahr_1 == 0:
-            drift_pahr_pct = 0.0
+        if not mech_source.empty and has_power: # Only calc drift if real power source
+            p1 = mech_source.iloc[:mid_idx].mean()
+            p2 = mech_source.iloc[mid_idx:].mean()
+            
+            h1 = hr_smooth.iloc[:mid_idx].mean()
+            h2 = hr_smooth.iloc[mid_idx:].mean()
+            
+            pahr_1 = p1 / h1 if h1 > 0 else np.nan
+            pahr_2 = p2 / h2 if h2 > 0 else np.nan
+            
+            if np.isnan(pahr_1) or np.isnan(pahr_2) or pahr_1 == 0:
+                drift_pahr_pct = 0.0
+            else:
+                drift_pahr_pct = (pahr_2 / pahr_1 - 1) * 100
         else:
-            drift_pahr_pct = (pahr_2 / pahr_1 - 1) * 100
+            # No power -> No Pa:HR drift possible
+            drift_pahr_pct = 0.0
             
         drift_abs = abs(drift_pahr_pct)
         drift_threshold = self.config.get('drift_threshold_percent', 3.0)
@@ -161,7 +178,31 @@ class MetricsCalculator:
             np_val = 0.0
             tss = 0.0
 
+        # 10. Interval Metrics (Requested by Karoly)
+        # We use the laps extracted by the parser
+        last_lap = activity.laps[-1] if activity.laps else {}
+        
+        # Weighted averages for all intervals (laps)
+        total_lap_time = sum(l.get('total_elapsed_time', 0) for l in activity.laps)
+        if total_lap_time > 0:
+            # We filter out laps with 0 or None to avoid dragging down the average if some laps are empty
+            valid_p_laps = [l for l in activity.laps if l.get('avg_power') is not None]
+            valid_hr_laps = [l for l in activity.laps if l.get('avg_heart_rate') is not None]
+            
+            p_time = sum(l.get('total_elapsed_time', 0) for l in valid_p_laps)
+            hr_time = sum(l.get('total_elapsed_time', 0) for l in valid_hr_laps)
+            
+            avg_intervals_power = sum(l.get('avg_power', 0) * l.get('total_elapsed_time', 0) for l in valid_p_laps) / p_time if p_time > 0 else 0.0
+            avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('total_elapsed_time', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else 0.0
+        else:
+            avg_intervals_power = 0.0
+            avg_intervals_hr = 0.0
+
         return {
+            "interval_power_last": round(float(last_lap.get('avg_power', 0) or 0), 1),
+            "interval_hr_last": round(float(last_lap.get('avg_heart_rate', 0) or 0), 1),
+            "interval_power_mean": round(avg_intervals_power, 1),
+            "interval_hr_mean": round(avg_intervals_hr, 1),
             "energy_kj": round(energy_kj, 1),
             "intensity_factor": round(if_mean, 3),
             "mec": round(mec, 1),

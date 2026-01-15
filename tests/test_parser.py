@@ -13,11 +13,13 @@ SAMPLE_FILE = "allure_semi.fit"
 @pytest.mark.skipif(not os.path.exists(SAMPLE_FILE), reason="Fichier de sample manquant")
 def test_parse_real_file():
     """Test le parsing du fichier Coros 5x2000m."""
-    df = FitParser.parse(SAMPLE_FILE)
+    df, meta = FitParser.parse(SAMPLE_FILE)
     
     # Vérifications structurelles
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
+    assert isinstance(meta, dict)
+    assert 'serial_number' in meta
     
     # Vérification des colonnes essentielles
     expected_cols = ['timestamp', 'power', 'heart_rate', 'cadence', 'speed', 'altitude']

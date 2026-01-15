@@ -1,5 +1,6 @@
 import fitdecode
 import pandas as pd
+import sys
 
 def debug_fit_with_fitdecode(file_path):
     print(f"--- Inspection de {file_path} avec fitdecode ---")
@@ -21,17 +22,16 @@ def debug_fit_with_fitdecode(file_path):
         print(f"Lignes extraites : {len(df)}")
         print(f"Champs disponibles : {list(df.columns)}")
         
-        cols = [c for c in ['timestamp', 'heart_rate', 'power', 'speed', 'distance', 'Effort Pace'] if c in df.columns]
+        cols = [c for c in ['timestamp', 'heart_rate', 'power', 'speed', 'distance', 'calories'] if c in df.columns]
         print("\nAperçu (5 dernières lignes) :")
         print(df[cols].tail(5))
         
-        # Statut sur la puissance
-        if 'power' in df.columns:
-            p_mean = df['power'].dropna().mean()
-            print(f"\nPuissance moyenne détectée : {p_mean:.1f} W")
+        if 'calories' in df.columns:
+            print(f"\nCalories totales (cumulées ou max) : {df['calories'].max() if 'calories' in df.columns else 'N/A'}")
         
     except Exception as e:
         print(f"Erreur avec fitdecode : {e}")
 
 if __name__ == "__main__":
-    debug_fit_with_fitdecode("allure_semi.fit")
+    file_to_debug = sys.argv[1] if len(sys.argv) > 1 else "allure_semi.fit"
+    debug_fit_with_fitdecode(file_to_debug)

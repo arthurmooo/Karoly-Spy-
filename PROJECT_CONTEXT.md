@@ -33,7 +33,7 @@
 - **Ingestion**: Automated sync from Nolio to Supabase Storage with unique global hashing.
 - **Database (Supabase/PostgreSQL)**:
     - `athletes`: Profiles and metadata.
-    - `physio_profiles`: Slowly Changing Dimensions (SCD Type 2) for thresholds (LT1, LT2, CP, etc.).
+    - `physio_profiles`: Slowly Changing Dimensions (SCD Type 2) for thresholds (LT1, LT2, CP, etc.). Data synced from Nolio API (/get/user/meta/).
     - `activities`: Results of calculations (Charge, Durability, Decoupling).
     - `athlete_devices`: Hardware mapping via Serial Numbers.
 - **Bridge**: Secure connector between Python and DB.
