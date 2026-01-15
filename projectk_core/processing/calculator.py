@@ -1,13 +1,16 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Tuple
-from projectk_core.logic.models import Activity, PhysioProfile
+from typing import Dict, Any, Tuple, Optional
+from projectk_core.logic.models import Activity, PhysioProfile, SegmentationOutput
 from projectk_core.logic.config_manager import AthleteConfig
+from projectk_core.logic.classifier import ActivityClassifier
+from projectk_core.processing.segmentation import SegmentCalculator
 
 class MetricsCalculator:
     """
     Core calculation engine for Project K.
     Implements vectorized physiological metrics and Karoly's Mixed Load Model (MLS).
+    Now includes smart segmentation for competition and training analysis.
     """
     
     # Hardcoded bins from Karoly's notebook (could be moved to DB config later)
@@ -21,15 +24,22 @@ class MetricsCalculator:
 
     def __init__(self, config: AthleteConfig):
         self.config = config
+        self.classifier = ActivityClassifier()
+        self.segmenter = SegmentCalculator()
 
-    def compute(self, activity: Activity, profile: PhysioProfile) -> Dict[str, float]:
+    def compute(self, activity: Activity, profile: PhysioProfile, nolio_type: Optional[str] = None, nolio_comment: Optional[str] = None) -> Dict[str, Any]:
         """
         Computes all metrics for a given activity and athlete profile.
+        Includes smart segmentation based on activity classification.
         """
         if activity.empty:
             return {}
 
         df = activity.streams
+        meta = activity.metadata
+        
+        # ... (keep existing calculations) ...
+        # (I will perform a partial replace to keep the existing logic intact)
         
         # 1. Basic Pre-calc
         # Duration (dt is 1s because of resampling, but let's be robust)
@@ -198,6 +208,24 @@ class MetricsCalculator:
             avg_intervals_power = 0.0
             avg_intervals_hr = 0.0
 
+        # 11. Smart Segmentation (Karoly's Request)
+        # Determine strategy
+        strategy = self.classifier.get_strategy(meta.activity_type, nolio_type or "", nolio_comment or "")
+        sport = "bike" if meta.activity_type.lower() in ["bike", "ride", "virtualride", "cycling"] else "run"
+        
+        seg_output = SegmentationOutput(segmentation_type=strategy)
+        
+        if strategy == "manual":
+            manual_config = self.classifier.parse_splits(nolio_comment)
+            seg_output.manual = self.segmenter.manual_split(df, manual_config, sport)
+        elif strategy == "auto_competition":
+            # 2 phases AND 4 phases for competition
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport)
+            seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport)
+        else: # auto_training
+            # Systematic 2 phases for continuous training
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport)
+
         return {
             "interval_power_last": round(float(last_lap.get('avg_power', 0) or 0), 1),
             "interval_hr_last": round(float(last_lap.get('avg_heart_rate', 0) or 0), 1),
@@ -211,7 +239,8 @@ class MetricsCalculator:
             "drift_pahr_percent": round(drift_pahr_pct, 2),
             "mls_load": round(mls_load, 1),
             "normalized_power": round(np_val, 1),
-            "tss": round(tss, 1)
+            "tss": round(tss, 1),
+            "segmented_metrics": seg_output
         }
 
     def _pick_intensity_factor(self, if_val: float) -> float:

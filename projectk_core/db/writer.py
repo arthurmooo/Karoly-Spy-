@@ -59,6 +59,9 @@ class ActivityWriter:
             "interval_power_mean": metrics_dict.get("interval_power_mean"),
             "interval_hr_mean": metrics_dict.get("interval_hr_mean"),
             
+            # Smart Segmentation (New JSONB column)
+            "segmented_metrics": metrics_dict.get("segmented_metrics"),
+            
             # Averages
             "avg_power": avg_power,
             "avg_hr": avg_hr,

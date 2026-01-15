@@ -13,10 +13,10 @@
     - [x] Add logic to detect "Competition" vs "Training" vs "Intervals".
     - [x] Implement Regex to parse the `#split:` tag from Nolio comments.
 - [x] Task: Create unit tests for the classifier.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) [checkpoint: 2617d9e]
 
 ## Phase 3: Slicing & Calculation Engine
-- [ ] Task: Implement `SegmentCalculator` in `projectk_core/processing/segmentation.py`.
+- [~] Task: Implement `SegmentCalculator` in `projectk_core/processing/segmentation.py`.
     - [ ] Create a generic slicer that takes a DataFrame and a list of start/end points (time or distance).
     - [ ] Implement calculation logic for Run (Speed ratio) vs Bike (Power/Torque ratio).
 - [ ] Task: Integrate `SegmentCalculator` into the `MetricsCalculator`.
