@@ -1,0 +1,42 @@
+import pytest
+from projectk_core.logic.classifier import ActivityClassifier
+
+def test_classify_competition_keywords():
+    classifier = ActivityClassifier()
+    
+    # Test keywords
+    assert classifier.is_competition("Mon premier Marathon", "Course") == True
+    assert classifier.is_competition("Semi-marathon de Paris", "") == True
+    assert classifier.is_competition("Sortie longue", "Course à pied") == False
+    assert classifier.is_competition("Triathlon 90km", "") == True
+
+def test_parse_split_tags():
+    classifier = ActivityClassifier()
+    
+    # Test distance-based split
+    tags_km = classifier.parse_splits("#split: 0-10, 10-21.1")
+    assert len(tags_km) == 2
+    assert tags_km[0] == {"start": 0, "end": 10, "unit": "km"}
+    assert tags_km[1] == {"start": 10, "end": 21.1, "unit": "km"}
+    
+    # Test time-based split
+    tags_time = classifier.parse_splits("Super séance ! #split: 00:00:00-00:45:00, 00:45:00-01:30:00")
+    assert len(tags_time) == 2
+    assert tags_time[0]["unit"] == "time"
+    assert tags_time[0]["start"] == 0
+    assert tags_time[1]["start"] == 2700 # 45 min in seconds
+
+def test_determine_segmentation_strategy():
+    classifier = ActivityClassifier()
+    
+    # Case 1: Manual takes precedence
+    strategy = classifier.get_strategy("Course", "Race", "#split: 0-5, 5-10")
+    assert strategy == "manual"
+    
+    # Case 2: Competition auto
+    strategy = classifier.get_strategy("Marathon", "Competition", "")
+    assert strategy == "auto_competition"
+    
+    # Case 3: Training auto
+    strategy = classifier.get_strategy("Footing", "Entraînement", "")
+    assert strategy == "auto_training"
