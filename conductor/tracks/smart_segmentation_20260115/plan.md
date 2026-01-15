@@ -1,4 +1,4 @@
-# Implementation Plan - Track: Smart Segmentation & Multi-Phase Analysis
+# Implementation Plan - Track: Smart Segmentation & Multi-Phase Analysis [checkpoint: c244f3a]
 
 ## Phase 1: Database & Model Preparation
 - [x] Task: Create a DB migration to store the new segmented metrics. 5c3e5df
@@ -6,13 +6,13 @@
 - [x] Task: Update `ActivityMetrics` Pydantic model in `projectk_core/logic/models.py`. 0a7e0cb
     - [x] Define `SegmentData` sub-model (hr, speed, power, ratio, torque).
     - [x] Define `SegmentationOutput` model (splits_2, splits_4, manual).
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Nolio Metadata & Classification Logic
-- [ ] Task: Implement `ActivityClassifier` in `projectk_core/logic/classifier.py`.
-    - [ ] Add logic to detect "Competition" vs "Training" vs "Intervals".
-    - [ ] Implement Regex to parse the `#split:` tag from Nolio comments.
-- [ ] Task: Create unit tests for the classifier.
+- [x] Task: Implement `ActivityClassifier` in `projectk_core/logic/classifier.py`. 9d7ed16
+    - [x] Add logic to detect "Competition" vs "Training" vs "Intervals".
+    - [x] Implement Regex to parse the `#split:` tag from Nolio comments.
+- [x] Task: Create unit tests for the classifier.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Slicing & Calculation Engine
