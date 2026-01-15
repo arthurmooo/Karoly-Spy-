@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
 import pandas as pd
@@ -57,15 +57,60 @@ class ActivityMetadata(BaseModel):
     device_id: Optional[str] = None
     rpe: Optional[float] = Field(None, ge=1, le=10)
 
+class SegmentData(BaseModel):
+    """
+    Metrics for a specific segment/phase of an activity.
+    """
+    hr: Optional[float] = None
+    speed: Optional[float] = None
+    power: Optional[float] = None
+    ratio: Optional[float] = Field(None, description="Efficiency Factor (HR/Speed or HR/Power)")
+    torque: Optional[float] = None
+
+class SegmentationOutput(BaseModel):
+    """
+    Container for multi-phase segmentation results.
+    """
+    segmentation_type: str = Field(..., description="e.g. 'auto_competition', 'auto_training', 'manual'")
+    splits_2: Optional[Dict[str, SegmentData]] = None
+    splits_4: Optional[Dict[str, SegmentData]] = None
+    manual: Optional[Dict[str, SegmentData]] = None
+
+class ActivityMetrics(BaseModel):
+    """
+    Computed physiological metrics for an activity.
+    """
+    # Standard Metrics
+    normalized_power: Optional[float] = None
+    tss: Optional[float] = None
+    intensity_factor: Optional[float] = None
+    energy_kj: Optional[float] = None
+    
+    # Karoly Specific
+    mls_load: Optional[float] = None
+    mec: Optional[float] = None
+    int_index: Optional[float] = None
+    dur_index: Optional[float] = None
+    drift_pahr_percent: Optional[float] = None
+    
+    # Interval Metrics
+    interval_power_last: Optional[float] = None
+    interval_hr_last: Optional[float] = None
+    interval_power_mean: Optional[float] = None
+    interval_hr_mean: Optional[float] = None
+    
+    # Smart Segmentation Metrics
+    segmented_metrics: Optional[SegmentationOutput] = None
+
 class Activity:
     """
     Represents a single workout session with raw data streams and computed metrics.
     """
-    def __init__(self, metadata: ActivityMetadata, streams: pd.DataFrame):
+    def __init__(self, metadata: ActivityMetadata, streams: pd.DataFrame, laps: Optional[List[dict]] = None):
         self.metadata = metadata
         self.streams = streams
-        # Placeholder for computed metrics (will be populated by processing logic)
-        self.metrics = {} 
+        self.laps = laps or []
+        self.metrics: ActivityMetrics = ActivityMetrics()
     
     @property
     def empty(self) -> bool:
