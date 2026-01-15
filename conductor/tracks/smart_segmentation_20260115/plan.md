@@ -3,9 +3,9 @@
 ## Phase 1: Database & Model Preparation
 - [x] Task: Create a DB migration to store the new segmented metrics. 5c3e5df
     - [x] Option: Add a `segmented_metrics` JSONB column to the `activity_metrics` table.
-- [ ] Task: Update `ActivityMetrics` Pydantic model in `projectk_core/logic/models.py`.
-    - [ ] Define `SegmentData` sub-model (hr, speed, power, ratio, torque).
-    - [ ] Define `SegmentationOutput` model (splits_2, splits_4, manual).
+- [x] Task: Update `ActivityMetrics` Pydantic model in `projectk_core/logic/models.py`. 0a7e0cb
+    - [x] Define `SegmentData` sub-model (hr, speed, power, ratio, torque).
+    - [x] Define `SegmentationOutput` model (splits_2, splits_4, manual).
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Nolio Metadata & Classification Logic
