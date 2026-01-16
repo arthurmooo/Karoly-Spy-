@@ -1,4 +1,4 @@
-name: Ultimate Karoly Robot
+name: Robot V5 Final Boss
 
 on:
   schedule:
@@ -26,12 +26,12 @@ jobs:
           NOLIO_REFRESH_TOKEN: ${{ secrets.NOLIO_REFRESH_TOKEN }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
-          echo "💿 Installing Dependencies..."
+          echo "💿 Installing ALL Dependencies..."
           pip install --upgrade pip
           pip install supabase==2.3.0 requests==2.31.0 python-dotenv==1.0.0 pandas==2.1.4 numpy==1.26.2 tqdm==4.66.1 pydantic==2.5.3 fitparse==1.2.0 fitdecode matplotlib==3.8.2 scipy==1.11.4 geopy==2.4.1 fastapi==0.108.0 uvicorn==0.25.0 rich
           
-          echo "✅ Dependencies Installed. Checking 'rich'..."
-          python -c "import rich; print('Rich is importable!')"
+          echo "✅ Imports Check..."
+          python -c "import rich; import fitdecode; print('ALL SYSTEMS GO')"
           
           echo "🚀 STARTING ROBOT..."
           python run_k.py ingest --days 3
