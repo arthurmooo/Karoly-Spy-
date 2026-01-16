@@ -15,14 +15,14 @@
 - [x] **Task: Integrate Ingestion Module** [1dfa737]
     - Link `run_k.py ingest` to `scripts/run_ingest.py` logic.
     - Expose flags: `--days`, `--athlete`.
-- [~] **Task: Implement Reprocessing Mode**
+- [x] **Task: Implement Reprocessing Mode**
     - **Why?** If we update the algorithm (Track 1.2) or fix a profile, we need to update past activities without re-downloading them.
     - Logic: Fetch `activities` from DB -> Re-run `MetricsCalculator` -> Update `activity_metrics`.
 
 ## 2. Refinement & Hardening
-- [ ] **Task: Global Exception Handling**
+- [x] **Task: Global Exception Handling**
     - Ensure `run_k.py` never crashes hard. Capture errors, log them to `logs/project_k.log`, and print a friendly summary.
-- [ ] **Task: UTC/Timezone Standardization**
+- [x] **Task: UTC/Timezone Standardization**
     - Review all datetime handling to ensure everything stored in DB is strict UTC.
 
 ## 3. Delivery Prep

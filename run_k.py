@@ -47,8 +47,16 @@ def cmd_reprocess(args):
     console.print(f"[bold purple]🔄 Launching Reprocessing Engine...[/bold purple]")
     if args.athlete:
         console.print(f"   • Filter: [cyan]{args.athlete}[/cyan]")
-    if args.force:
-        console.print(f"   • [red]Force Mode Active[/red] (Overwrite all)")
+    
+    try:
+        from projectk_core.logic.reprocessor import ReprocessingEngine
+        engine = ReprocessingEngine()
+        engine.run(athlete_name_filter=args.athlete, force=args.force)
+        console.print(f"\n[bold green]✅ Reprocessing Complete.[/bold green]")
+    except Exception as e:
+        console.print(f"\n[bold red]❌ Reprocessing Failed:[/bold red] {e}")
+        log.exception("Reprocessing Error")
+        sys.exit(1)
 
 def cmd_audit(args):
     """
