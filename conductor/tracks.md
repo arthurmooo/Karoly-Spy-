@@ -26,7 +26,7 @@ This file tracks the master plan, strictly aligned with the contract phases.
 - **Validation :** Tests unitaires sur fichier sample pour garantir la précision mathématique.
 - **Livrable :** Une librairie Python `projectk-core` capable d'ingérer un fichier binaire et de sortir un objet JSON de métriques validées.
 
-## [ ] Track 1.3: Ingestion Pipeline & Nolio Sync (Module B)
+## [x] Track 1.3: Ingestion Pipeline & Nolio Sync (Module B)
 *Requires: Nolio API Credentials*
 - **Client API Nolio :** Authentification et récupération automatique des séances.
 - **Stockage Cloud :** Sauvegarde des `.fit` bruts dans Supabase Storage.
@@ -71,11 +71,11 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 
 
-- [~] **Track: Smart Segmentation & Multi-Phase Analysis**
+- [x] **Track: Smart Segmentation & Multi-Phase Analysis**
 
 
 
-    - **Status:** 🟢 New track created. Ready for implementation.
+    - **Status:** 🟢 Completed. 2/4 phases and manual splits logic implemented.
 
 
 
