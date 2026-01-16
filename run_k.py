@@ -30,10 +30,15 @@ def cmd_ingest(args):
     if args.athlete:
         console.print(f"   • Filter: [cyan]{args.athlete}[/cyan]")
     
-    # Placeholder for actual integration
-    # from scripts.run_ingest import IngestionRobot
-    # robot = IngestionRobot(history_days=args.days)
-    # robot.run(specific_athlete_name=args.athlete)
+    try:
+        from scripts.run_ingest import IngestionRobot
+        robot = IngestionRobot(history_days=args.days)
+        robot.run(specific_athlete_name=args.athlete)
+        console.print(f"\n[bold green]✅ Ingestion Sequence Complete.[/bold green]")
+    except Exception as e:
+        console.print(f"\n[bold red]❌ Ingestion Failed:[/bold red] {e}")
+        log.exception("Ingestion Error")
+        sys.exit(1)
 
 def cmd_reprocess(args):
     """
