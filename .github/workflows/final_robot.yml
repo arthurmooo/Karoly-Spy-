@@ -19,8 +19,12 @@ jobs:
 
       - name: Install Libs
         run: |
+          echo "🚀 STARTING INSTALLATION - VERSION V4"
           pip install --upgrade pip
-          pip install supabase==2.3.0 requests==2.31.0 python-dotenv==1.0.0 pandas==2.1.4 numpy==1.26.2 tqdm==4.66.1 pydantic==2.5.3 fitparse==1.2.0 matplotlib==3.8.2 scipy==1.11.4 geopy==2.4.1 fastapi==0.108.0 uvicorn==0.25.0 rich
+          pip install supabase==2.3.0 requests==2.31.0 python-dotenv==1.0.0 pandas==2.1.4 numpy==1.26.2 tqdm==4.66.1 pydantic==2.5.3 fitparse==1.2.0 matplotlib==3.8.2 scipy==1.11.4 geopy==2.4.1 fastapi==0.108.0 uvicorn==0.25.0
+          echo "📦 Installing UI Libs..."
+          pip install rich
+          echo "✅ Installation Complete"
 
       - name: Run Robot
         env:
