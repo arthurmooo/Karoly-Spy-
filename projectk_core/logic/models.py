@@ -10,9 +10,15 @@ class PhysioProfile(BaseModel):
     valid_from: datetime
     lt1_hr: float = Field(gt=0, description="Heart Rate at Lactate Threshold 1")
     lt2_hr: float = Field(gt=0, description="Heart Rate at Lactate Threshold 2")
-    lt1_power: Optional[float] = Field(None, gt=0, description="Power at LT1")
-    lt2_power: Optional[float] = Field(None, gt=0, description="Power at LT2")
-    cp: Optional[float] = Field(None, gt=0, description="Critical Power")
+    lt1_power_pace: Optional[float] = Field(None, gt=0, description="Power/Pace at LT1")
+    lt2_power_pace: Optional[float] = Field(None, gt=0, description="Power/Pace at LT2")
+    cp_cs: Optional[float] = Field(None, gt=0, description="Critical Power / Critical Speed")
+    weight: Optional[float] = Field(None, gt=0)
+
+    @property
+    def cp(self) -> Optional[float]:
+        """Legacy/Alias access for CP/CS"""
+        return self.lt2_power_pace # Karoly uses LT2 as the main anchor for IF
 
     @field_validator('lt2_hr')
     @classmethod
@@ -56,6 +62,10 @@ class ActivityMetadata(BaseModel):
     distance_m: Optional[float] = Field(None, ge=0)
     device_id: Optional[str] = None
     rpe: Optional[float] = Field(None, ge=0, le=10)
+    work_type: Optional[str] = Field(None, description="endurance, intervals, competition")
+    temp_avg: Optional[float] = None
+    humidity_avg: Optional[float] = None
+    weather_source: Optional[str] = Field(None, description="device, openweathermap")
 
 class SegmentData(BaseModel):
     """

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
 from projectk_core.db.connector import DBConnector
+from projectk_core.logic.models import PhysioProfile
 
 class ProfileManager:
     """
@@ -10,7 +11,7 @@ class ProfileManager:
     def __init__(self, db_connector: Optional[DBConnector] = None):
         self.db = db_connector or DBConnector()
 
-    def get_profile_for_date(self, athlete_id: str, sport: str, date: datetime) -> Optional[Dict[str, Any]]:
+    def get_profile_for_date(self, athlete_id: str, sport: str, date: datetime) -> Optional[PhysioProfile]:
         """
         Fetch the physiological profile valid at a specific timestamp.
         Logic: valid_from <= date AND (valid_to > date OR valid_to IS NULL)
@@ -28,7 +29,11 @@ class ProfileManager:
             .execute()
 
         if response.data:
-            return response.data[0]
+            # Map DB fields to Pydantic model
+            raw = response.data[0]
+            # Convert timestamp string to datetime object if needed (Pydantic handles ISO strings)
+            return PhysioProfile(**raw)
+        
         return None
 
     def create_profile(self, profile_data: Dict[str, Any]) -> Dict[str, Any]:

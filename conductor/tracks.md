@@ -4,7 +4,7 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-# 🏭 PHASE 1 : L'Industrialisation Logistique (CURRENT)
+# 🏭 PHASE 1 : L'Industrialisation Logistique (COMPLETED)
 **Objectif :** Transformer le "bricolage de scripts" en "Usine à Données".
 **Livrable Final :** `run_k.py` fonctionnel pour l'analyse automatisée.
 
@@ -34,8 +34,9 @@ This file tracks the master plan, strictly aligned with the contract phases.
 - **Mapping Hardware :** Attribution automatique via Serial Number (Montre -> Athlète).
 - **Livrable :** Script qui "écoute" Nolio et remplit la base automatiquement.
 
-## [ ] Track 1.4: The Master Script & Delivery (Integration)
-*Final Assembly of Phase 1*
+## [x] Track 1.4: The Master Script & Delivery (Integration)
+*Archived in conductor/archive/phase1_track1_4_20260116/*
+- **Link:** [./archive/phase1_track1_4_20260116/plan.md](./archive/phase1_track1_4_20260116/plan.md)
 - **Script Maître `run_k.py` :** Orchestration (Ingestion -> Traitement -> Stockage).
 - **Migration Historique :** Import des archives passées de Karoly.
 - **Gestion Timezones :** Normalisation UTC complète.

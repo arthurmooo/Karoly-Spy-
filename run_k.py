@@ -60,9 +60,34 @@ def cmd_reprocess(args):
 
 def cmd_audit(args):
     """
-    Health check for the database.
+    Health check for the database: identifies missing profiles or default thresholds.
     """
     console.print(f"[bold green]🩺 Launching System Audit...[/bold green]")
+    from projectk_core.db.connector import DBConnector
+    db = DBConnector()
+    
+    # 1. Check Athletes
+    athletes = db.client.table("athletes").select("id, first_name, last_name").execute().data
+    console.print(f"📊 Total Athletes in DB: [cyan]{len(athletes)}[/cyan]")
+    
+    # 2. Check Profiles with default HR
+    # We look for profiles where lt1_hr is 130 and lt2_hr is 160 (our current defaults)
+    defaults = db.client.table("physio_profiles")\
+        .select("athlete_id, sport, lt1_hr, lt2_hr, athletes(first_name, last_name)")\
+        .or_("lt1_hr.eq.130,lt2_hr.eq.160")\
+        .execute().data
+    
+    if defaults:
+        console.print(f"\n[bold yellow]⚠️ {len(defaults)} Profiles using default HR (130/160). Need manual review:[/bold yellow]")
+        for d in defaults:
+            name = f"{d['athletes']['first_name']} {d['athletes']['last_name']}"
+            console.print(f"   • {name.ljust(25)} | Sport: {d['sport'].ljust(5)} | HR: {d['lt1_hr']}/{d['lt2_hr']}")
+    else:
+        console.print("\n[bold green]✅ All heart rate thresholds seem customized.[/bold green]")
+
+    # 3. Activity Count
+    count = db.client.table("activities").select("id", count="exact").limit(1).execute().count
+    console.print(f"\n📈 Total Activities Ingested: [cyan]{count}[/cyan]")
 
 def main():
     parser = argparse.ArgumentParser(

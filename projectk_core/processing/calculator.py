@@ -42,122 +42,78 @@ class MetricsCalculator:
         # (I will perform a partial replace to keep the existing logic intact)
         
         # 1. Basic Pre-calc
-        # Duration (dt is 1s because of resampling, but let's be robust)
-        # Assuming 1Hz resampling from Parser
-        dt = 1.0 
-        total_seconds = len(df)
+        # Duration: Karoly counts active time (rows with HR and valid dt)
+        # Assuming 1Hz resampling, active seconds = count of rows with HR
+        hr_series = df['heart_rate'].dropna()
+        active_seconds = len(hr_series)
+        total_seconds = active_seconds # Alias for clarity with notebook 'total_time_s'
         
+        if total_seconds == 0:
+            return {}
+
         # 2. Intensity & Power Logic
         # Determine if we use Power (Bike/Stryd) or Speed (Run fallback)
-        # Note: Karoly's logic uses Power for Bike and Speed for Run.
-        # But 'allure_semi.fit' is a Run with Power.
-        # Strategy: If Power exists and is valid (>0 mean), use Power for Load.
-        # If not, use Speed/CS.
-        
         has_power = 'power' in df.columns and df['power'].mean() > 10
+        sport = "bike" if meta.activity_type.lower() in ["bike", "ride", "virtualride", "cycling"] else "run"
         
         if has_power and profile.cp:
             intensity_series = df['power'] / profile.cp
             mech_source = df['power']
             mech_ref = profile.cp
-        elif 'speed' in df.columns and hasattr(profile, 'cs') and profile.cs: # TODO: Add CS to profile
-            # Fallback if no power but speed + CS (Critical Speed)
-            # For now, if no CS, we might be stuck. 
-            # Let's assume CP is used as a proxy or we default.
-            # If profile.cp is treated as CS for run in config?
-            # Let's use CP as the reference denominator for now.
-            intensity_series = df['speed'] / profile.cp # Risk here if CP is Watts
+        elif sport == "run" and 'speed' in df.columns and profile.cp:
+            # CS (Critical Speed) is stored in cp for runners
+            intensity_series = df['speed'] / profile.cp
             mech_source = df['speed']
             mech_ref = profile.cp
-        elif has_power and profile.cp: # Duplicate branch? No, logic above covers it.
-             # Fallback: simple default
-             intensity_series = df['power'] * 0 # invalid
-             mech_source = df['power']
-             mech_ref = 1
         else:
-             # Critical fail or return partial
              intensity_series = pd.Series(np.zeros(len(df)))
              mech_source = pd.Series(np.zeros(len(df)))
-             mech_ref = 1
+             mech_ref = 1.0
 
-        # 3. Energy (kJ) & Intensity Fallback
-        # Only valid for Power. For speed, Karoly returns None.
-        if has_power:
-            # sum(Watts * seconds) / 1000 = kJ
-            # We assume NaNs are 0 (coast/stop)
-            energy_kj = df['power'].fillna(0).sum() * dt / 1000.0
-        elif 'heart_rate' in df.columns and profile.lt2_hr:
-            # FALLBACK: Estimate Energy/Power via HR if no power meter
-            # Very rough proxy: IF ~ HR / LT2_HR (assuming LT2 is roughly FTP HR)
-            # Power ~ IF * CP
-            hr_avg = df['heart_rate'].mean()
-            if_est = hr_avg / profile.lt2_hr if profile.lt2_hr else 0.6
-            power_est = if_est * profile.cp if profile.cp else 150
-            energy_kj = (power_est * total_seconds) / 1000.0
-            
-            # Update intensity series for IF calc later
-            # We construct a synthetic constant intensity series
-            intensity_series = pd.Series([if_est] * len(df))
-            mech_source = pd.Series([power_est] * len(df)) # Synthetic flat power
+        # 3. Energy (kJ)
+        # Karoly: Bike uses kJ, Run returns None
+        if sport == "bike" and 'power' in df.columns:
+            energy_kj = df['power'].fillna(0).sum() * 1.0 / 1000.0
         else:
-            energy_kj = 0.0 # Or None, but float logic prefers 0.0
+            energy_kj = None
 
         # 4. IF (Intensity Factor)
-        # Mean of intensity series (zeros included? Yes, IF includes zeros usually)
-        # Karoly's notebook: df["intensity"].mean() (includes zeros if present)
+        # Mean of intensity series on active points
         if_mean = intensity_series.mean() if not intensity_series.empty else 0.0
 
         # 5. Mechanical Load (MEC)
-        # f_int based on IF
-        f_int = self._pick_intensity_factor(if_mean)
-        mec = energy_kj * f_int
+        intensity_factor = self._pick_intensity_factor(if_mean)
+        mec = energy_kj * intensity_factor if energy_kj is not None else None
 
         # 6. Internal Load (INT)
         # Based on HR Time in Zone 2 (LT1 <= HR < LT2)
-        if 'heart_rate' in df.columns:
-            hr = df['heart_rate'].fillna(0)
-            # We assume HR is already smoothed if needed, or we smooth here.
-            # Karoly does 30s rolling smooth. Let's do it.
-            hr_smooth = hr.rolling(window=30, center=True, min_periods=1).mean().fillna(method='bfill').fillna(method='ffill')
-            
-            # Time in Zones
-            # z1 = (hr_smooth < profile.lt1_hr).sum()
-            z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
-            # z3 = (hr_smooth >= profile.lt2_hr).sum()
-            
-            p_hr_lt = z2_count / total_seconds if total_seconds > 0 else 0.0
-            
-            alpha = self.config.get('alpha_load_hr', 0.5)
-            int_index = 1.0 + alpha * p_hr_lt
-        else:
-            int_index = 1.0
-            hr_smooth = pd.Series(np.zeros(len(df)))
+        hr_smooth = df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean()
+        hr_smooth = hr_smooth.fillna(method='bfill').fillna(method='ffill')
+        
+        z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
+        p_hr_lt = z2_count / total_seconds if total_seconds > 0 else 0.0
+        
+        alpha = self.config.get('alpha_load_hr', 0.5)
+        int_index = 1.0 + alpha * p_hr_lt
 
         # 7. Durability (DUR) & Decoupling
-        # Split Halves
-        mid_idx = total_seconds // 2
+        # Split Halves by time
+        mid_idx = len(df) // 2 # 1Hz assumption makes index split equivalent to time split
         
         # Means of first and second half
-        # Note: Karoly uses non-zero values for averages usually, or keeps zeros?
-        # Code: "first['power'].mean()". Includes zeros.
+        p1 = mech_source.iloc[:mid_idx].fillna(0).mean()
+        p2 = mech_source.iloc[mid_idx:].fillna(0).mean()
         
-        if not mech_source.empty and has_power: # Only calc drift if real power source
-            p1 = mech_source.iloc[:mid_idx].mean()
-            p2 = mech_source.iloc[mid_idx:].mean()
-            
-            h1 = hr_smooth.iloc[:mid_idx].mean()
-            h2 = hr_smooth.iloc[mid_idx:].mean()
-            
-            pahr_1 = p1 / h1 if h1 > 0 else np.nan
-            pahr_2 = p2 / h2 if h2 > 0 else np.nan
-            
-            if np.isnan(pahr_1) or np.isnan(pahr_2) or pahr_1 == 0:
-                drift_pahr_pct = 0.0
-            else:
-                drift_pahr_pct = (pahr_2 / pahr_1 - 1) * 100
-        else:
-            # No power -> No Pa:HR drift possible
+        h1 = hr_smooth.iloc[:mid_idx].mean()
+        h2 = hr_smooth.iloc[mid_idx:].mean()
+        
+        pahr_1 = p1 / h1 if h1 > 0 else np.nan
+        pahr_2 = p2 / h2 if h2 > 0 else np.nan
+        
+        if np.isnan(pahr_1) or np.isnan(pahr_2) or pahr_1 == 0:
             drift_pahr_pct = 0.0
+        else:
+            drift_pahr_pct = (pahr_2 / pahr_1 - 1) * 100
             
         drift_abs = abs(drift_pahr_pct)
         drift_threshold = self.config.get('drift_threshold_percent', 3.0)
@@ -166,22 +122,15 @@ class MetricsCalculator:
         dur_index = 1.0 + beta * max(0.0, drift_abs - drift_threshold)
 
         # 8. Final MLS
-        mls_load = mec * int_index * dur_index
+        if mec is not None:
+            mls_load = mec * int_index * dur_index
+        else:
+            mls_load = None
 
         # 9. Standard Metrics (NP, TSS)
-        # NP = cubic mean of 30s smoothed power
         if has_power:
-            # rolling 30s mean
             p_30s = df['power'].rolling(window=30, center=False, min_periods=1).mean()
-            # raise to 4th power (Allen & Coggan is 4th, not cubic? Wait. NP formula is 4th power)
-            # "The summation of the values to the fourth power..."
             np_val = np.sqrt(np.sqrt( (p_30s ** 4).mean() ))
-            
-            # TSS = (sec x NP x IF) / (FTP x 3600) x 100
-            # IF for TSS is NP / FTP.
-            # Caution: Karoly's IF is AvgPower / CP.
-            # Standard TSS IF is NP / FTP.
-            # Let's calculate standard TSS using CP as FTP proxy.
             if_tss = np_val / profile.cp if profile.cp else 0
             tss = (total_seconds * np_val * if_tss) / (profile.cp * 3600) * 100 if profile.cp else 0
         else:
@@ -231,13 +180,13 @@ class MetricsCalculator:
             "interval_hr_last": round(float(last_lap.get('avg_heart_rate', 0) or 0), 1),
             "interval_power_mean": round(avg_intervals_power, 1),
             "interval_hr_mean": round(avg_intervals_hr, 1),
-            "energy_kj": round(energy_kj, 1),
+            "energy_kj": round(energy_kj, 1) if energy_kj is not None else None,
             "intensity_factor": round(if_mean, 3),
-            "mec": round(mec, 1),
+            "mec": round(mec, 1) if mec is not None else None,
             "int_index": round(int_index, 3),
             "dur_index": round(dur_index, 3),
             "drift_pahr_percent": round(drift_pahr_pct, 2),
-            "mls_load": round(mls_load, 1),
+            "mls_load": round(mls_load, 1) if mls_load is not None else None,
             "normalized_power": round(np_val, 1),
             "tss": round(tss, 1),
             "segmented_metrics": seg_output

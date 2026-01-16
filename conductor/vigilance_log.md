@@ -86,3 +86,41 @@
 
 ---
 - [DANGER] 2026-01-13: Injected DUMMY LT1/LT2 (135/165) for Adrien Claeyssen to test Nolio Ingestion. MUST BE REPLACED.
+
+---
+
+## [Track 1.3] Ingestion Pipeline & Nolio Sync (Module B)
+**Date:** 16 Janvier 2026
+**Statut:** ✅ Terminé avec Réserves
+
+### 🟢 Points de Succès (Robustesse)
+1.  **Architecture Modulaire & Solide :** 
+    -   Séparation claire des responsabilités : `NolioClient` (API), `StorageManager` (Supabase Storage), `IngestionRobot` (Orchestration).
+    -   Utilisation de **Pydantic** (`ActivityMetadata`) pour valider les données entrantes, ce qui a permis de détecter immédiatement le problème des RPE invalides.
+2.  **Résilience Réseau :**
+    -   L'ajout de la logique de **Retry avec Backoff** exponentiel dans `download_fit_file` garantit que le robot ne plantera pas sur des micro-coupures réseau lors du téléchargement de centaines de fichiers.
+3.  **Expérience Utilisateur (DX) :**
+    -   Le script offre une visibilité excellente grâce aux barres de progression (`tqdm`) et aux logs clairs ("👤 Processing: Adrien...").
+    -   L'option `--athlete` et `--days` permet des tests chirurgicaux rapides.
+4.  **Auto-Guérison (Roster Sync) :**
+    -   La fonction `sync_athletes_roster` est un atout majeur : elle détecte et crée automatiquement les nouveaux athlètes Nolio dans notre base, évitant une gestion manuelle fastidieuse.
+
+### 🟠 Zones Faibles (Risques & Watchlist)
+1.  **Gestion des Données "Sales" (RPE = 0) :**
+    -   *Constat :* Nolio renvoie parfois `RPE=0` pour des séances où l'athlète n'a rien saisi.
+    -   *Fix actuel :* Nous avons relaxé la contrainte de validation (`ge=0` au lieu de `ge=1`).
+    -   *Risque :* Un RPE de 0 faussera les calculs de charge (RPE * Durée). 
+    -   *Action requise :* Il faudra décider avec Karoly si 0 doit être traité comme `null` (pas de charge RPE) ou remplacé par une valeur par défaut (ex: 3).
+2.  **Performance de Synchronisation (Scaling) :**
+    -   *Constat :* Le robot parcourt séquentiellement chaque activité. Avec 100 athlètes sur 6 mois, cela prendra du temps.
+    -   *Risque :* Lent pour une synchro quotidienne globale.
+    -   *Mitigation :* Le système de vérification des doublons (par ID et Hash) est efficace, mais on pourrait optimiser en ne demandant à l'API Nolio que les activités *plus récentes* que la dernière date de synchro connue en base (Incremental Sync).
+3.  **Dépendance aux Profils Physio :**
+    -   *Constat :* L'erreur "ProfileManager" lors du dry-run a révélé que sans profil valide, le calcul plante ou est incomplet.
+    -   *Risque :* Si Karoly ajoute un nouvel athlète mais oublie de créer son profil (LT1/LT2), l'ingestion fonctionnera mais sans métriques avancées.
+    -   *Amélioration :* Ajouter une alerte explicite ou un rapport "Missing Profiles" à la fin de l'ingestion.
+
+### 📝 Backlog Improvements
+-   [ ] **Business Logic:** Clarifier la règle de gestion pour RPE=0 (Ignorer ou Default ?).
+-   [ ] **Optimization:** Implémenter "Incremental Sync" (fetch only `> last_sync_date`).
+-   [ ] **Observability:** Créer un rapport récapitulatif "Activités importées sans métriques (Manque Profil)".

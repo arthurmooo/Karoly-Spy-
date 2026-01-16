@@ -66,6 +66,71 @@ class NolioClient:
         response.raise_for_status()
         return response.json()
 
+    def get_athlete_metrics(self, athlete_id: int) -> Dict[str, Any]:
+        """
+        Fetches physiological metrics (CP, CS, etc.) for an athlete.
+        """
+        url = f"{self.BASE_URL}/get/user/meta/"
+        params = {"athlete_id": athlete_id}
+        response = requests.get(url, headers=self._get_headers(), params=params)
+        
+        if response.status_code == 429:
+            time.sleep(60)
+            return self.get_athlete_metrics(athlete_id)
+            
+        response.raise_for_status()
+        return response.json()
+
+    def get_activity_structure(self, activity_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Fetches the detailed structure (planned workout) of an activity.
+        """
+        url = f"{self.BASE_URL}/get/training/"
+        # We query the specific activity ID to get its details, including 'structure'
+        params = {"id": activity_id}
+        
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params)
+            if response.status_code == 200:
+                # API returns a list, we take the first item
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return data[0].get("structure")
+            return None
+        except Exception as e:
+            print(f"⚠️ Failed to fetch structure for {activity_id}: {e}")
+            return None
+
+    def get_activity_details(self, activity_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Fetches full details of a single activity (realized).
+        """
+        url = f"{self.BASE_URL}/get/training/"
+        params = {"id": activity_id}
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params)
+            response.raise_for_status()
+            data = response.json()
+            return data[0] if data else None
+        except Exception as e:
+            print(f"⚠️ Failed to fetch details for {activity_id}: {e}")
+            return None
+
+    def get_planned_workout(self, planned_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Fetches the detailed structure of a PLANNED workout.
+        """
+        url = f"{self.BASE_URL}/get/planned/training/"
+        params = {"id": planned_id}
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params)
+            response.raise_for_status()
+            data = response.json()
+            return data[0] if data else None
+        except Exception as e:
+            print(f"⚠️ Failed to fetch planned workout {planned_id}: {e}")
+            return None
+
     def download_fit_file(self, file_url: str, retries: int = 3) -> Optional[bytes]:
         """
         Downloads the FIT file from the temporary URL provided by Nolio.

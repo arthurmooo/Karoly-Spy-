@@ -97,10 +97,20 @@ class FitParser:
         df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
         
         # Ensure numeric columns are float BEFORE resampling to avoid object-dtype interpolation issues
-        numeric_cols = ['heart_rate', 'power', 'speed', 'cadence', 'altitude', 'distance', 'temperature', 'grade']
+        numeric_cols = ['heart_rate', 'power', 'speed', 'cadence', 'altitude', 'distance', 'temperature', 'grade', 'lat', 'lon']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+        # 1.5 Convert semicircles to degrees for GPS
+        # Standard FIT formula: degrees = semicircles * (180 / 2^31)
+        semicircle_to_degree = 180 / (2**31)
+        for col in ['lat', 'lon']:
+            if col in df.columns:
+                # Only convert if values look like semicircles (huge integers > 180)
+                # Note: some files might already be in degrees, so we check range
+                mask = df[col].abs() > 180
+                df.loc[mask, col] = df.loc[mask, col] * semicircle_to_degree
         
         df = df.sort_values('timestamp').reset_index(drop=True)
         

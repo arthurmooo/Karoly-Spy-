@@ -1,4 +1,6 @@
 import re
+import pandas as pd
+import numpy as np
 from typing import List, Dict, Any, Optional
 
 class ActivityClassifier:
@@ -10,6 +12,34 @@ class ActivityClassifier:
         r"marathon", r"semi", r"10k", r"course", r"race", r"compétition", 
         r"90", r"180", r"ironman", r"triathlon"
     ]
+
+    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str) -> str:
+        """
+        Classifies activity as 'endurance', 'intervals', or 'competition'.
+        """
+        # 1. Check for competition first
+        if self.is_competition(title, nolio_type):
+            return "competition"
+
+        # 2. Check for variability (Coefficient of Variation)
+        # Use Power if available, otherwise Speed
+        signal = None
+        if not df.empty:
+            if 'power' in df.columns and df['power'].mean() > 0:
+                signal = df['power']
+            elif 'speed' in df.columns and df['speed'].mean() > 0:
+                signal = df['speed']
+
+        if signal is not None:
+            # CV = Std Dev / Mean
+            mean_val = signal.mean()
+            if mean_val > 0:
+                cv = signal.std() / mean_val
+                # Threshold: > 20% variability usually indicates intervals/specific work
+                if cv > 0.20:
+                    return "intervals"
+        
+        return "endurance"
 
     def is_competition(self, title: str, nolio_type: str) -> bool:
         """

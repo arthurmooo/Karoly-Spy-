@@ -29,11 +29,16 @@ class ActivityWriter:
         # Calculate raw averages if streams exist
         avg_power = float(df['power'].mean()) if not df.empty and 'power' in df.columns else None
         avg_hr = float(df['heart_rate'].mean()) if not df.empty and 'heart_rate' in df.columns else None
+
+        # Weather Logic: Metadata (API) takes priority over streams (Device)
+        temp_avg = meta.temp_avg
+        humidity_avg = meta.humidity_avg
+        weather_source = meta.weather_source
         
-        # Temp/Humidity average logic (if present in streams or meta)
-        # Assuming temp is in streams usually
-        temp_avg = float(df['temperature'].mean()) if not df.empty and 'temperature' in df.columns else None
-        
+        if temp_avg is None and not df.empty and 'temperature' in df.columns:
+            temp_avg = float(df['temperature'].mean())
+            weather_source = "device"
+            
         # Construct record
         record = {
             "athlete_id": athlete_id,
@@ -42,11 +47,12 @@ class ActivityWriter:
             "sport_type": meta.activity_type,
             "rpe": int(meta.rpe) if meta.rpe is not None else None,
             "missing_rpe_flag": meta.rpe is None,
+            "work_type": meta.work_type,
             
-            # Weather (Partial implementation for now)
+            # Weather
             "temp_avg": temp_avg,
-            "humidity_avg": None, # Needs external weather API
-            "weather_source": "device" if temp_avg is not None else None,
+            "humidity_avg": humidity_avg,
+            "weather_source": weather_source,
             
             # Metrics (Karoly)
             "load_index": metrics_dict.get("mls_load"),
@@ -71,8 +77,26 @@ class ActivityWriter:
             "fit_file_hash": file_hash
         }
         
-        # Sanitize NaNs to None for JSON/SQL compatibility
-        return {k: (None if isinstance(v, float) and np.isnan(v) else v) for k, v in record.items()}
+        # DEBUG WEATHER
+        if record['weather_source'] == 'openweathermap':
+            print(f"      [cyan]🚀 DB PREP: Sending weather -> {record['temp_avg']} / {record['humidity_avg']} source: {record['weather_source']}[/cyan]")
+        
+        # Sanitize NaNs recursively to None for JSON/SQL compatibility
+        return ActivityWriter._sanitize_recursive(record)
+
+    @staticmethod
+    def _sanitize_recursive(data: Any) -> Any:
+        """
+        Recursively replaces NaN with None in dicts and lists.
+        """
+        if isinstance(data, dict):
+            return {k: ActivityWriter._sanitize_recursive(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [ActivityWriter._sanitize_recursive(v) for v in data]
+        elif isinstance(data, float) and np.isnan(data):
+            return None
+        else:
+            return data
 
     @staticmethod
     def save(activity: Activity, db_connector, athlete_id: str, **kwargs):
@@ -80,11 +104,14 @@ class ActivityWriter:
         Directly saves/upserts to Supabase.
         """
         data = ActivityWriter.serialize(activity, athlete_id, **kwargs)
-        # Upsert based on nolio_id if present, or just insert?
-        # Ideally we use nolio_id as unique constraint or composite key.
-        # The schema says nolio_id is unique.
-        
-        # Note: If nolio_id is None (manual upload), we might create dups if we don't handle ID.
-        # For Phase 1, we assume Nolio ingestion mostly.
-        
         return db_connector.client.table('activities').upsert(data, on_conflict='nolio_id').execute()
+
+    @staticmethod
+    def update_by_id(db_id: str, activity: Activity, db_connector, athlete_id: str, **kwargs):
+        """
+        Updates a specific record by its primary key.
+        """
+        data = ActivityWriter.serialize(activity, athlete_id, **kwargs)
+        # Remove primary key and unique constraint fields from update to be safe
+        data.pop('id', None)
+        return db_connector.client.table('activities').update(data).eq('id', db_id).execute()

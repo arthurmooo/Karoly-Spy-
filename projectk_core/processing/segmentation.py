@@ -11,11 +11,12 @@ class SegmentCalculator:
     def calculate_segment(self, df: pd.DataFrame, activity_type: str) -> SegmentData:
         """
         Calculates HR, Speed/Power, Ratio and Torque for a given data slice.
+        Following Karoly's logic: Run uses km/h, Bike uses Watts.
         """
         if df.empty:
             return SegmentData()
             
-        # Common: Heart Rate
+        # Common: Heart Rate (Karoly uses mean)
         avg_hr = float(df['heart_rate'].mean()) if 'heart_rate' in df.columns else None
         
         # Sport Specific: Speed or Power
@@ -27,14 +28,31 @@ class SegmentCalculator:
         is_bike = activity_type.lower() in ["bike", "ride", "virtualride", "cycling"]
         
         if is_bike:
-            avg_power = float(df['power'].mean()) if 'power' in df.columns else None
+            # Karoly ignores 0 power for decoupling analysis usually
+            pwr_series = df['power'][df['power'] > 0] if 'power' in df.columns else pd.Series()
+            avg_power = float(pwr_series.mean()) if not pwr_series.empty else None
+            
             avg_torque = float(df['torque'].mean()) if 'torque' in df.columns else None
+            
             if avg_power and avg_hr and avg_power > 0:
+                # Efficiency Factor: Power / HR or HR / Power? 
+                # Karoly's notebook uses: HR_dec / PWR_dec (relative)
+                # Raw Ratio: avg_hr / avg_power
                 ratio = avg_hr / avg_power
         else:
-            # Assume Run/Trail
-            avg_speed = float(df['speed'].mean()) if 'speed' in df.columns else None
+            # Run/Trail: Karoly uses km/h
+            if 'speed' in df.columns:
+                # Convert m/s to km/h if needed (FIT standard is m/s)
+                # We check if values are small (m/s) or large (km/h)
+                speed_series = df['speed'][df['speed'] > 0]
+                raw_speed_avg = speed_series.mean()
+                if raw_speed_avg < 15: # Likely m/s
+                    avg_speed = float(raw_speed_avg * 3.6)
+                else:
+                    avg_speed = float(raw_speed_avg)
+                    
             if avg_speed and avg_hr and avg_speed > 0:
+                # Efficiency Factor: HR / Speed (km/h)
                 ratio = avg_hr / avg_speed
                 
         return SegmentData(

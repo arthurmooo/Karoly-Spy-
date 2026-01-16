@@ -26,12 +26,12 @@
     - Review all datetime handling to ensure everything stored in DB is strict UTC.
 
 ## 3. Delivery Prep
-- [ ] **Task: Requirements & Setup Script**
+- [x] **Task: Requirements & Setup Script**
     - Freeze `requirements.txt`.
     - Create a `setup_env.sh` (or `.bat` for Windows if needed, though Karoly is on Mac?) -> *Karoly uses Mac*.
 
 ## 4. Final Validation (Recette)
-- [ ] **Task: End-to-End Test**
+- [x] **Task: End-to-End Test**
     - Run `python run_k.py ingest --days 7`.
     - Run `python run_k.py reprocess --athlete "Adrien"`.
     - Verify results in Supabase Dashboard.

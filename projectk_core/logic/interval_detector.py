@@ -11,96 +11,174 @@ class IntervalDetector:
     """
 
     @staticmethod
-    def detect(activity: Activity, plan: Dict) -> Dict[str, float]:
+    def detect(activity: Activity, plan: Optional[Dict] = None) -> Dict[str, float]:
         """
-        Detects intervals matching the plan and computes aggregate metrics.
-        
-        Args:
-            activity: The Activity object with streams.
-            plan: A dictionary describing the main interval set.
-                  Example: {"type": "time", "duration": 180, "reps": 6} 
-                  (6 reps of 3 minutes)
-        
-        Returns:
-            Dict containing the 4 key metrics:
-            - interval_power_last
-            - interval_hr_last
-            - interval_power_mean
-            - interval_hr_mean
-            
-            Returns empty dict if detection fails or is impossible.
+        Detects intervals. If plan is provided, uses it. 
+        If no plan, uses 'Autostruct' logic to find the most likely interval pattern.
         """
-        if activity.empty or not plan:
+        if activity.empty:
             return {}
 
         df = activity.streams
         
-        # Select signal for detection (Power preferred, then Speed)
-        if 'power' in df.columns and df['power'].max() > 10:
+        # Select signal
+        if 'power' in df.columns and df['power'].max() > 100:
             signal_col = 'power'
-        elif 'speed' in df.columns and df['speed'].max() > 0.5:
+        elif 'speed' in df.columns and df['speed'].max() > 2.0: # > 7.2km/h
             signal_col = 'speed'
         else:
-            return {} # No valid signal for interval detection
+            return {} 
 
-        # 1. Parse Plan
-        target_type = plan.get('type', 'time').lower()
-        duration_sec = plan.get('duration')
-        reps = plan.get('reps', 1)
+        # --- STRATEGY 1: GUIDED (Plan Provided) ---
+        if plan and plan.get('duration'):
+            return IntervalDetector._detect_fixed(df, signal_col, plan['duration'], plan.get('reps', 1))
 
-        # For now, we only support TIME based intervals
-        if target_type != 'time' or not duration_sec or duration_sec <= 0:
-            return {}
+        # --- STRATEGY 2: BLIND AUTOSTRUCT ---
+        # Test common interval durations to find the best fit
+        candidates_durations = [30, 60, 180, 300, 600, 900, 1200] # 30s to 20min
+        best_result = {}
+        best_score = 0
 
-        # 2. Rolling Average
+        for dur in candidates_durations:
+            # We assume at least 2 reps for an interval session
+            res = IntervalDetector._detect_fixed(df, signal_col, dur, min_reps=2)
+            if not res: 
+                continue
+            
+            # Score = Total Work (Power * Duration * Reps) * Regularity
+            # We want to favor identifying the "main set"
+            reps_found = len(res.get('blocks', []))
+            if reps_found < 2: continue
+            
+            avg_p = res['interval_power_mean']
+            score = avg_p * dur * reps_found
+            
+            if score > best_score:
+                best_score = score
+                best_result = res
+        
+        return best_result
+
+    @staticmethod
+    def _detect_fixed(df: pd.DataFrame, signal_col: str, duration_sec: int, min_reps: int = 1) -> Dict:
+        """
+        Core detection logic for a fixed duration.
+        """
         window_size = int(duration_sec)
+        if len(df) < window_size: return {}
+
         signal_series = df[signal_col].fillna(0)
         rolling_signal = signal_series.rolling(window=window_size).mean()
         
-        # 3. Peak Detection
-        clean_rolling = rolling_signal.fillna(0).values
-        max_val = np.max(clean_rolling)
-        height_threshold = max_val * 0.5
+        # Threshold: Significant effort relative to session max
+        # For long intervals (15'), threshold is lower than for sprints (30")
+        # Optimization: Cap the max_val to avoid sprints skewing the threshold for endurance blocks
+        max_val = rolling_signal.quantile(0.95) # Use 95th percentile instead of absolute max
+        if max_val == 0: return {}
         
-        peaks, properties = find_peaks(clean_rolling, height=height_threshold, distance=int(window_size * 0.5))
+        # Lower threshold to capture the full block (warmup/fatigue included)
+        threshold_ratio = 0.55 if duration_sec > 600 else 0.70
+        height_threshold = max_val * threshold_ratio
         
-        if len(peaks) == 0:
+        peaks, properties = find_peaks(rolling_signal.fillna(0).values, height=height_threshold, distance=int(window_size * 1.1))
+        
+        if len(peaks) < min_reps:
             return {}
 
-        # 4. Filter & Select Top N
+        # Select all valid peaks found (we don't limit to 'reps' in blind mode usually, but sort by quality)
         peak_values = properties['peak_heights']
-        candidates = list(zip(peaks, peak_values))
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        selected = candidates[:reps]
+        candidates = sorted(list(zip(peaks, peak_values)), key=lambda x: x[1], reverse=True)
         
-        if not selected:
+        # In guided mode we might limit, here we take top N matches if reps specified?
+        # Actually, let's take all peaks that look like the main set (within 25% of best peak now, more permissive)
+        best_peak = candidates[0][1]
+        selected = [c for c in candidates if c[1] >= best_peak * 0.75]
+        
+        if len(selected) < min_reps:
             return {}
-            
-        # 5. Chronological Sort
-        selected.sort(key=lambda x: x[0])
-        
-        # 6. Compute Metrics
-        count = len(selected)
-        last_idx, last_val = selected[-1]
-        
-        def get_interval_avg(end_idx, dur, col):
-            if col not in df.columns: return 0.0
-            s, e = int(end_idx - dur + 1), int(end_idx + 1)
-            segment = df[col].iloc[s:e]
-            return segment.mean() if not segment.empty else 0.0
 
-        last_p = last_val if signal_col == 'power' else get_interval_avg(last_idx, window_size, 'power')
-        last_hr = get_interval_avg(last_idx, window_size, 'heart_rate')
-
+        selected.sort(key=lambda x: x[0]) # Chronological
+        
+        # Merge contiguous blocks (e.g., 5x3min -> 1x15min)
+        # Increased gap tolerance to 180s to bridge drops in long efforts (fatigue)
+        merged_intervals = IntervalDetector._merge_intervals(selected, window_size, df, signal_col, gap_tolerance=180)
+        
+        # Compute Metrics on Merged Intervals
+        details = []
         sum_p = 0
         sum_hr = 0
-        for idx, val in selected:
-            sum_p += val if signal_col == 'power' else get_interval_avg(idx, window_size, 'power')
-            sum_hr += get_interval_avg(idx, window_size, 'heart_rate')
+        
+        for start_idx, end_idx, avg_val in merged_intervals:
+            dur = end_idx - start_idx
             
+            # Re-compute averages on the full merged segment
+            p = df['power'].iloc[start_idx:end_idx].mean() if 'power' in df.columns else 0.0
+            hr = df['heart_rate'].iloc[start_idx:end_idx].mean() if 'heart_rate' in df.columns else 0.0
+            
+            sum_p += p
+            sum_hr += hr
+            
+            details.append({
+                "index": start_idx, # Start index
+                "timestamp": str(df['timestamp'].iloc[start_idx]) if 'timestamp' in df.columns else str(start_idx),
+                "avg_power": round(float(p), 1),
+                "avg_hr": round(float(hr), 1),
+                "duration_sec": int(dur)
+            })
+            
+        if not details: return {}
+
         return {
-            "interval_power_last": round(float(last_p), 1),
-            "interval_hr_last": round(float(last_hr), 1),
-            "interval_power_mean": round(float(sum_p / count), 1),
-            "interval_hr_mean": round(float(sum_hr / count), 1)
+            "interval_power_last": round(float(details[-1]["avg_power"]), 1),
+            "interval_hr_last": round(float(details[-1]["avg_hr"]), 1),
+            "interval_power_mean": round(float(sum_p / len(details)), 1),
+            "interval_hr_mean": round(float(sum_hr / len(details)), 1),
+            "blocks": details
         }
+
+    @staticmethod
+    def _merge_intervals(candidates: List[Tuple], base_duration: int, df: pd.DataFrame, signal_col: str, gap_tolerance: int = 60) -> List[Tuple[int, int, float]]:
+        """
+        Merges blocks that are close in time.
+        Returns list of (start_idx, end_idx, avg_value).
+        """
+        if not candidates: return []
+        
+        # Convert peaks (center) to ranges (start, end)
+        # Peak index is the END of the rolling window usually, or center depending on implementation.
+        # pandas rolling mean puts value at the index. So if window=180, val at 180 is avg(0-180).
+        # So Start = Index - Window + 1, End = Index + 1
+        
+        ranges = []
+        for idx, val in candidates:
+            start = max(0, int(idx - base_duration + 1))
+            end = int(idx + 1)
+            ranges.append((start, end, val))
+            
+        merged = []
+        if not ranges: return []
+        
+        # Sort by start time
+        ranges.sort(key=lambda x: x[0])
+        
+        curr_start, curr_end, _ = ranges[0]
+        
+        for i in range(1, len(ranges)):
+            next_start, next_end, _ = ranges[i]
+            
+            # Gap between current end and next start
+            gap = next_start - curr_end
+            
+            # Merge if overlap or gap is small (< gap_tolerance) 
+            # AND if the blocks are conceptually "glued" (gap is not a recovery)
+            if gap < gap_tolerance: 
+                # Extend the current block
+                curr_end = max(curr_end, next_end)
+            else:
+                # Push current and start new
+                merged.append((curr_start, curr_end, 0.0)) # We'll recalc val later
+                curr_start = next_start
+                curr_end = next_end
+                
+        merged.append((curr_start, curr_end, 0.0))
+        return merged
