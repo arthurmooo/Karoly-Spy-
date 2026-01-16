@@ -11,13 +11,13 @@
     - Script `scripts/auth_nolio_manual.py` pour générer le premier Refresh Token (Flow interactif console).
     - Classe `NolioAuthenticator` qui gère le refresh automatique du token expiré.
     - Stockage sécurisé des tokens (fichier `.env`).
-- [ ] **Task: Nolio API Permissions (BLOCKER)**
-    - **Status:** ❌ Blocked by Nolio.
-    - **Details:** Access to `/get/training/`, `/get/planned/training/`, and `/streams/` is denied (400 Not Authorized).
+- [x] **Task: Nolio API Permissions (BLOCKER)**
+    - **Status:** ✅ Resolved (16/01/2026).
+    - **Details:** Access to `/get/training/`, `/get/planned/training/`, and `/streams/` is confirmed.
     - **Action:** Wait for Nolio support to whitelist Client ID `h7P9...`.
 
 ## 2. Client API Nolio (Squelette)
-- [ ] **Task: NolioClient Implementation**
+- [x] **Task: NolioClient Implementation** [62bb20e]
     - Implémenter `projectk_core/integrations/nolio.py`.
     - Méthodes :
         - `get_managed_athletes()`: Récupère la liste (ID, Nom).
@@ -26,7 +26,7 @@
     - Gestion des rate limits (Dev App: 200 req/h -> Pause ou Error si dépassé).
 
 ## 3. Stockage Cloud (Storage)
-- [ ] **Task: Supabase Storage Setup**
+- [~] **Task: Supabase Storage Setup**
     - Créer un bucket `raw_fits` dans Supabase Storage (via script ou UI).
     - Classe `StorageManager` pour uploader/downloader les fichiers.
     - Structure : `raw_fits/{athlete_id}/{year}/{nolio_id}.fit`.
