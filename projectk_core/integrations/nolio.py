@@ -66,21 +66,28 @@ class NolioClient:
         response.raise_for_status()
         return response.json()
 
-    def download_fit_file(self, file_url: str) -> Optional[bytes]:
+    def download_fit_file(self, file_url: str, retries: int = 3) -> Optional[bytes]:
         """
         Downloads the FIT file from the temporary URL provided by Nolio.
+        Includes retry logic (3 attempts) with backoff.
         Returns raw bytes.
         """
         if not file_url:
             return None
             
-        try:
-            # Note: The file_url is usually a signed AWS/GCS link, 
-            # so we don't need the Nolio Auth header for this specific call,
-            # just a standard GET.
-            response = requests.get(file_url, stream=True)
-            response.raise_for_status()
-            return response.content
-        except Exception as e:
-            print(f"❌ Download failed for {file_url}: {e}")
-            return None
+        for attempt in range(retries):
+            try:
+                # Note: The file_url is usually a signed AWS/GCS link, 
+                # so we don't need the Nolio Auth header for this specific call.
+                # Added timeout to prevent hanging.
+                response = requests.get(file_url, stream=True, timeout=30)
+                response.raise_for_status()
+                return response.content
+            except Exception as e:
+                print(f"⚠️ Download attempt {attempt + 1}/{retries} failed for {file_url}: {e}")
+                if attempt < retries - 1:
+                    time.sleep(2 * (attempt + 1))  # Simple linear backoff: 2s, 4s...
+                else:
+                    print(f"❌ Final download failure.")
+                    return None
+        return None
