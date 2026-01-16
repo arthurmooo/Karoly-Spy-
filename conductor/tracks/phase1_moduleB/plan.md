@@ -26,13 +26,13 @@
     - Gestion des rate limits (Dev App: 200 req/h -> Pause ou Error si dépassé).
 
 ## 3. Stockage Cloud (Storage)
-- [~] **Task: Supabase Storage Setup**
+- [x] **Task: Supabase Storage Setup** [455ec13]
     - Créer un bucket `raw_fits` dans Supabase Storage (via script ou UI).
     - Classe `StorageManager` pour uploader/downloader les fichiers.
     - Structure : `raw_fits/{athlete_id}/{year}/{nolio_id}.fit`.
 
 ## 4. Pipeline d'Ingestion (Le Robot)
-- [ ] **Task: Ingestion Logic**
+- [~] **Task: Ingestion Logic**
     - Script `scripts/run_ingest.py`.
     - **Paramètres :** `HISTORY_DAYS` (défaut 180 jours = 6 mois).
     - **Step 1 - Discovery :**
