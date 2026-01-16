@@ -30,9 +30,8 @@ class NolioClient:
         response = requests.get(url, headers=self._get_headers())
         
         if response.status_code == 429:
-            print("⚠️ Nolio Rate Limit hit. Waiting 60s...")
-            time.sleep(60)
-            return self.get_managed_athletes()
+            print("⚠️ Nolio Rate Limit hit. Aborting to avoid infinite loop.")
+            raise Exception("NolioRateLimitError")
             
         response.raise_for_status()
         return response.json()
@@ -56,9 +55,8 @@ class NolioClient:
         response = requests.get(url, headers=self._get_headers(), params=params)
         
         if response.status_code == 429:
-            print("⚠️ Nolio Rate Limit hit. Waiting 60s...")
-            time.sleep(60)
-            return self.get_activities(athlete_id, date_from, date_to)
+            print("⚠️ Nolio Rate Limit hit. Aborting.")
+            raise Exception("NolioRateLimitError")
         
         if response.status_code == 400:
             print(f"❌ Nolio API 400 Error: {response.text}")
