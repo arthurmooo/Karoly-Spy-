@@ -1,0 +1,33 @@
+name: Karoly Robot V2
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run-ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Libs
+        run: |
+          pip install --upgrade pip
+          pip install -r deps.txt
+
+      - name: Run Robot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOLIO_CLIENT_ID: ${{ secrets.NOLIO_CLIENT_ID }}
+          NOLIO_CLIENT_SECRET: ${{ secrets.NOLIO_CLIENT_SECRET }}
+          NOLIO_REFRESH_TOKEN: ${{ secrets.NOLIO_REFRESH_TOKEN }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: python run_k.py ingest --days 3
