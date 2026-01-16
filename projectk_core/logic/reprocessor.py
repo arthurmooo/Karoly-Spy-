@@ -27,7 +27,7 @@ class ReprocessingEngine:
         self.profile_manager = ProfileManager(self.db)
 
     def run(self, athlete_name_filter: Optional[str] = None, force: bool = False):
-        print(f"\u2191\u2191 Starting Reprocessing Engine...")
+        print(f"Starting Reprocessing Engine...")
         
         # 1. Select Athletes
         query = self.db.client.table("athletes").select("id, first_name, last_name")
@@ -35,7 +35,7 @@ class ReprocessingEngine:
             query = query.ilike("first_name", f"%{athlete_name_filter}%")
         
         athletes = query.execute().data
-        print(f"\ud83d\udcca Found {len(athletes)} athletes to process.")
+        print(f"Found {len(athletes)} athletes to process.")
 
         for athlete in athletes:
             self.process_athlete(athlete, force)
@@ -43,7 +43,7 @@ class ReprocessingEngine:
     def process_athlete(self, athlete, force):
         athlete_id = athlete['id']
         full_name = f"{athlete['first_name']} {athlete['last_name']}"
-        print(f"\n\ud83d\udc64 Processing: {full_name}")
+        print(f"\nProcessing: {full_name}")
 
         # 2. Fetch Activities
         # Only fetch those with a fit_file_path (can't reprocess metadata-only ones efficiently yet)
@@ -54,10 +54,10 @@ class ReprocessingEngine:
             .execute().data
             
         if not acts:
-            print("   \u2615 No activities with files found.")
+            print("   No activities with files found.")
             return
 
-        print(f"   \ud83d\udcc1 Found {len(acts)} activities with files.")
+        print(f"   Found {len(acts)} activities with files.")
 
         for act in tqdm(acts, desc=f"   Reprocessing {athlete['first_name']}", leave=False):
             try:
