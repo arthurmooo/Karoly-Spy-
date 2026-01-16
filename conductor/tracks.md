@@ -27,7 +27,7 @@ This file tracks the master plan, strictly aligned with the contract phases.
 - **Livrable :** Une librairie Python `projectk-core` capable d'ingérer un fichier binaire et de sortir un objet JSON de métriques validées.
 
 ## [x] Track 1.3: Ingestion Pipeline & Nolio Sync (Module B)
-*Requires: Nolio API Credentials*
+*Archived in conductor/archive/phase1_moduleB_20260116/*
 - **Client API Nolio :** Authentification et récupération automatique des séances.
 - **Stockage Cloud :** Sauvegarde des `.fit` bruts dans Supabase Storage.
 - **Unicité :** Système de Hash global pour éviter les doublons.
