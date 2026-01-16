@@ -95,6 +95,13 @@ class FitParser:
         
         # Ensure timestamp is datetime
         df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+        
+        # Ensure numeric columns are float BEFORE resampling to avoid object-dtype interpolation issues
+        numeric_cols = ['heart_rate', 'power', 'speed', 'cadence', 'altitude', 'distance', 'temperature', 'grade']
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
         df = df.sort_values('timestamp').reset_index(drop=True)
         
         # 2. Resampling to 1Hz
@@ -106,11 +113,5 @@ class FitParser:
         limit_seconds = 10
         df_filled = df_resampled.interpolate(method='time', limit=limit_seconds)
         df_filled = df_filled.reset_index()
-        
-        # Ensure numeric types
-        numeric_cols = ['heart_rate', 'power', 'speed', 'cadence', 'altitude', 'distance']
-        for col in numeric_cols:
-            if col in df_filled.columns:
-                df_filled[col] = df_filled[col].astype(float)
         
         return df_filled, metadata, laps

@@ -55,7 +55,7 @@ class ActivityMetadata(BaseModel):
     duration_sec: float = Field(gt=0)
     distance_m: Optional[float] = Field(None, ge=0)
     device_id: Optional[str] = None
-    rpe: Optional[float] = Field(None, ge=1, le=10)
+    rpe: Optional[float] = Field(None, ge=0, le=10)
 
 class SegmentData(BaseModel):
     """

@@ -13,6 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from projectk_core.db.connector import DBConnector
 from projectk_core.integrations.nolio import NolioClient
+from projectk_core.integrations.storage import StorageManager
 from projectk_core.processing.parser import FitParser
 from projectk_core.processing.calculator import MetricsCalculator
 from projectk_core.logic.profile_manager import ProfileManager
@@ -27,15 +28,48 @@ class IngestionRobot:
     def __init__(self, history_days: int = 14):
         self.db = DBConnector()
         self.nolio = NolioClient()
+        self.storage = StorageManager()
         self.history_days = history_days
         self.config = AthleteConfig() # Global Karoly coefficients
         self.calculator = MetricsCalculator(self.config)
         self.profile_manager = ProfileManager(self.db)
+
+    def sync_athletes_roster(self):
+        """Fetches athletes from Nolio and ensures they exist in DB."""
+        print("🔄 Syncing Athlete Roster...")
+        try:
+            nolio_athletes = self.nolio.get_managed_athletes()
+            
+            for na in nolio_athletes:
+                nid = na.get('id')
+                if not nid:
+                    continue
+                    
+                # Check DB
+                res = self.db.client.table("athletes").select("id").eq("nolio_id", nid).execute()
+                if not res.data:
+                    first = na.get('firstname', na.get('first_name', 'Unknown'))
+                    last = na.get('lastname', na.get('last_name', 'Athlete'))
+                    print(f"   ✨ New Athlete found: {first} {last}")
+                    
+                    # Create
+                    self.db.client.table("athletes").insert({
+                        "nolio_id": nid,
+                        "first_name": first,
+                        "last_name": last,
+                        "email": na.get('email'),
+                        "is_active": True
+                    }).execute()
+        except Exception as e:
+            print(f"⚠️ Error syncing roster: {e}")
         
     def run(self, specific_athlete_name: Optional[str] = None):
         print(f"🚀 Starting Ingestion Robot (Window: {self.history_days} days)")
         
-        # 1. Fetch Athletes from DB who have a nolio_id
+        # 1. Sync Roster (Discovery Phase)
+        self.sync_athletes_roster()
+        
+        # 2. Fetch Athletes from DB who have a nolio_id
         query = self.db.client.table("athletes").select("id, first_name, last_name, nolio_id").eq("is_active", True).not_.is_("nolio_id", "null")
         if specific_athlete_name:
             query = query.ilike("first_name", f"%{specific_athlete_name}%")
@@ -75,8 +109,11 @@ class IngestionRobot:
             print(f"   ❌ Error for {full_name}: {e}")
 
     def process_activity(self, athlete_id: str, nolio_act: Dict[str, Any]):
-        act_id = str(nolio_act.get("nolio_id"))
-        act_name = nolio_act.get("name", "Unnamed Session")
+        act_id = str(nolio_act.get("nolio_id", nolio_act.get("id"))) # Fallback to 'id' if 'nolio_id' missing
+        
+        if not act_id:
+            return
+
         file_url = nolio_act.get("file_url")
         
         # 1. Skip if no file (manual entry)
@@ -84,7 +121,6 @@ class IngestionRobot:
             return
 
         # 2. Duplicate Check (Nolio ID)
-        # We use nolio_id as a unique constraint in DB, but checking here saves processing
         exists = self.db.client.table("activities").select("id").eq("nolio_id", act_id).execute()
         if exists.data:
             return
@@ -99,8 +135,6 @@ class IngestionRobot:
         # 4. Secondary Duplicate Check (File Hash)
         hash_exists = self.db.client.table("activities").select("id").eq("fit_file_hash", file_hash).execute()
         if hash_exists.data:
-            # It's a duplicate but maybe from a different Nolio session? 
-            # We skip to be safe and avoid double-counting load.
             return
 
         # 5. Parse & Extract Metadata
@@ -122,32 +156,39 @@ class IngestionRobot:
                 }, on_conflict="serial_number").execute()
 
             # 7. Calculate Metrics
-            # Mapping sport from Nolio to our categories
             nolio_sport = nolio_act.get("sport", "Other")
             internal_sport = "Bike" if nolio_sport in ["Bike", "Road cycling", "Virtual ride", "Mountain cycling"] else "Run"
             
-            # Get athlete profile for that specific sport
-            profile = self.profile_manager.get_profile(athlete_id, sport=internal_sport)
+            start_date = df['timestamp'].iloc[0] if not df.empty else datetime.fromisoformat(nolio_act.get("date_start").replace('Z', '+00:00'))
+            
+            # Get athlete profile
+            profile = self.profile_manager.get_profile_for_date(athlete_id, internal_sport, start_date)
             
             meta = ActivityMetadata(
                 activity_type=internal_sport,
-                start_time=df['timestamp'].iloc[0] if not df.empty else datetime.fromisoformat(nolio_act.get("date_start")),
+                start_time=start_date,
                 duration_sec=len(df),
                 rpe=nolio_act.get("rpe")
             )
             
             activity = Activity(metadata=meta, streams=df, laps=laps)
             
-            # Only compute if we have a profile and data
             if profile and not df.empty:
                 metrics_dict = self.calculator.compute(activity, profile)
                 activity.metrics = ActivityMetrics(**metrics_dict)
             else:
-                activity.metrics = ActivityMetrics() # Empty metrics if no profile
+                activity.metrics = ActivityMetrics()
 
-            # 8. Save to Database
-            storage_path = f"{athlete_id}/{datetime.now().year}/{file_hash}.fit"
+            # 8. Upload to Storage FIRST to get the path
+            year = str(start_date.year)
+            storage_path = self.storage.upload_fit_file(
+                athlete_id=athlete_id,
+                nolio_id=int(act_id), # Ensure int
+                content=fit_data,
+                year=year
+            )
             
+            # 9. Save to Database
             ActivityWriter.save(
                 activity, 
                 self.db, 
@@ -155,13 +196,6 @@ class IngestionRobot:
                 nolio_id=act_id, 
                 file_hash=file_hash,
                 file_path=storage_path
-            )
-            
-            # 9. Upload to Storage
-            self.db.client.storage.from_("raw_fits").upload(
-                storage_path, 
-                fit_data, 
-                {"content-type": "application/vnd.ant.fit"}
             )
             
         except Exception as e:
