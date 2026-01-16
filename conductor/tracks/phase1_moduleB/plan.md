@@ -32,7 +32,7 @@
     - Structure : `raw_fits/{athlete_id}/{year}/{nolio_id}.fit`.
 
 ## 4. Pipeline d'Ingestion (Le Robot)
-- [~] **Task: Ingestion Logic**
+- [x] **Task: Ingestion Logic** [56d4915]
     - Script `scripts/run_ingest.py`.
     - **Paramètres :** `HISTORY_DAYS` (défaut 180 jours = 6 mois).
     - **Step 1 - Discovery :**
@@ -54,8 +54,8 @@
     - **Step 4 - Hash Check :** Éviter de traiter deux fois le même fichier.
 
 ## 5. Validation & Rattrapage
-- [ ] **Task: Dry Run**
+- [x] **Task: Dry Run**
     - Tester sur 1 athlète (Toi ou Karoly) sur 1 semaine.
     - Vérifier l'apparition dans Supabase.
-- [ ] **Task: Security Check**
+- [x] **Task: Security Check**
     - Vérifier que le RLS bloque bien les accès non autorisés aux nouvelles données.
