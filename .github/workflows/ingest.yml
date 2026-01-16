@@ -22,10 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          echo "=== DEBUG: CONTENT OF requirements.txt ==="
-          cat requirements.txt
-          echo "=== END DEBUG ==="
-          pip install -r requirements.txt
+          pip install -r deps.txt
 
       - name: Run Ingestion Robot
         env:
