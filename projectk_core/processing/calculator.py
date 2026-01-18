@@ -44,11 +44,16 @@ class MetricsCalculator:
         # 1. Basic Pre-calc
         # Duration: Karoly counts active time (rows with HR and valid dt)
         # Assuming 1Hz resampling, active seconds = count of rows with HR
-        hr_series = df['heart_rate'].dropna()
-        active_seconds = len(hr_series)
+        if 'heart_rate' in df.columns:
+            hr_series = df['heart_rate'].dropna()
+            active_seconds = len(hr_series)
+        else:
+            hr_series = pd.Series()
+            active_seconds = len(df) # Fallback to total rows if no HR
+            
         total_seconds = active_seconds # Alias for clarity with notebook 'total_time_s'
         
-        if total_seconds == 0:
+        if total_seconds == 0 and len(df) == 0:
             return {}
 
         # 2. Intensity & Power Logic
@@ -92,39 +97,43 @@ class MetricsCalculator:
 
         # 6. Internal Load (INT)
         # Based on HR Time in Zone 2 (LT1 <= HR < LT2)
-        hr_smooth = df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean()
-        hr_smooth = hr_smooth.ffill().bfill()
-        
-        z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
-        p_hr_lt = z2_count / total_seconds if total_seconds > 0 else 0.0
-        
-        alpha = self.config.get('alpha_load_hr', 0.5)
-        int_index = 1.0 + alpha * p_hr_lt
+        int_index = 1.0
+        if 'heart_rate' in df.columns and not df['heart_rate'].dropna().empty:
+            hr_smooth = df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean()
+            hr_smooth = hr_smooth.ffill().bfill()
+            
+            z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
+            p_hr_lt = z2_count / total_seconds if total_seconds > 0 else 0.0
+            
+            alpha = self.config.get('alpha_load_hr', 0.5)
+            int_index = 1.0 + alpha * p_hr_lt
 
         # 7. Durability (DUR) & Decoupling
         # Split Halves by time
-        mid_idx = len(df) // 2 # 1Hz assumption makes index split equivalent to time split
+        dur_index = 1.0
+        drift_pahr_pct = 0.0
         
-        # Means of first and second half
-        p1 = mech_source.iloc[:mid_idx].fillna(0).mean()
-        p2 = mech_source.iloc[mid_idx:].fillna(0).mean()
-        
-        h1 = hr_smooth.iloc[:mid_idx].mean()
-        h2 = hr_smooth.iloc[mid_idx:].mean()
-        
-        pahr_1 = p1 / h1 if h1 > 0 else np.nan
-        pahr_2 = p2 / h2 if h2 > 0 else np.nan
-        
-        if np.isnan(pahr_1) or np.isnan(pahr_2) or pahr_1 == 0:
-            drift_pahr_pct = 0.0
-        else:
-            drift_pahr_pct = (pahr_2 / pahr_1 - 1) * 100
+        if len(df) > 60 and not mech_source.dropna().empty and 'heart_rate' in df.columns:
+            mid_idx = len(df) // 2 
             
-        drift_abs = abs(drift_pahr_pct)
-        drift_threshold = self.config.get('drift_threshold_percent', 3.0)
-        beta = self.config.get('beta_dur', 0.08)
-        
-        dur_index = 1.0 + beta * max(0.0, drift_abs - drift_threshold)
+            # Means of first and second half
+            p1 = mech_source.iloc[:mid_idx].fillna(0).mean()
+            p2 = mech_source.iloc[mid_idx:].fillna(0).mean()
+            
+            hr_smooth = df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
+            h1 = hr_smooth.iloc[:mid_idx].mean()
+            h2 = hr_smooth.iloc[mid_idx:].mean()
+            
+            pahr_1 = p1 / h1 if h1 > 0 else np.nan
+            pahr_2 = p2 / h2 if h2 > 0 else np.nan
+            
+            if not (np.isnan(pahr_1) or np.isnan(pahr_2) or pahr_1 == 0):
+                drift_pahr_pct = (pahr_2 / pahr_1 - 1) * 100
+                
+            drift_abs = abs(drift_pahr_pct)
+            drift_threshold = self.config.get('drift_threshold_percent', 3.0)
+            beta = self.config.get('beta_dur', 0.08)
+            dur_index = 1.0 + beta * max(0.0, drift_abs - drift_threshold)
 
         # 8. Final MLS
         if mec is not None:
