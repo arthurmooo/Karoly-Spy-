@@ -45,7 +45,8 @@ class FitParser:
         metadata = {
             'serial_number': None,
             'manufacturer': None,
-            'product': None
+            'product': None,
+            'start_time': None
         }
         
         # 1. Read Raw Data & Metadata
@@ -53,7 +54,13 @@ class FitParser:
             with fitdecode.FitReader(file_path) as fit:
                 for frame in fit:
                     if frame.frame_type == fitdecode.FIT_FRAME_DATA:
-                        if frame.name == 'file_id':
+                        if frame.name == 'session':
+                            # Session frame often has the best start_time
+                            for field in frame.fields:
+                                if field.name == 'start_time':
+                                    metadata['start_time'] = field.value
+                        
+                        elif frame.name == 'file_id':
                             # DEBUG: Print all file_id fields to see what's available
                             # print(f"DEBUG file_id: {[f.name for f in frame.fields]}")
                             for field in frame.fields:

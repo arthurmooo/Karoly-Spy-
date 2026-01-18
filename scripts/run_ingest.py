@@ -253,6 +253,14 @@ class IngestionRobot:
                 try:
                     df, device_meta, laps = FitParser.parse(tmp_path)
                     
+                    # Update start_time with high precision from FIT if available
+                    if device_meta.get('start_time'):
+                        start_date = device_meta['start_time']
+                        # Ensure timezone awareness (FIT is UTC)
+                        if start_date.tzinfo is None:
+                            start_date = start_date.replace(tzinfo=timezone.utc)
+                        meta.start_time = start_date
+                    
                     # Fetch Weather (API)
                     if not df.empty and 'lat' in df.columns and 'lon' in df.columns:
                         valid_coords = df[['lat', 'lon']].dropna().iloc[:1]
