@@ -1,38 +1,36 @@
-
 import sys
 import os
-import base64
-import requests
 
-def exchange_code():
-    client_id = "h7P9ESHPLQYzy82mUn8Y6P1defhycaz8FrCHjW79"
-    client_secret = "2yYSxElTGVScRBpJUevH5xyVtyNrLE9QRjzTOgZavnyl7F9Vc9W2Pb4YY51D72623VU1IBF5gUCFPblFt9txmnxm4rGeTmEZcowNUy8pHWLONpjtathVlqOjekBdN9Vc"
-    code = "tytw9J8sT4pvIJGZZlmzWB6LwpduN7"
-    redirect_uri = "https://google.com"
+# Add project root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from projectk_core.auth.nolio_auth import NolioAuthenticator
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python scripts/exchange_tokens.py <code>")
+        sys.exit(1)
+        
+    code = sys.argv[1]
     
-    auth_str = f"{client_id}:{client_secret}"
-    b64_auth = base64.b64encode(auth_str.encode()).decode()
-    
-    headers = {
-        "Authorization": f"Basic {b64_auth}",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    
-    data = {
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": redirect_uri
-    }
-    
-    response = requests.post("https://www.nolio.io/api/token/", headers=headers, data=data)
-    
-    if response.status_code == 200:
-        tokens = response.json()
-        print("TOKEN_EXCHANGE_SUCCESS")
-        print(f"REFRESH_TOKEN={tokens.get('refresh_token')}")
-    else:
-        print(f"ERROR: {response.status_code}")
-        print(f"BODY: {response.text}")
+    try:
+        print(f"🔄 Exchanging code: {code}...")
+        auth = NolioAuthenticator()
+        tokens = auth.exchange_code_for_token(code)
+        
+        if tokens.get('refresh_token'):
+            print("\n✅ SUCCESS!")
+            print(f"New Refresh Token: {tokens.get('refresh_token')[:10]}...")
+            print("The token has been automatically saved to Supabase (app_secrets).")
+        else:
+            print("❌ Error: No refresh token received in response.")
+            print(tokens)
+            
+    except Exception as e:
+        print(f"\n❌ ERROR during exchange: {e}")
+        # If it's a 400, it's likely an expired code
+        if "400" in str(e):
+            print("The code might have expired. Please generate a new one.")
 
 if __name__ == "__main__":
-    exchange_code()
+    main()

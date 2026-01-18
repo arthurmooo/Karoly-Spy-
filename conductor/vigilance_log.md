@@ -47,7 +47,7 @@
     *   *Action :* À surveiller. Si les charges "Vélo sans Power" paraissent aberrantes à Karoly, il faudra revoir cette formule.
 
 2.  **La Gestion des "Trous" (>10s) :**
-    *   *Le Problème :* Je "bouche" les trous <10s par interpolation, mais je laisse les trous >10s (pauses) comme manquants (NaN). C'est correct pour la moyenne, mais pour le calcul de NP (Moyenne glissante 30s), les périodes autour de la pause peuvent être affectées (moins de 30 échantillons).
+    *   *Le Problème :* Je "bouche" les trous <10s par interpolation, mais je leaves les trous >10s (pauses) comme manquants (NaN). C'est correct pour la moyenne, mais pour le calcul de NP (Moyenne glissante 30s), les périodes autour de la pause peuvent être affectées (moins de 30 échantillons).
     *   *Risque :* Légère sous-estimation du NP autour des arrêts.
     *   *Action :* Acceptable pour la Phase 1, mais à raffiner si on veut une précision au watt près.
 
@@ -89,38 +89,27 @@
 
 ---
 
-## [Track 1.3] Ingestion Pipeline & Nolio Sync (Module B)
-**Date:** 16 Janvier 2026
-**Statut:** ✅ Terminé avec Réserves
+## [Track 1.3/1.4] Ingestion Robot & Automation (Audit Post-Bugfix)
+**Date:** 18 Janvier 2026
+**Statut:** ✅ Stabilisé & Déployé
 
-### 🟢 Points de Succès (Robustesse)
-1.  **Architecture Modulaire & Solide :** 
-    -   Séparation claire des responsabilités : `NolioClient` (API), `StorageManager` (Supabase Storage), `IngestionRobot` (Orchestration).
-    -   Utilisation de **Pydantic** (`ActivityMetadata`) pour valider les données entrantes, ce qui a permis de détecter immédiatement le problème des RPE invalides.
-2.  **Résilience Réseau :**
-    -   L'ajout de la logique de **Retry avec Backoff** exponentiel dans `download_fit_file` garantit que le robot ne plantera pas sur des micro-coupures réseau lors du téléchargement de centaines de fichiers.
-3.  **Expérience Utilisateur (DX) :**
-    -   Le script offre une visibilité excellente grâce aux barres de progression (`tqdm`) et aux logs clairs ("👤 Processing: Adrien...").
-    -   L'option `--athlete` et `--days` permet des tests chirurgicaux rapides.
-4.  **Auto-Guérison (Roster Sync) :**
-    -   La fonction `sync_athletes_roster` est un atout majeur : elle détecte et crée automatiquement les nouveaux athlètes Nolio dans notre base, évitant une gestion manuelle fastidieuse.
+### 🟢 Points de Succès (Résilience de Session)
+1.  **Auto-Authentification Robuste :** La boucle de rafraîchissement des jetons via Supabase (`app_secrets`) est validée. Le robot est désormais autonome sur le long terme sans intervention humaine sur les secrets GitHub.
+2.  **Dashboard Coach Opérationnel :** Création de la vue SQL `dashboard_karoly` qui transforme la DB brute en interface métier lisible (arrondis, noms en clair, tri chronologique).
+3.  **Consigne Métier Appliquée :** Le robot respecte désormais la règle "Seuils Read-Only". Karoly est le seul maître des profils physiologiques.
+4.  **Correction Charge Running :** La MLS Running est désormais calculée sur la base `Distance x Intensité`, supprimant les valeurs `NULL` pour les coureurs.
 
-### 🟠 Zones Faibles (Risques & Watchlist)
-1.  **Gestion des Données "Sales" (RPE = 0) :**
-    -   *Constat :* Nolio renvoie parfois `RPE=0` pour des séances où l'athlète n'a rien saisi.
-    -   *Fix actuel :* Nous avons relaxé la contrainte de validation (`ge=0` au lieu de `ge=1`).
-    -   *Risque :* Un RPE de 0 faussera les calculs de charge (RPE * Durée). 
-    -   *Action requise :* Il faudra décider avec Karoly si 0 doit être traité comme `null` (pas de charge RPE) ou remplacé par une valeur par défaut (ex: 3).
-2.  **Performance de Synchronisation (Scaling) :**
-    -   *Constat :* Le robot parcourt séquentiellement chaque activité. Avec 100 athlètes sur 6 mois, cela prendra du temps.
-    -   *Risque :* Lent pour une synchro quotidienne globale.
-    -   *Mitigation :* Le système de vérification des doublons (par ID et Hash) est efficace, mais on pourrait optimiser en ne demandant à l'API Nolio que les activités *plus récentes* que la dernière date de synchro connue en base (Incremental Sync).
-3.  **Dépendance aux Profils Physio :**
-    -   *Constat :* L'erreur "ProfileManager" lors du dry-run a révélé que sans profil valide, le calcul plante ou est incomplet.
-    -   *Risque :* Si Karoly ajoute un nouvel athlète mais oublie de créer son profil (LT1/LT2), l'ingestion fonctionnera mais sans métriques avancées.
-    -   *Amélioration :* Ajouter une alerte explicite ou un rapport "Missing Profiles" à la fin de l'ingestion.
+### 🔴 Failles Critiques (Résolues)
+1.  **Bug "130.0" (Postgres Integer) :** Éliminé par la désactivation de l'écriture automatique des profils et le forçage des types.
+2.  **Erreurs 403 (RLS) :** Résolues par la suppression des tentatives d'écriture du robot dans les tables sensibles réservées au coach.
 
-### 📝 Backlog Improvements
--   [ ] **Business Logic:** Clarifier la règle de gestion pour RPE=0 (Ignorer ou Default ?).
--   [ ] **Optimization:** Implémenter "Incremental Sync" (fetch only `> last_sync_date`).
--   [ ] **Observability:** Créer un rapport récapitulatif "Activités importées sans métriques (Manque Profil)".
+### 🟠 Points Bancales (Risques & Watchlist)
+1.  **Manque de Seuils (LT1/LT2) :** Karoly n'a pas les seuils pour tous les athlètes.
+    *   *Risque :* Utilisation des valeurs par défaut (130/160) qui faussent l'indice INT.
+    *   *Action :* Informer Karoly qu'il doit estimer ces valeurs (ex: % de FCMax) pour plus de précision.
+2.  **Rate Limit Nolio :** Le scan global de 60 athlètes d'un coup peut déclencher un blocage temporaire.
+    *   *Mitigation :* Passage du robot à un rythme toutes les 2h (validé).
+
+### 🔭 Watchlist (Sujets à Surveiller)
+- **Vues SQL par athlète :** Surveiller l'ergonomie de l'interface Supabase au fur et à mesure que Karoly ajoute des vues personnalisées.
+- **Audit de lissage :** Vérifier si le lissage 30s de la HR (`ffill().bfill()`) n'étouffe pas trop les variations sur les sprints courts.

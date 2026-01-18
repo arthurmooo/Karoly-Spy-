@@ -23,7 +23,15 @@
 - **Amélioration :** Exploiter les autres métriques Stryd (Leg Spring Stiffness, Ground Time, Vertical Oscillation) pour détecter la fatigue mécanique avant la dérive cardiaque.
 - **Impact :** Prévention blessure (Phase 3).
 
-### 5. Utilisation de l'Effort Pace (Coros)
-- **Observation :** Coros fournit un champ `Effort Pace` (Vitesse ajustée à la pente). Actuellement, on utilise la vitesse GPS brute (`Speed`) pour le calcul de charge en running si la puissance est absente.
-- **Amélioration :** Utiliser `Effort Pace` comme source prioritaire pour l'intensité (`Speed Source`) en Trail/Côtes. Cela reflèterait bien mieux la charge mécanique que la vitesse à plat.
-- **Impact :** Meilleure estimation de charge pour le Trail Running (sans Stryd).
+### 6. Audit & Validation des Indices Karoly
+- **Observation :** Les calculs MEC, INT, DUR et MLS ont été portés depuis les notebooks. Une vérification croisée (audit mathématique) ligne à ligne est nécessaire pour garantir qu'aucune subtilité de lissage ou de pondération n'a été perdue lors de la vectorisation (Numpy/Pandas).
+- **Amélioration :** Créer une suite de tests unitaires "Golden Samples" (comparer le résultat du robot vs le résultat manuel du notebook de Karoly sur 5 fichiers .fit de référence).
+- **Impact :** Crédibilité scientifique du modèle.
+
+## ☁️ Module C/D: Database & Sync
+
+### 7. Automatisation des "Onglets" Athlètes (Vues SQL)
+- **Observation :** Karoly est habitué à une vue par athlète (onglets Excel). L'interface Supabase brute est trop complexe pour un usage quotidien fluide.
+- **Amélioration :** Ajouter une étape au robot Python pour créer/mettre à jour automatiquement une vue SQL "📂 Nom Prénom" dès qu'un nouvel athlète est détecté.
+- **Alternative :** Développer un Dashboard interactif (Streamlit/Glide) avec menu déroulant pour éviter l'encombrement de la barre latérale.
+- **Impact :** Expérience utilisateur (UX) Coach.

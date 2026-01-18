@@ -70,12 +70,17 @@ class MetricsCalculator:
              mech_source = pd.Series(np.zeros(len(df)))
              mech_ref = 1.0
 
-        # 3. Energy (kJ)
-        # Karoly: Bike uses kJ, Run returns None
+        # 3. Energy (kJ) or Mechanical Base
+        # Karoly: Bike uses kJ, Run uses Distance * IF_Weight
+        energy_kj = None
+        mec_base = 0.0
+        
         if sport == "bike" and 'power' in df.columns:
             energy_kj = df['power'].fillna(0).sum() * 1.0 / 1000.0
-        else:
-            energy_kj = None
+            mec_base = energy_kj
+        elif sport == "run":
+            # For Running, we use distance in km as the base for mechanical load
+            mec_base = meta.distance_m / 1000.0 if meta.distance_m else 0.0
 
         # 4. IF (Intensity Factor)
         # Mean of intensity series on active points
@@ -83,12 +88,12 @@ class MetricsCalculator:
 
         # 5. Mechanical Load (MEC)
         intensity_factor = self._pick_intensity_factor(if_mean)
-        mec = energy_kj * intensity_factor if energy_kj is not None else None
+        mec = mec_base * intensity_factor
 
         # 6. Internal Load (INT)
         # Based on HR Time in Zone 2 (LT1 <= HR < LT2)
         hr_smooth = df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean()
-        hr_smooth = hr_smooth.fillna(method='bfill').fillna(method='ffill')
+        hr_smooth = hr_smooth.ffill().bfill()
         
         z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
         p_hr_lt = z2_count / total_seconds if total_seconds > 0 else 0.0

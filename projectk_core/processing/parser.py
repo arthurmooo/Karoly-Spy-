@@ -107,6 +107,8 @@ class FitParser:
         semicircle_to_degree = 180 / (2**31)
         for col in ['lat', 'lon']:
             if col in df.columns:
+                # Ensure float type to avoid FutureWarnings and precision issues
+                df[col] = df[col].astype(float)
                 # Only convert if values look like semicircles (huge integers > 180)
                 # Note: some files might already be in degrees, so we check range
                 mask = df[col].abs() > 180

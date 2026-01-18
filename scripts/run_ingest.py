@@ -74,73 +74,18 @@ class IngestionRobot:
                 
                 athlete_uuid = res.data[0]['id']
 
-                # 2. Sync Metrics (CP/CS/Weight)
-                print(f"   📊 Syncing Metrics for {na.get('name')}...")
-                metrics = self.nolio.get_athlete_metrics(nid)
-                
-                cp_val = None
-                cs_val = None
-                weight_val = None
-                
-                if 'criticalpowercycling' in metrics and metrics['criticalpowercycling'].get('data'):
-                    cp_val = metrics['criticalpowercycling']['data'][0].get('value')
-                
-                if 'criticalspeedrunning' in metrics and metrics['criticalspeedrunning'].get('data'):
-                    raw_cs = metrics['criticalspeedrunning']['data'][0].get('value')
-                    if raw_cs:
-                        cs_val = 1000.0 / float(raw_cs)
-
-                if 'weight' in metrics and metrics['weight'].get('data'):
-                    weight_val = metrics['weight']['data'][0].get('value')
-
-                # 3. Update Physio Profile (SCD Type 2)
-                existing_profile = self.profile_manager.get_profile_for_date(athlete_uuid, "Bike", datetime.now(timezone.utc))
-                
-                # Check for changes in CP or Weight
-                # Note: existing_profile is now a PhysioProfile object
-                old_cp = float(existing_profile.lt2_power_pace or 0) if existing_profile else 0
-                old_weight = float(existing_profile.weight or 0) if existing_profile else 0
-                
-                cp_changed = cp_val and (not existing_profile or abs(old_cp - float(cp_val)) > 1)
-                weight_changed = weight_val and (not existing_profile or abs(old_weight - float(weight_val)) > 0.1)
-
-                if cp_changed or weight_changed:
-                    # If it's the first profile, we date it far in the past to cover history
-                    v_from = "2000-01-01T00:00:00+00:00" if not existing_profile else datetime.now(timezone.utc).isoformat()
-                    
-                    print(f"      🆕 Update detected (Bike): CP={cp_val}W, Weight={weight_val}kg (Valid from: {v_from[:10]})")
-                    self.db.client.table("physio_profiles").insert({
-                        "athlete_id": athlete_uuid,
-                        "sport": "Bike",
-                        "lt2_power_pace": cp_val,
-                        "weight": weight_val,
-                        "lt1_hr": existing_profile.lt1_hr if existing_profile else 130,
-                        "lt2_hr": existing_profile.lt2_hr if existing_profile else 160,
-                        "valid_from": v_from
-                    }).execute()
-
-                # Same for Run
-                existing_run_profile = self.profile_manager.get_profile_for_date(athlete_uuid, "Run", datetime.now(timezone.utc))
-                old_cs = float(existing_run_profile.lt2_power_pace or 0) if existing_run_profile else 0
-                cs_changed = cs_val and (not existing_run_profile or abs(old_cs - float(cs_val)) > 0.1)
-                
-                if cs_changed or weight_changed:
-                    v_from_run = "2000-01-01T00:00:00+00:00" if not existing_run_profile else datetime.now(timezone.utc).isoformat()
-                    
-                    print(f"      🆕 Update detected (Run): CS={round(cs_val, 2) if cs_val else '-'}m/s, Weight={weight_val}kg (Valid from: {v_from_run[:10]})")
-                    self.db.client.table("physio_profiles").insert({
-                        "athlete_id": athlete_uuid,
-                        "sport": "Run",
-                        "lt2_power_pace": cs_val,
-                        "weight": weight_val,
-                        "lt1_hr": existing_run_profile.lt1_hr if existing_run_profile else 130,
-                        "lt2_hr": existing_run_profile.lt2_hr if existing_run_profile else 160,
-                        "valid_from": v_from_run
-                    }).execute()
+                # 2. Fetch Metrics (CP/CS/Weight) for calculation only
+                print(f"   📊 Fetching latest metrics for {na.get('name')} (Read Only)...")
+                try:
+                    metrics = self.nolio.get_athlete_metrics(nid)
+                    # We don't save these to DB anymore (Karoly's rule), 
+                    # but we can log if we see a big discrepancy with our DB.
+                except Exception as e:
+                    print(f"      ⚠️ Could not fetch metrics from Nolio for {nid}: {e}")
 
         except Exception as e:
-            print(f"⚠️ Error syncing roster & metrics: {e}")
-            log.exception("Sync error detail")
+            print(f"⚠️ Error during athlete discovery: {e}")
+            log.exception("Discovery error detail")
         
     def run(self, specific_athlete_name: Optional[str] = None):
         print(f"🚀 Starting Ingestion Robot (Window: {self.history_days} days)")
