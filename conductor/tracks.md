@@ -77,3 +77,8 @@ This file tracks the master plan, strictly aligned with the contract phases.
     - **Status:** 🟢 Completed. Multi-phase (2/4) and manual splits (#split) implemented & integrated in ingestion pipeline.
 
     - **Link:** [./tracks/smart_segmentation_20260115/](./tracks/smart_segmentation_20260115/)
+
+---
+
+- [~] **Track: Interval Engine & Workout Classification**
+*Link: [./tracks/interval_classification_20260119/](./tracks/interval_classification_20260119/)*
