@@ -37,8 +37,8 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Storage
-- [ ] Task: Update `ActivityMetrics` model.
-    - [ ] Add fields for `interval_respect_score`, `interval_pace_mean`, `interval_pace_last`.
+- [x] Task: Update `ActivityMetrics` model. 055d236
+    - [x] Add fields for `interval_respect_score`, `interval_pace_mean`, `interval_pace_last`.
 - [ ] Task: Update `run_ingest.py` pipeline.
     - [ ] Step 1: Fetch Plan (with fallback).
     - [ ] Step 2: Classify (Plan vs Blind).
