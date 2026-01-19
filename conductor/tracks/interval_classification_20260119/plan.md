@@ -34,7 +34,7 @@
     - [x] Compute Avg Power/Pace & Avg HR for each detected window.
     - [x] Compute "Respect Score" (Realized / Target).
     - [x] Compute Global Interval Metrics (Mean of all intervals, Last interval).
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Storage
 - [ ] Task: Update `ActivityMetrics` model.
