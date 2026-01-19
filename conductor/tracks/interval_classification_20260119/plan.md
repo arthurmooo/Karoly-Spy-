@@ -30,10 +30,10 @@
         - [x] For each target interval (e.g., 120s), scan the dataframe to find the 120s window with max average intensity (Power or Speed).
         - [x] Ensure detected windows do not overlap significantly.
     - [x] **Reality Check:** Count valid detections vs Plan.
-- [ ] Task: Metric Extraction Logic.
-    - [ ] Compute Avg Power/Pace & Avg HR for each detected window.
-    - [ ] Compute "Respect Score" (Realized / Target).
-    - [ ] Compute Global Interval Metrics (Mean of all intervals, Last interval).
+- [x] Task: Metric Extraction Logic. 86a3c3c
+    - [x] Compute Avg Power/Pace & Avg HR for each detected window.
+    - [x] Compute "Respect Score" (Realized / Target).
+    - [x] Compute Global Interval Metrics (Mean of all intervals, Last interval).
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Storage
