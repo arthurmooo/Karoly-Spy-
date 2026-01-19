@@ -12,8 +12,12 @@ class ActivityClassifier:
         r"marathon", r"semi", r"10k", r"course", r"race", r"compétition", 
         r"90", r"180", r"ironman", r"triathlon"
     ]
+    
+    INTERVAL_KEYWORDS = [
+        r"\d+[*x]\d+", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint"
+    ]
 
-    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str) -> str:
+    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, target_grid: Optional[List[Dict[str, Any]]] = None) -> str:
         """
         Classifies activity as 'endurance', 'intervals', or 'competition'.
         """
@@ -21,8 +25,19 @@ class ActivityClassifier:
         if self.is_competition(title, nolio_type):
             return "competition"
 
-        # 2. Check for variability (Coefficient of Variation)
-        # Use Power if available, otherwise Speed
+        # 2. Strategy A: Plan-Driven (Target Grid)
+        if target_grid and len(target_grid) > 0:
+            return "intervals"
+
+        # 3. Strategy B: Blind Fallback
+        
+        # 3.1 Title Keywords
+        combined_text = title.lower()
+        for kw in self.INTERVAL_KEYWORDS:
+            if re.search(kw, combined_text):
+                return "intervals"
+
+        # 3.2 Signal Variability
         signal = None
         if not df.empty:
             if 'power' in df.columns and df['power'].mean() > 0:
