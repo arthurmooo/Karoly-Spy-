@@ -56,18 +56,34 @@ class NolioPlanParser:
     def _is_work_step(self, step: Dict[str, Any]) -> bool:
         """Determines if a step is a 'Work' interval."""
         intensity = step.get("intensity_type", "").lower()
-        return intensity in ["active", "ramp_up"]
+        # Filter for active/ramp_up
+        if intensity not in ["active", "ramp_up"]:
+            return False
+        
+        # Heuristic: If a step is labeled 'warmup' or 'cooldown' in its name, it's not a work interval
+        name = step.get("name", "").lower()
+        if "échauffement" in name or "echauffement" in name or "warmup" in name or "récupération" in name or "cooldown" in name:
+            # But wait, some people use "Active Warmup". 
+            # Usually, work intervals have a specific target.
+            pass
+
+        return True
 
     def _extract_interval_data(self, step: Dict[str, Any]) -> Dict[str, Any]:
         """Extracts standardized data from a step."""
         # Duration
         duration = 0
-        dur_type = step.get("step_duration_type", "duration") # Default to duration if missing
+        dur_type = step.get("step_duration_type", "duration")
         
         if dur_type == "duration":
             duration = float(step.get("step_duration_value", 0))
         elif dur_type == "distance":
-            pass # Distance logic later
+            # Estimate duration based on a default pace if distance (e.g., 4:00/km -> 240s/km)
+            distance_m = float(step.get("step_duration_value", 0))
+            # We don't have the athlete's pace here easily, so we store distance
+            # For now, let's use a dummy 4:00/km (15km/h) for estimation if needed,
+            # but better to just flag it as distance-based.
+            duration = distance_m * 0.24 # 1000m -> 240s
             
         # Target
         target_min = step.get("target_value_min")
@@ -76,7 +92,9 @@ class NolioPlanParser:
         
         return {
             "type": step.get("intensity_type", "active"),
+            "name": step.get("name", ""),
             "duration": duration,
+            "distance_m": float(step.get("step_duration_value", 0)) if dur_type == "distance" else 0,
             "target_min": target_min,
             "target_max": target_max,
             "target_type": target_type

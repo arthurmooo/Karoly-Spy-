@@ -100,8 +100,10 @@ class IntervalDetector:
         selected.sort(key=lambda x: x[0]) # Chronological
         
         # Merge contiguous blocks (e.g., 5x3min -> 1x15min)
-        # Increased gap tolerance to 180s to bridge drops in long efforts (fatigue)
-        merged_intervals = IntervalDetector._merge_intervals(selected, window_size, df, signal_col, gap_tolerance=180)
+        # Dynamic gap tolerance: for short intervals, we don't want to merge them if there's a rest.
+        # If window is < 5min, use 45s tolerance. Otherwise use 180s.
+        gap_tol = 45 if duration_sec < 300 else 180
+        merged_intervals = IntervalDetector._merge_intervals(selected, window_size, df, signal_col, gap_tolerance=gap_tol)
         
         # Compute Metrics on Merged Intervals
         details = []

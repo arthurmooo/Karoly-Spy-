@@ -28,6 +28,27 @@
 - **Amélioration :** Créer une suite de tests unitaires "Golden Samples" (comparer le résultat du robot vs le résultat manuel du notebook de Karoly sur 5 fichiers .fit de référence).
 - **Impact :** Crédibilité scientifique du modèle.
 
+### 7. Validation Réelle - Interval Engine (Track 1.5)
+- **Action :** Une fois le Rate Limit Nolio levé, effectuer des runs ciblés pour valider l'extraction chirurgicale sur ce banc d'essai exhaustif :
+
+| Athlète | Date | Structure Prévue | Type de Test / Complexité |
+| :--- | :--- | :--- | :--- |
+| **Adrien C.** | 07/01/26 | 10x2' Z3 / r 1' | **Base :** Répétitions classiques avec repos. |
+| **Baptiste D.** | 07/12/25 | 2x(20x10"-50") | **Précision :** Très court (10s) haute fréquence. |
+| **Baptiste D.** | 14/12/25 | 3x4km Tempo / r 1km | **Distance :** Blocs au km avec repos actif. |
+| **Baptiste D.** | 31/12/25 | HIT (20x10-50) + (20x15-45) | **Volume :** Enchaînement de séries HIT. |
+| **Baptiste D.** | 10/01/26 | 5x(12x30" Z3 / r 15") | **Structure :** Séries imbriquées (nested). |
+| **Dries M.** | 11/01/26 | 2x50' LT1 / r 10' | **Endurance :** Plateaux très longs. |
+| **Cyril N.** | 11/08/25 | 30x30" Z3 + 60' Z2 | **Hybride :** Fractionné + Bloc continu. |
+| **Cyril N.** | 17/08/25 | 35km : 10km @ X% + 10km @ Y% | **Vague :** Changements d'allure sans repos. |
+| **Cyril N.** | 12/10/25 | 4x20' progressif | **Progression :** Intensité montante. |
+| **Baptiste D.** | 08/01/26 | 5x1'30'' Z3 + 3'30'' Z2 | **Transition :** Pas de repos entre Z3 et Z2. |
+| **Baptiste D.** | 09/01/26 | 10x1' Z3 + 5x2' Z3 + 10' Z2 | **Mixed :** Changement de durée en cours de corps. |
+| **Bernard A.** | 17/10/25 | 5x(1'30'' Z3 + 3'30'' Z2) | **Running Waves :** Alternance allure soutenue/endurance. |
+| **Hadrien T.** | 07/10/25 | Test 5' | **Benchmark :** Isoler un effort max unique de 5 min. |
+
+- **Impact :** Garantie de robustesse totale du moteur d'intervalles sur 100% des cas d'usage de Karoly.
+
 ## ☁️ Module C/D: Database & Sync
 
 ### 7. Automatisation des "Onglets" Athlètes (Vues SQL)

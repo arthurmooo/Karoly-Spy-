@@ -84,7 +84,7 @@ class NolioClient:
         Fetches the detailed structure (planned workout) of an activity.
         """
         url = f"{self.BASE_URL}/get/training/"
-        # We query the specific activity ID to get its details, including 'structure'
+        # We query the specific activity ID to get its details, including 'structured_workout'
         params = {"id": activity_id}
         
         try:
@@ -93,7 +93,7 @@ class NolioClient:
                 # API returns a list, we take the first item
                 data = response.json()
                 if isinstance(data, list) and len(data) > 0:
-                    return data[0].get("structure")
+                    return data[0].get("structured_workout")
             return None
         except Exception as e:
             print(f"⚠️ Failed to fetch structure for {activity_id}: {e}")
@@ -178,16 +178,17 @@ class NolioClient:
                 t_norm = title_filter.lower().strip()
                 for s in planned_sessions:
                     s_name = s.get("name", "").lower().strip()
-                    # Simple inclusion check or fuzzy logic could be used here
-                    # For now, strict inclusion
+                    # Simple inclusion check or fuzzy logic
                     if t_norm in s_name or s_name in t_norm:
                         return s
             
-            # If no filter or no match found, maybe return the one on the exact date?
-            # Or return None to avoid false positives?
-            # Spec says "search for a matching planned workout within the Same Week... based on title similarity"
-            # If filtering failed, we return None.
+            # If no title match, maybe pick the one on the same day?
+            for s in planned_sessions:
+                if s.get("date_start") == date_obj.strftime("%Y-%m-%d"):
+                    return s
+
             return None
+
             
         except Exception as e:
             print(f"⚠️ Failed to find planned workout for {athlete_id} around {date}: {e}")

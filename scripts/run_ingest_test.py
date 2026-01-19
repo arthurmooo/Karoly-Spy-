@@ -1,141 +1,82 @@
-import os
 import sys
-import hashlib
+import os
 import tempfile
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
+import argparse
+import hashlib
+import traceback
 
-load_dotenv()
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from projectk_core.db.connector import DBConnector
 from projectk_core.integrations.nolio import NolioClient
 from projectk_core.processing.parser import FitParser
+from projectk_core.logic.models import Activity, ActivityMetadata
 from projectk_core.processing.calculator import MetricsCalculator
-from projectk_core.logic.profile_manager import ProfileManager
 from projectk_core.db.writer import ActivityWriter
+from projectk_core.processing.plan_parser import NolioPlanParser
 
-def calculate_file_hash(content: bytes) -> str:
-    return hashlib.md5(content).hexdigest()
-
-def run_test_ingestion():
-    print("=== 🧪 TEST INGESTION: Adrien Claeyssen ===")
-    
-    # 1. Setup
+def run_test(athlete_nolio_id, date_str):
     db = DBConnector()
-    nolio = NolioClient()
+    client = NolioClient()
+    print(f"🚀 Athlete {athlete_nolio_id} - {date_str}")
+    activities = client.get_activities(athlete_nolio_id, date_str, date_str)
+    if not activities:
+        print("❌ No activity found")
+        return
     
-    # 2. Get Adrien's Nolio ID from DB
-    res = db.client.table("athletes").select("*").eq("first_name", "Adrien").eq("last_name", "Claeyssen").single().execute()
-    athlete = res.data
-    nolio_id = athlete.get("nolio_id")
-    athlete_db_id = athlete.get("id")
-    
-    print(f"Target Athlete: {athlete['first_name']} (Nolio: {nolio_id})")
-    
-    # 3. Define Date Range (Last 7 days)
-    today = datetime.now()
-    week_ago = today - timedelta(days=14) # Safety margin
-    date_to = today.strftime("%Y-%m-%d")
-    date_from = week_ago.strftime("%Y-%m-%d")
-    
-    print(f"Fetching activities from {date_from} to {date_to}...")
-    
-    # 4. Fetch Nolio Activities
-    activities = nolio.get_activities(nolio_id, date_from, date_to)
-    print(f"Found {len(activities)} activities.")
-    
-    # 5. Process Each Activity
-    for act in activities:
-        act_id = act.get("nolio_id")
-        act_name = act.get("name")
-        file_url = act.get("file_url")
-        
-        print(f"\n>> Processing: {act_name} (ID: {act_id})")
-        
-        if not file_url:
-            print("   ⚠️ No FIT file available (Manual entry?). Skipping.")
-            continue
-            
-        # Download
-        print("   📥 Downloading FIT...")
-        fit_data = nolio.download_fit_file(file_url)
-        
-        if not fit_data:
-            print("   ❌ Download failed.")
-            continue
-            
-        file_hash = calculate_file_hash(fit_data)
-        print(f"   🔑 Hash: {file_hash}")
-        
-        # Check Hash in DB to prevent duplicates
-        hash_check = db.client.table("activities").select("id").eq("fit_file_hash", file_hash).execute()
-        if hash_check.data:
-            print("   ⏭️ Duplicate file (Hash match). Skipping processing.")
-            continue
-            
-        # Save to Temp File for Parser
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".fit") as tmp:
+    nolio_activity = activities[0]
+    act_id = nolio_activity.get('nolio_id') or nolio_activity.get('id')
+    if not act_id:
+        print(f"❌ No ID in {nolio_activity.keys()}")
+        return
+
+    athlete_data = db.client.table("athletes").select("id").eq("nolio_id", str(athlete_nolio_id)).execute()
+    athlete_uuid = athlete_data.data[0]['id']
+
+    print(f"✅ Activity: {nolio_activity.get('name')} ({act_id})")
+    fit_data = client.get_activity_fit(act_id)
+    if not fit_data:
+        print("⚠️ No FIT file")
+        return
+
+    file_hash = hashlib.sha256(fit_data).hexdigest()
+    fd, tmp_path = tempfile.mkstemp(suffix=".fit")
+    try:
+        with os.fdopen(fd, 'wb') as tmp:
             tmp.write(fit_data)
-            tmp_path = tmp.name
-            
-        try:
-            # Parse
-            print("   🧠 Parsing...")
-    # 3. Parse and Calculate
-    print(f"DEBUG: Processing {tmp_path}...")
-    df, meta, laps = FitParser.parse(tmp_path)
-    
-    # Wrap in Activity logic
-    activity_meta = ActivityMetadata(
-        activity_type="Run", # Hardcoded for test
-        start_time=df['timestamp'].iloc[0],
-        duration_sec=(df['timestamp'].iloc[-1] - df['timestamp'].iloc[0]).total_seconds(),
-        distance_m=None
-    )
-    activity = Activity(activity_meta, df, laps=laps)
-
-            
-            if meta.get('serial_number'):
-                print(f"      -> Device: {meta.get('manufacturer')} {meta.get('product')} (S/N: {meta.get('serial_number')})")
-
-            # Calculate
-            print("   🧮 Calculating Karoly Load...")
-            profile = ProfileManager(db).get_profile(athlete_db_id)
-            metrics = MetricsCalculator.calculate(df, profile)
-            
-            print(f"      -> Load: {metrics.karoly_load:.1f}, NP: {metrics.normalized_power:.0f}W")
-            
-            # Save to DB - Using simplified manual insert for test script clarity
-            # (Matches schema from Track 1.1)
-            activity_payload = {
-                "athlete_id": athlete_db_id,
-                "nolio_id": act_id,
-                "session_date": act.get("date_start"),
-                "sport_type": act.get("sport", "Bike"),
-                "fit_file_hash": file_hash,
-                
-                # Metrics
-                "load_index": metrics.karoly_load,
-                "durability_index": metrics.durability_index,
-                "decoupling_index": metrics.aerobic_decoupling,
-                "avg_power": metrics.normalized_power, # Storing NP as power metric for now or avg
-                "avg_hr": metrics.avg_hr
-            }
-            
-            db.client.table("activities").upsert(activity_payload, on_conflict="nolio_id").execute()
-            print("   ✅ SAVED to Database!")
-            
-            # Upload to Storage
-            storage_path = f"{athlete_db_id}/{datetime.now().year}/{file_hash}.fit"
-            print(f"   ☁️ Uploading to Storage: {storage_path}")
-            db.client.storage.from_("raw_fits").upload(storage_path, fit_data, {"content-type": "application/vnd.ant.fit"})
-            
-        except Exception as e:
-            print(f"   ❌ Error processing: {e}")
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        df, meta, laps = FitParser.parse(tmp_path)
+        activity_meta = ActivityMetadata(
+            athlete_id=athlete_uuid,
+            start_time=meta['start_time'],
+            duration=meta['duration'],
+            distance=meta['distance'],
+            sport=meta['sport'],
+            device_serial=meta['device_serial'],
+            fit_file_hash=file_hash,
+            title=nolio_activity.get('name')
+        )
+        activity = Activity(df, activity_meta)
+        plan = client.find_planned_workout(athlete_uuid, date_str, nolio_activity.get('name'))
+        target_grid = []
+        if plan:
+            print(f"📋 Plan found: {plan.get('name')}")
+            parser = NolioPlanParser()
+            target_grid = parser.flatten_workout(plan.get('structured_workout', []))
+        
+        metrics = MetricsCalculator.calculate(activity, target_grid=target_grid)
+        writer = ActivityWriter(db)
+        writer.save(activity, metrics)
+        print(f"✅ DONE. Respect: {metrics.interval_respect_score}%")
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
+        traceback.print_exc()
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 if __name__ == "__main__":
-    run_test_ingestion()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--athlete_id", required=True)
+    parser.add_argument("--date", required=True)
+    args = parser.parse_args()
+    run_test(args.athlete_id, args.date)
