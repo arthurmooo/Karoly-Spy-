@@ -36,13 +36,13 @@
     - [x] Compute Global Interval Metrics (Mean of all intervals, Last interval).
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
-## Phase 4: Integration & Storage
+## Phase 4: Integration & Storage [checkpoint: a1651a9]
 - [x] Task: Update `ActivityMetrics` model. 055d236
     - [x] Add fields for `interval_respect_score`, `interval_pace_mean`, `interval_pace_last`.
-- [~] Task: Update `run_ingest.py` pipeline.
-    - [ ] Step 1: Fetch Plan (with fallback).
-    - [ ] Step 2: Classify (Plan vs Blind).
-    - [ ] Step 3: If Intervals -> Run Matcher -> Store Metrics.
-- [ ] Task: End-to-End Test.
-    - [ ] Run on Adrien's "10x2'" session (with mock or real API access).
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Update `run_ingest.py` pipeline.
+    - [x] Step 1: Fetch Plan (with fallback).
+    - [x] Step 2: Classify (Plan vs Blind).
+    - [x] Step 3: If Intervals -> Run Matcher -> Store Metrics.
+- [x] Task: End-to-End Test.
+    - [x] Run on Adrien's "10x2'" session (with mock or real API access).
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
