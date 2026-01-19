@@ -10,18 +10,18 @@
     - [x] Filter out `warmup`, `cooldown`, and `rest` steps to focus on the "Work" blocks.
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
-## Phase 2: Classification Engine
+## Phase 2: Classification Engine [checkpoint: d0eb20d]
 - [x] Task: Implement `WorkoutClassifier` class (upgrade from `ActivityClassifier`). b18c2d3
     - [x] **Strategy A (Plan-Driven):** If `NolioPlanParser` returns a valid target grid > classify as `Intervals`.
     - [x] **Strategy B (Blind Fallback):** Implement signal analysis.
         - [x] Calculate "Volatility Score" (StdDev of Power/Speed).
         - [x] Calculate "Zone Distribution" (% time in Z4+).
         - [x] Regex check on Activity Title.
-- [ ] Task: Unit Tests for Classification.
-    - [ ] Test with a Nolio JSON sample (Simple Reps).
-    - [ ] Test with a Nolio JSON sample (Complex Waves).
-    - [ ] Test with no plan (Signal-based).
-- [~] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Unit Tests for Classification. b18c2d3
+    - [x] Test with a Nolio JSON sample (Simple Reps).
+    - [x] Test with a Nolio JSON sample (Complex Waves).
+    - [x] Test with no plan (Signal-based).
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Surgical Detection (The Matcher)
 - [ ] Task: Implement `IntervalMatcher` class.
