@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 from projectk_core.logic.models import Activity, PhysioProfile, SegmentationOutput
 from projectk_core.logic.config_manager import AthleteConfig
 from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.processing.segmentation import SegmentCalculator
+from projectk_core.processing.interval_matcher import IntervalMatcher
 
 class MetricsCalculator:
     """
@@ -26,8 +27,9 @@ class MetricsCalculator:
         self.config = config
         self.classifier = ActivityClassifier()
         self.segmenter = SegmentCalculator()
+        self.matcher = IntervalMatcher()
 
-    def compute(self, activity: Activity, profile: PhysioProfile, nolio_type: Optional[str] = None, nolio_comment: Optional[str] = None) -> Dict[str, Any]:
+    def compute(self, activity: Activity, profile: PhysioProfile, nolio_type: Optional[str] = None, nolio_comment: Optional[str] = None, target_grid: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         Computes all metrics for a given activity and athlete profile.
         Includes smart segmentation based on activity classification.
@@ -37,6 +39,7 @@ class MetricsCalculator:
 
         df = activity.streams
         meta = activity.metadata
+        sport = "bike" if meta.activity_type.lower() in ["bike", "ride", "virtualride", "cycling"] else "run"
         
         # ... (keep existing calculations) ...
         # (I will perform a partial replace to keep the existing logic intact)
@@ -151,25 +154,63 @@ class MetricsCalculator:
             np_val = 0.0
             tss = 0.0
 
+        # 4. Detect Work Type
+        meta.work_type = self.classifier.detect_work_type(df, nolio_type or "", nolio_type or "", target_grid=target_grid)
+
         # 10. Interval Metrics (Requested by Karoly)
-        # We use the laps extracted by the parser
-        last_lap = activity.laps[-1] if activity.laps else {}
+        # We now have two modes: LAP-based (legacy) and MATCHER-based (surgical)
         
-        # Weighted averages for all intervals (laps)
-        total_lap_time = sum(l.get('total_elapsed_time', 0) for l in activity.laps)
-        if total_lap_time > 0:
-            # We filter out laps with 0 or None to avoid dragging down the average if some laps are empty
-            valid_p_laps = [l for l in activity.laps if l.get('avg_power') is not None]
-            valid_hr_laps = [l for l in activity.laps if l.get('avg_heart_rate') is not None]
-            
-            p_time = sum(l.get('total_elapsed_time', 0) for l in valid_p_laps)
-            hr_time = sum(l.get('total_elapsed_time', 0) for l in valid_hr_laps)
-            
-            avg_intervals_power = sum(l.get('avg_power', 0) * l.get('total_elapsed_time', 0) for l in valid_p_laps) / p_time if p_time > 0 else 0.0
-            avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('total_elapsed_time', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else 0.0
+        avg_intervals_power = 0.0
+        avg_intervals_hr = 0.0
+        avg_intervals_pace = None
+        last_interval_power = 0.0
+        last_interval_hr = 0.0
+        last_interval_pace = None
+        global_respect_score = None
+
+        if meta.work_type == "intervals" and target_grid:
+            # SURGICAL MODE
+            detections = self.matcher.match(df, target_grid, sport=sport)
+            if detections:
+                valid_p = [d['avg_power'] for d in detections if d['avg_power'] is not None]
+                valid_s = [d['avg_speed'] for d in detections if d['avg_speed'] is not None]
+                valid_h = [d['avg_hr'] for d in detections if d['avg_hr'] is not None]
+                valid_r = [d['respect_score'] for d in detections if d['respect_score'] is not None]
+                
+                if valid_p:
+                    avg_intervals_power = sum(valid_p) / len(valid_p)
+                    last_interval_power = valid_p[-1]
+                
+                if valid_s:
+                    # Convert speed (m/s) to pace (min/km) for display
+                    def s_to_p(s): return 1000.0 / s / 60.0 if s > 0 else 0
+                    avg_intervals_pace = s_to_p(sum(valid_s) / len(valid_s))
+                    last_interval_pace = s_to_p(valid_s[-1])
+                
+                if valid_h:
+                    avg_intervals_hr = sum(valid_h) / len(valid_h)
+                    last_interval_hr = valid_h[-1]
+                
+                if valid_r:
+                    global_respect_score = sum(valid_r) / len(valid_r)
         else:
-            avg_intervals_power = 0.0
-            avg_intervals_hr = 0.0
+            # LAP-BASED MODE (Fallback)
+            # Weighted averages for all intervals (laps)
+            total_lap_time = sum(l.get('total_elapsed_time', 0) for l in activity.laps)
+            if total_lap_time > 0:
+                valid_p_laps = [l for l in activity.laps if l.get('avg_power') is not None]
+                valid_hr_laps = [l for l in activity.laps if l.get('avg_heart_rate') is not None]
+                
+                p_time = sum(l.get('total_elapsed_time', 0) for l in valid_p_laps)
+                hr_time = sum(l.get('total_elapsed_time', 0) for l in valid_hr_laps)
+                
+                avg_intervals_power = sum(l.get('avg_power', 0) * l.get('total_elapsed_time', 0) for l in valid_p_laps) / p_time if p_time > 0 else 0.0
+                avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('total_elapsed_time', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else 0.0
+                
+                if activity.laps:
+                    last_lap = activity.laps[-1]
+                    last_interval_power = last_lap.get('avg_power', 0) or 0
+                    last_interval_hr = last_lap.get('avg_heart_rate', 0) or 0
 
         # 11. Smart Segmentation (Karoly's Request)
         # Determine strategy
@@ -193,10 +234,13 @@ class MetricsCalculator:
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
 
         return {
-            "interval_power_last": round(float(last_lap.get('avg_power', 0) or 0), 1),
-            "interval_hr_last": round(float(last_lap.get('avg_heart_rate', 0) or 0), 1),
-            "interval_power_mean": round(avg_intervals_power, 1),
-            "interval_hr_mean": round(avg_intervals_hr, 1),
+            "interval_power_last": round(float(last_interval_power), 1),
+            "interval_hr_last": round(float(last_interval_hr), 1),
+            "interval_power_mean": round(float(avg_intervals_power), 1),
+            "interval_hr_mean": round(float(avg_intervals_hr), 1),
+            "interval_pace_last": round(float(last_interval_pace), 2) if last_interval_pace else None,
+            "interval_pace_mean": round(float(avg_intervals_pace), 2) if avg_intervals_pace else None,
+            "interval_respect_score": round(float(global_respect_score), 1) if global_respect_score else None,
             "energy_kj": round(energy_kj, 1) if energy_kj is not None else None,
             "intensity_factor": round(if_mean, 3),
             "mec": round(mec, 1) if mec is not None else None,

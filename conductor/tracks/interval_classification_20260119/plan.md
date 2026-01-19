@@ -39,7 +39,7 @@
 ## Phase 4: Integration & Storage
 - [x] Task: Update `ActivityMetrics` model. 055d236
     - [x] Add fields for `interval_respect_score`, `interval_pace_mean`, `interval_pace_last`.
-- [ ] Task: Update `run_ingest.py` pipeline.
+- [~] Task: Update `run_ingest.py` pipeline.
     - [ ] Step 1: Fetch Plan (with fallback).
     - [ ] Step 2: Classify (Plan vs Blind).
     - [ ] Step 3: If Intervals -> Run Matcher -> Store Metrics.

@@ -22,6 +22,7 @@ from projectk_core.integrations.storage import StorageManager
 from projectk_core.integrations.weather import WeatherClient
 from projectk_core.processing.parser import FitParser
 from projectk_core.processing.calculator import MetricsCalculator
+from projectk_core.processing.plan_parser import NolioPlanParser
 from projectk_core.logic.profile_manager import ProfileManager
 from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetrics
@@ -42,6 +43,7 @@ class IngestionRobot:
         self.calculator = MetricsCalculator(self.config)
         self.profile_manager = ProfileManager(self.db)
         self.classifier = ActivityClassifier()
+        self.plan_parser = NolioPlanParser()
 
     def sync_athletes_roster(self):
         """Fetches athletes from Nolio and ensures they exist in DB with their metrics."""
@@ -253,6 +255,21 @@ class IngestionRobot:
 
         print(f"      📥 Ingesting Activity: {act_id} ({nolio_act.get('sport', 'Other')})")
 
+        # 0. Plan Retrieval (Planned Structure)
+        target_grid = None
+        planned_id = nolio_act.get("planned_id")
+        planned_session = None
+        
+        if planned_id:
+            planned_session = self.nolio.get_planned_workout_by_id(planned_id)
+        
+        # Fallback: Search in same week if no direct link
+        if not planned_session:
+            # We use the start_date of the activity to search around
+            # But we need start_date which is parsed below. 
+            # I'll move this logic after basic metadata extraction.
+            pass
+
         # 2. Extract Basic Metadata from Nolio (Safe Defaults)
         nolio_sport = nolio_act.get("sport", "Other")
         internal_sport = "Bike" if nolio_sport in ["Bike", "Road cycling", "Virtual ride", "Mountain cycling"] else "Run"
@@ -274,6 +291,21 @@ class IngestionRobot:
             distance_m=distance_m,
             rpe=rpe
         )
+
+        # 0. Plan Retrieval (Planned Structure) - Continued
+        if not planned_session:
+            # Fallback fuzzy search within the same week
+            activity_title = nolio_act.get("name", "")
+            planned_session = self.nolio.find_planned_workout(
+                athlete_id=nolio_act.get("user_id"), 
+                date=start_date, 
+                title_filter=activity_title
+            )
+        
+        if planned_session and "structured_workout" in planned_session:
+            target_grid = self.plan_parser.parse(planned_session["structured_workout"])
+            if target_grid:
+                print(f"         🎯 Linked to Plan: {planned_session.get('name')} ({len(target_grid)} work intervals)")
 
         # 3. Try to process FIT data if available
         fit_data = None
@@ -353,7 +385,8 @@ class IngestionRobot:
                 activity, 
                 profile, 
                 nolio_type=nolio_act.get("type"), 
-                nolio_comment=nolio_act.get("comment")
+                nolio_comment=nolio_act.get("comment"),
+                target_grid=target_grid
             )
             
             # Security: Ensure interval metrics are ONLY present for intervals work_type
