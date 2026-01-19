@@ -20,6 +20,7 @@ Thumbs.db
 
 # Data & Temp
 data/samples/
+data/test_cache/
 *.fit
 *.numbers
 /Users/arthurmo/.gemini/tmp/

@@ -6,19 +6,16 @@ class NolioPlanParser:
     Handles nested repetitions and complex wave structures.
     """
 
-    def parse(self, structure: Union[Dict[str, Any], List[Any]]) -> List[Dict[str, Any]]:
+    def parse(self, structure: Union[Dict[str, Any], List[Any]], sport_type: str = "run") -> List[Dict[str, Any]]:
         """
         Main entry point. Flattens the structure into a list of active intervals.
         """
+        self.sport_type = sport_type.lower()
         steps = []
         
         # Normalize input to a list of steps/blocks
         if isinstance(structure, dict):
-            # CRITICAL FIX: If the dict IS a block (has 'type'), treat it as an item.
-            # Only drill down if it's a generic container like {"structured_workout": [...]}
-            # But the spec says input is the JSON from API.
-            # Nolio API usually returns a list for 'structured_workout'.
-            # But if we pass a single dict (like in unit tests), we must treat it as one item.
+            # If the dict IS a block (has 'type'), treat it as an item.
             items = [structure]
         elif isinstance(structure, list):
             items = structure
@@ -63,8 +60,6 @@ class NolioPlanParser:
         # Heuristic: If a step is labeled 'warmup' or 'cooldown' in its name, it's not a work interval
         name = step.get("name", "").lower()
         if "échauffement" in name or "echauffement" in name or "warmup" in name or "récupération" in name or "cooldown" in name:
-            # But wait, some people use "Active Warmup". 
-            # Usually, work intervals have a specific target.
             pass
 
         return True
@@ -78,17 +73,47 @@ class NolioPlanParser:
         if dur_type == "duration":
             duration = float(step.get("step_duration_value", 0))
         elif dur_type == "distance":
-            # Estimate duration based on a default pace if distance (e.g., 4:00/km -> 240s/km)
+            # Estimate duration based on sport default pace
             distance_m = float(step.get("step_duration_value", 0))
-            # We don't have the athlete's pace here easily, so we store distance
-            # For now, let's use a dummy 4:00/km (15km/h) for estimation if needed,
-            # but better to just flag it as distance-based.
-            duration = distance_m * 0.24 # 1000m -> 240s
+            factor = 0.24 # Default Run (4:00/km)
+            
+            # Refine factor based on sport or step name
+            step_name = step.get("name", "").lower()
+            s_type = getattr(self, 'sport_type', 'run')
+            
+            if "natation" in step_name or "swimming" in step_name or "swim" in s_type:
+                factor = 1.0 # 100s/100m (1:40/100m) -> 1.0 s/m is a bit slow? 
+                             # 1:30/100m = 90s/100m = 0.9 s/m. 
+                             # Let's use 0.9 as a good amateur swimmer baseline.
+                factor = 0.9
+            elif "vélo" in step_name or "bike" in step_name or "cyclisme" in step_name or "bike" in s_type:
+                factor = 0.12 # 30km/h = 120s/km = 0.12 s/m
+            
+            duration = distance_m * factor
             
         # Target
         target_min = step.get("target_value_min")
         target_max = step.get("target_value_max")
         target_type = step.get("target_type") 
+        
+        # Convert Pace (min/km) to Speed (m/s) for consistency
+        if target_type == "pace":
+            if target_min and target_min > 0:
+                # 4.5 min/km -> 4.5 * 60 = 270s/km. 1000/270 = 3.7 m/s
+                target_min = 1000.0 / (float(target_min) * 60.0)
+            if target_max and target_max > 0:
+                target_max = 1000.0 / (float(target_max) * 60.0)
+            target_type = "speed" # Rename type to match signal
+            
+            # Swap Min/Max because Pace is inverse to Speed (Lower Pace = Higher Speed)
+            # If original min=4.5 (slower) and max=4.0 (faster)
+            # Converted min=3.7 (slower) and max=4.1 (faster)
+            # Actually, usually min is the lower bound of the ZONE.
+            # For Pace: 4:30 - 4:00. Min=4:00 (Fast), Max=4:30 (Slow)? No, usually numeric min/max.
+            # If Nolio sends min=4.0 and max=4.5. 
+            # Speed min should be speed(4.5) and Speed max speed(4.0).
+            if target_min and target_max and target_min > target_max:
+                target_min, target_max = target_max, target_min
         
         return {
             "type": step.get("intensity_type", "active"),

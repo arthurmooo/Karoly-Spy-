@@ -17,10 +17,26 @@ class IntervalMatcher:
         if df.empty or not target_grid:
             return []
 
-        # 1. Select Signal Source
+        # 1. Select Signal Source Strategy
+        # Check dominance in target_grid to align signal with plan
+        target_types = [t.get('target_type', '') for t in target_grid]
+        pace_count = target_types.count('pace') + target_types.count('speed')
+        power_count = target_types.count('power')
+        
+        # Default logic
         signal_col = 'power' if sport == 'bike' else 'speed'
+        
+        # Override if strong mismatch (e.g. Running with Power meter but Plan is Pace-based)
+        if sport == 'run' and pace_count > power_count and 'speed' in df.columns:
+            signal_col = 'speed'
+        elif power_count > pace_count and 'power' in df.columns:
+            signal_col = 'power'
+            
         if signal_col not in df.columns:
-            return []
+            # Fallback
+            signal_col = 'speed' if 'speed' in df.columns else 'power'
+            if signal_col not in df.columns:
+                return []
             
         signal = df[signal_col].fillna(0).values.copy() # Copy to allow masking
         time_index = df.index if not df.empty else range(len(df))
@@ -66,16 +82,27 @@ class IntervalMatcher:
             
             # Threshold Check: Is this a "real" interval?
             # 1. Absolute minimal threshold
-            abs_threshold = 50 if sport == 'bike' else 2.0
+            if sport == 'bike':
+                abs_threshold = 50 
+            elif sport == 'swim':
+                abs_threshold = 0.5 # 0.5 m/s = 3:20/100m (Very slow but active)
+            else: # Run
+                abs_threshold = 1.5 # 1.5 m/s = 5.4 km/h
+                
             if pd.isna(max_val) or max_val < abs_threshold:
+                # print(f"DEBUG: Rejected Abs. Val={max_val} < {abs_threshold}")
                 continue
 
             # 2. Target-relative check (Did they even try?)
             # If we have a target_min, found value should be at least X% of it.
             # Let's say 60% to allow for bonking but filter out rest (usually < 50% of FTP).
+            # RELAXATION: For long intervals (> 10min), use 40% threshold to catch endurance blocks.
             target_min = float(target.get('target_min', 0) or 0)
+            threshold_ratio = 0.40 if duration_s > 600 else 0.60
+            
             if target_min > 0:
-                if max_val < (0.6 * target_min):
+                if max_val < (threshold_ratio * target_min):
+                    # print(f"DEBUG: Rejected Relative. Val={max_val:.1f} < {threshold_ratio}*{target_min} ({threshold_ratio*target_min:.1f})")
                     continue
             
             # 3. If no target, compare to global max? (Optional, maybe later)
