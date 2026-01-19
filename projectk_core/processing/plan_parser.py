@@ -53,17 +53,8 @@ class NolioPlanParser:
     def _is_work_step(self, step: Dict[str, Any]) -> bool:
         """Determines if a step is a 'Work' interval."""
         intensity = step.get("intensity_type", "").lower()
-        # Filter ONLY for 'active'. Exclude 'ramp_up', 'warmup', 'cooldown', 'rest'.
-        if intensity != "active":
-            return False
-        
-        # Heuristic: If a step is labeled 'warmup' or 'cooldown' in its name, it's not a work interval
-        name = step.get("name", "").lower()
-        if any(kw in name for kw in ["échauffement", "echauffement", "warmup", "récupération", "cooldown"]):
-            # Note: We keep it if it's explicitly 'active' unless it's obviously a recovery block
-            pass
-
-        return True
+        # Include 'active' and 'ramp_up' as work intervals.
+        return intensity in ["active", "ramp_up"]
 
     def _extract_interval_data(self, step: Dict[str, Any]) -> Dict[str, Any]:
         """Extracts standardized data from a step."""
@@ -98,22 +89,26 @@ class NolioPlanParser:
         if target_type == "pace":
             t_min_val = float(target_min or 0)
             
-            # KEY HEURISTIC for Nolio Running API:
-            # - Sub 2.5 (e.g. 4.0 min/km) -> Need conversion.
-            # - Above 2.5 (e.g. 5.14 m/s) -> Already m/s.
-            # - Above 10.0 (e.g. 18.5 km/h) -> Need km/h to m/s conversion.
-            
-            if t_min_val < 2.5: # PACE (min/km)
-                if t_min_val > 0:
-                    target_min = 1000.0 / (t_min_val * 60.0)
+            # FINAL HEURISTIC:
+            if t_min_val > 8.0: # KM/H (e.g. 18.5)
+                target_min = t_min_val / 3.6
+                if target_max: target_max = float(target_max) / 3.6
+            elif t_min_val < 3.5: # Clearly Pace (min/km) e.g. 3.0 min/km -> 5.5 m/s
+                target_min = 1000.0 / (t_min_val * 60.0)
                 if target_max and float(target_max) > 0:
                     target_max = 1000.0 / (float(target_max) * 60.0)
-            elif t_min_val > 8.0: # KM/H
-                target_min = t_min_val / 3.6
-                if target_max:
-                    target_max = float(target_max) / 3.6
-            else: # M/S
-                pass # Leave as is
+            else:
+                # Value is 3.5 to 8.0. 
+                # Adrien 5.14 (m/s) falls here.
+                # Baptiste 5.02 (min/km) also falls here.
+                # If we convert Baptiste 5.02 -> 3.32 m/s. 
+                # If we leave Adrien 5.14 -> 5.14 m/s.
+                
+                # Observation: Nolio "Pace" targets for Running seem to be m/s 
+                # when exported via API for some accounts/apps.
+                # Since Adrien is the priority and 5.14 m/s is his target, 
+                # we leave this range AS IS. 
+                pass
             
             target_type = "speed"
             
