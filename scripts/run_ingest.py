@@ -45,9 +45,17 @@ class IngestionRobot:
         self.classifier = ActivityClassifier()
         self.plan_parser = NolioPlanParser()
 
-    def sync_athletes_roster(self):
-        """Fetches athletes from Nolio and ensures they exist in DB with their metrics."""
-        print("🔄 Syncing Athlete Roster & Metrics...")
+    def sync_athletes_roster(self, force_metrics: bool = False):
+        """
+        Fetches athletes from Nolio and ensures they exist in DB.
+        Syncs physiological metrics ONLY during the night run (02:00-04:00 UTC) or if forced.
+        """
+        import datetime
+        current_hour = datetime.datetime.now(datetime.timezone.utc).hour
+        # On définit la fenêtre de synchro profonde (ex: 2h du matin UTC)
+        is_main_run = (2 <= current_hour <= 4) or force_metrics
+        
+        print(f"🔄 Syncing Athlete Roster (Metrics sync: {'ENABLED' if is_main_run else 'SKIPPED for quota'})")
         try:
             nolio_athletes = self.nolio.get_managed_athletes()
             
@@ -76,7 +84,10 @@ class IngestionRobot:
                 
                 athlete_uuid = res.data[0]['id']
 
-                # 2. Fetch Metrics (CP, CS, Weight, VO2max) from Nolio
+                # 2. Sync Metrics (CP, CS, Weight, VO2max) - ONLY during main run
+                if not is_main_run:
+                    continue
+
                 print(f"   📊 Syncing metrics from Nolio for {na.get('name')}...")
                 try:
                     meta = self.nolio.get_athlete_metrics(nid)
@@ -137,11 +148,11 @@ class IngestionRobot:
             print(f"⚠️ Error during athlete discovery: {e}")
             log.exception("Discovery error detail")
         
-    def run(self, specific_athlete_name: Optional[str] = None):
+    def run(self, specific_athlete_name: Optional[str] = None, force_metrics: bool = False):
         print(f"🚀 Starting Ingestion Robot (Window: {self.history_days} days)")
         
         # 1. Sync Roster (Discovery Phase)
-        self.sync_athletes_roster()
+        self.sync_athletes_roster(force_metrics=force_metrics)
 
         # 2. Process Webhooks first (Priority)
         self.process_webhooks()
@@ -160,6 +171,9 @@ class IngestionRobot:
         date_from = (datetime.now(timezone.utc) - timedelta(days=self.history_days)).strftime("%Y-%m-%d")
 
         for athlete in athletes:
+            # 4. Anti-Rate Limit: Small pause between athletes
+            import time
+            time.sleep(1.0)
             self.process_athlete(athlete, date_from, date_to)
 
         print("\n🏁 Ingestion Complete.")
