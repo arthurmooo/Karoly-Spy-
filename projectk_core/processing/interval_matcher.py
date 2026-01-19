@@ -83,14 +83,34 @@ class IntervalMatcher:
             start_idx = int(max_idx - duration_s + 1)
             end_idx = int(max_idx + 1)
             
+            avg_power = float(df['power'].iloc[start_idx:end_idx].mean()) if 'power' in df.columns else None
+            avg_speed = float(df['speed'].iloc[start_idx:end_idx].mean()) if 'speed' in df.columns else None
+            avg_hr = float(df['heart_rate'].iloc[start_idx:end_idx].mean()) if 'heart_rate' in df.columns else None
+            
+            # Calculate Respect Score
+            respect_score = None
+            target_min = float(target.get('target_min', 0) or 0)
+            target_max = float(target.get('target_max', 0) or 0)
+            
+            # Prefer target_min as baseline for respect, or mid-range?
+            # Karoly usually gives a range. Let's use target_min as the "floor" for 100%? 
+            # Or better: realized / target_min * 100.
+            # If he gives "300-320W", and athlete does 300W -> 100%. 270W -> 90%.
+            
+            if target_min > 0:
+                realized = avg_power if sport == 'bike' else avg_speed
+                if realized is not None:
+                    respect_score = (realized / target_min) * 100.0
+
             # Store Detection
             detection = {
                 "start_index": start_idx,
                 "end_index": end_idx,
                 "duration_sec": duration_s,
-                "avg_power": float(df['power'].iloc[start_idx:end_idx].mean()) if 'power' in df.columns else None,
-                "avg_speed": float(df['speed'].iloc[start_idx:end_idx].mean()) if 'speed' in df.columns else None,
-                "avg_hr": float(df['heart_rate'].iloc[start_idx:end_idx].mean()) if 'heart_rate' in df.columns else None,
+                "avg_power": avg_power,
+                "avg_speed": avg_speed,
+                "avg_hr": avg_hr,
+                "respect_score": respect_score,
                 "target": target
             }
             detected_intervals.append(detection)

@@ -80,5 +80,21 @@ class TestIntervalMatcher(unittest.TestCase):
         self.assertEqual(len(results), 2)
         self.assertAlmostEqual(results[0]['avg_power'], 300, delta=1)
 
+    def test_respect_score(self):
+        """
+        Test that respect score is calculated correctly.
+        Target 300W, Realized 270W -> 90%
+        """
+        timestamps = pd.date_range(start='2026-01-01 10:00:00', periods=120, freq='1s')
+        power = np.full(120, 270)
+        df = pd.DataFrame({'timestamp': timestamps, 'power': power})
+        
+        target_grid = [{"duration": 60, "target_type": "power", "type": "active", "target_min": 300}]
+        
+        results = self.matcher.match(df, target_grid, sport="bike")
+        
+        self.assertEqual(len(results), 1)
+        self.assertAlmostEqual(results[0]['respect_score'], 90.0, delta=1)
+
 if __name__ == '__main__':
     unittest.main()
