@@ -109,6 +109,9 @@ class ActivityMetrics(BaseModel):
     interval_hr_last: Optional[float] = None
     interval_power_mean: Optional[float] = None
     interval_hr_mean: Optional[float] = None
+    interval_pace_last: Optional[float] = None
+    interval_pace_mean: Optional[float] = None
+    interval_respect_score: Optional[float] = None
     
     # Smart Segmentation Metrics
     segmented_metrics: Optional[SegmentationOutput] = None
