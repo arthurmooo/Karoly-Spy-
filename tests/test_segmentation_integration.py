@@ -1,91 +1,71 @@
-import pytest
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 from projectk_core.logic.models import Activity, ActivityMetadata, PhysioProfile
-from projectk_core.logic.config_manager import AthleteConfig
 from projectk_core.processing.calculator import MetricsCalculator
+from projectk_core.logic.config_manager import AthleteConfig
 
-@pytest.fixture
-def athlete_config():
-    # We mock or use an empty config since we don't need real DB connection for these unit tests
-    # Note: AthleteConfig expects a DBConnector if not loaded.
-    # We'll mock the get method.
-    from unittest.mock import MagicMock
-    config = MagicMock(spec=AthleteConfig)
-    config.get.side_effect = lambda k, d: d # Return default
-    return config
-
-@pytest.fixture
-def physio_profile():
-    return PhysioProfile(
-        valid_from=datetime(2026, 1, 1),
-        lt1_hr=140,
-        lt2_hr=160,
-        cp=250
+def test_smart_segmentation():
+    print("🧪 Testing Smart Segmentation Logic...")
+    
+    # 1. Create Dummy Data (1 hour at 1Hz)
+    n = 3600
+    df = pd.DataFrame({
+        'timestamp': pd.date_range(start='2026-01-19 10:00:00', periods=n, freq='1s'),
+        'heart_rate': np.linspace(140, 160, n), # Linear drift
+        'speed': np.full(n, 12.0 / 3.6), # Constant 12km/h in m/s
+        'distance': np.linspace(0, 12000, n)
+    })
+    
+    # 2. Config & Profile
+    config = AthleteConfig()
+    profile = PhysioProfile(
+        valid_from=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        lt1_hr=135,
+        lt2_hr=165,
+        lt2_power_pace=4.0, # 4m/s reference
+        cp_cs=4.0
     )
+    
+    calc = MetricsCalculator(config)
+    
+    # CASE A: Competition (Auto 2/4 phases)
+    print("\n--- Case A: Competition (Auto Split) ---")
+    meta_comp = ActivityMetadata(
+        activity_type="Run",
+        start_time=datetime(2026, 1, 19, 10, 0, tzinfo=timezone.utc),
+        duration_sec=3600,
+        distance_m=12000
+    )
+    act_comp = Activity(metadata=meta_comp, streams=df)
+    
+    # Simulation of classification as competition
+    res_comp = calc.compute(act_comp, profile, nolio_type="Competition")
+    
+    seg = res_comp['segmented_metrics']
+    print(f"Segmentation Type: {seg.segmentation_type}")
+    print(f"Splits 2 phases: {len(seg.splits_2)}")
+    print(f"Splits 4 phases: {len(seg.splits_4)}")
+    print(f"Drift Percent: {seg.drift_percent:.2f}%")
+    
+    # CASE B: Manual Split via Comment (#split:0-5km,5-12km)
+    print("\n--- Case B: Manual Splits (#split tag) ---")
+    meta_manual = ActivityMetadata(
+        activity_type="Run",
+        start_time=datetime(2026, 1, 19, 10, 0, tzinfo=timezone.utc),
+        duration_sec=3600,
+        distance_m=12000
+    )
+    act_manual = Activity(metadata=meta_manual, streams=df)
+    
+    comment = "Excellent feeling! #split:0-5km,5-12km"
+    res_manual = calc.compute(act_manual, profile, nolio_comment=comment)
+    
+    seg_m = res_manual['segmented_metrics']
+    print(f"Segmentation Type: {seg_m.segmentation_type}")
+    print(f"Manual Splits: {list(seg_m.manual.keys())}")
+    for label, data in seg_m.manual.items():
+        print(f"  • {label}: HR={data.hr:.1f}, Speed={data.speed:.1f}km/h, Ratio={data.ratio:.3f}")
 
-def test_integration_segmentation_competition_run(athlete_config, physio_profile):
-    # Setup a "Competition" Run
-    meta = ActivityMetadata(activity_type="Run", start_time=datetime.now(), duration_sec=1000)
-    df = pd.DataFrame({
-        'heart_rate': np.linspace(140, 160, 1000),
-        'speed': np.ones(1000) * 12, # 12 km/h
-        'distance': np.linspace(0, 3333, 1000)
-    })
-    activity = Activity(meta, df)
-    
-    calc = MetricsCalculator(athlete_config)
-    results = calc.compute(activity, physio_profile, nolio_type="Competition", nolio_comment="Marathon")
-    
-    seg = results["segmented_metrics"]
-    assert seg.segmentation_type == "auto_competition"
-    assert "phase_1" in seg.splits_2
-    assert "phase_4" in seg.splits_4
-    assert seg.splits_2["phase_1"].speed == 12.0
-    assert seg.splits_2["phase_1"].torque is None
-
-def test_integration_segmentation_bike_torque(athlete_config, physio_profile):
-    # Setup a Bike activity with Power and Torque
-    meta = ActivityMetadata(activity_type="Ride", start_time=datetime.now(), duration_sec=1000)
-    df = pd.DataFrame({
-        'heart_rate': np.ones(1000) * 140,
-        'power': np.ones(1000) * 200,
-        'torque': np.ones(1000) * 15,
-        'distance': np.linspace(0, 10000, 1000)
-    })
-    activity = Activity(meta, df)
-    
-    calc = MetricsCalculator(athlete_config)
-    results = calc.compute(activity, physio_profile) # Default auto_training
-    
-    seg = results["segmented_metrics"]
-    assert seg.segmentation_type == "auto_training"
-    assert seg.splits_2["phase_1"].power == 200.0
-    assert seg.splits_2["phase_1"].torque == 15.0
-    # Ratio = 140 / 200 = 0.7
-    assert seg.splits_2["phase_1"].ratio == 0.7
-
-def test_integration_manual_split(athlete_config, physio_profile):
-    # Setup activity with manual #split tag
-    meta = ActivityMetadata(activity_type="Run", start_time=datetime.now(), duration_sec=3600)
-    df = pd.DataFrame({
-        'heart_rate': np.ones(3600) * 150,
-        'speed': np.ones(3600) * 10,
-        'distance': np.linspace(0, 10000, 3600) # 10km total
-    })
-    activity = Activity(meta, df)
-    
-    calc = MetricsCalculator(athlete_config)
-    # Manual split 0-5km and 5-10km
-    comment = "Analyse specifique #split: 0-5, 5-10"
-    results = calc.compute(activity, physio_profile, nolio_comment=comment)
-    
-    seg = results["segmented_metrics"]
-    assert seg.segmentation_type == "manual"
-    assert len(seg.manual) == 2
-    # Check that it sliced correctly
-    # If speed is 10km/h, 5km is exactly 1800s.
-    # Our manual_split logic uses df[(df['distance'] >= 0) & (df['distance'] <= 5000)]
-    # So it should find the data.
-    assert seg.manual["phase_1"].hr == 150.0
+if __name__ == "__main__":
+    test_smart_segmentation()

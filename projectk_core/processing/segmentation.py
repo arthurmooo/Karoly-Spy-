@@ -87,6 +87,7 @@ class SegmentCalculator:
     def manual_split(self, df: pd.DataFrame, manual_config: List[Dict[str, Any]], activity_type: str) -> Dict[str, SegmentData]:
         """
         Splits the activity based on manual time or distance markers.
+        Config example: {"start": 0, "end": 3600, "unit": "sec", "label": "Block 1"}
         """
         if df.empty:
             return {}
@@ -95,23 +96,41 @@ class SegmentCalculator:
         for i, config in enumerate(manual_config):
             start = config["start"]
             end = config["end"]
-            unit = config["unit"]
+            unit = config.get("unit", "sec")
             
             if unit == "km":
-                # Convert km to meters if distance is in meters in df
-                # Karoly usually gives km, FIT stores meters.
-                # Assuming 'distance' column is in meters.
+                # Assuming 'distance' column is cumulative meters
                 phase_df = df[(df['distance'] >= start * 1000) & (df['distance'] <= end * 1000)]
+            elif unit == "timestamp":
+                # Slice by actual datetime objects
+                phase_df = df[(df['timestamp'] >= pd.to_datetime(start)) & (df['timestamp'] <= pd.to_datetime(end))]
             else:
-                # Time in seconds (elapsed_time or similar)
-                # Assuming 'timestamp' or 'elapsed_time'
-                if 'elapsed_time' in df.columns:
-                    phase_df = df[(df['elapsed_time'] >= start) & (df['elapsed_time'] <= end)]
+                # Time in seconds from start
+                if 'timestamp' in df.columns:
+                    start_time = df['timestamp'].iloc[0]
+                    # Create elapsed seconds column
+                    elapsed = (df['timestamp'] - start_time).dt.total_seconds()
+                    phase_df = df[(elapsed >= start) & (elapsed <= end)]
                 else:
-                    # Fallback to index if time not available correctly
                     phase_df = df.iloc[int(start):int(end)]
             
             label = config.get("label", f"phase_{i+1}")
             splits[label] = self.calculate_segment(phase_df, activity_type)
             
         return splits
+
+    def calculate_drift(self, splits: Dict[str, SegmentData]) -> Optional[float]:
+        """
+        Calculates the percentage drift between the first and last phase.
+        Following Karoly: ((Ratio_last / Ratio_first) - 1) * 100
+        """
+        if not splits or len(splits) < 2:
+            return None
+            
+        keys = list(splits.keys())
+        first = splits[keys[0]]
+        last = splits[keys[-1]]
+        
+        if first.ratio and last.ratio and first.ratio > 0:
+            return ((last.ratio / first.ratio) - 1) * 100
+        return None

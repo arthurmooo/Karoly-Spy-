@@ -74,14 +74,62 @@ class IngestionRobot:
                 
                 athlete_uuid = res.data[0]['id']
 
-                # 2. Fetch Metrics (CP/CS/Weight) for calculation only
-                print(f"   📊 Fetching latest metrics for {na.get('name')} (Read Only)...")
+                # 2. Fetch Metrics (CP, CS, Weight, VO2max) from Nolio
+                print(f"   📊 Syncing metrics from Nolio for {na.get('name')}...")
                 try:
-                    metrics = self.nolio.get_athlete_metrics(nid)
-                    # We don't save these to DB anymore (Karoly's rule), 
-                    # but we can log if we see a big discrepancy with our DB.
+                    meta = self.nolio.get_athlete_metrics(nid)
+                    
+                    # Extraction des valeurs clés
+                    # Nolio structure: {"field_name": {"unit": "...", "data": [{"value": X, "date": "..."}]}}
+                    def get_latest(key):
+                        field = meta.get(key, {})
+                        data = field.get("data", [])
+                        return data[0]["value"] if data else None
+
+                    weight = get_latest("weight")
+                    cp_bike = get_latest("criticalpowercycling")
+                    cs_run_raw = get_latest("criticalspeedrunning") # in sec/km or min/km
+                    
+                    # Conversion CS: sec/km -> m/s
+                    cs_run = None
+                    if cs_run_raw:
+                        # Si Adrien est à 206s/km -> 1000 / 206 = 4.85 m/s
+                        cs_run = 1000.0 / float(cs_run_raw) if float(cs_run_raw) > 0 else None
+
+                    # Champs personnalisés Karoly (à créer par lui dans Nolio)
+                    lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
+                    lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr")
+
+                    # Mise à jour des profils en base (Upsert)
+                    # Profil VELO
+                    if cp_bike or weight or lt1_hr or lt2_hr:
+                        self.db.client.table("physio_profiles").upsert({
+                            "athlete_id": athlete_uuid,
+                            "sport": "Bike",
+                            "cp_cs": cp_bike,
+                            "weight": weight,
+                            "lt1_hr": lt1_hr if lt1_hr else 130, # Default if missing
+                            "lt2_hr": lt2_hr if lt2_hr else 160,
+                            "valid_from": datetime.now(timezone.utc).isoformat()
+                        }, on_conflict="athlete_id, sport").execute()
+
+                    # Profil RUN
+                    if cs_run or weight or lt1_hr or lt2_hr:
+                        self.db.client.table("physio_profiles").upsert({
+                            "athlete_id": athlete_uuid,
+                            "sport": "Run",
+                            "cp_cs": cs_run,
+                            "weight": weight,
+                            "lt1_hr": lt1_hr if lt1_hr else 130,
+                            "lt2_hr": lt2_hr if lt2_hr else 160,
+                            "valid_from": datetime.now(timezone.utc).isoformat()
+                        }, on_conflict="athlete_id, sport").execute()
+                    
+                    cs_display = f"{cs_run:.2f}" if cs_run else "None"
+                    print(f"      ✅ Metrics synced: CP={cp_bike}W, CS={cs_display}m/s, Weight={weight}kg")
+
                 except Exception as e:
-                    print(f"      ⚠️ Could not fetch metrics from Nolio for {nid}: {e}")
+                    print(f"      ⚠️ Could not sync metrics from Nolio for {nid}: {e}")
 
         except Exception as e:
             print(f"⚠️ Error during athlete discovery: {e}")
@@ -300,7 +348,13 @@ class IngestionRobot:
         profile = self.profile_manager.get_profile_for_date(athlete_id, internal_sport, start_date)
         
         if profile and not df.empty:
-            metrics_dict = self.calculator.compute(activity, profile)
+            # We pass nolio metadata for smart segmentation
+            metrics_dict = self.calculator.compute(
+                activity, 
+                profile, 
+                nolio_type=nolio_act.get("type"), 
+                nolio_comment=nolio_act.get("comment")
+            )
             
             # Security: Ensure interval metrics are ONLY present for intervals work_type
             if meta.work_type != "intervals":

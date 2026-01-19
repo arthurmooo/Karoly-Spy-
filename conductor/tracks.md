@@ -74,10 +74,6 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 - [x] **Track: Smart Segmentation & Multi-Phase Analysis**
 
-
-
-    - **Status:** 🟢 Completed. 2/4 phases and manual splits logic implemented.
-
-
+    - **Status:** 🟢 Completed. Multi-phase (2/4) and manual splits (#split) implemented & integrated in ingestion pipeline.
 
     - **Link:** [./tracks/smart_segmentation_20260115/](./tracks/smart_segmentation_20260115/)

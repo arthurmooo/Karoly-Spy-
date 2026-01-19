@@ -181,13 +181,16 @@ class MetricsCalculator:
         if strategy == "manual":
             manual_config = self.classifier.parse_splits(nolio_comment)
             seg_output.manual = self.segmenter.manual_split(df, manual_config, sport)
+            seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.manual)
         elif strategy == "auto_competition":
             # 2 phases AND 4 phases for competition
             seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport)
             seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport)
+            seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
         else: # auto_training
             # Systematic 2 phases for continuous training
             seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport)
+            seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
 
         return {
             "interval_power_last": round(float(last_lap.get('avg_power', 0) or 0), 1),

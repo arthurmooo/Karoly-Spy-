@@ -85,6 +85,7 @@ class SegmentationOutput(BaseModel):
     splits_2: Optional[Dict[str, SegmentData]] = None
     splits_4: Optional[Dict[str, SegmentData]] = None
     manual: Optional[Dict[str, SegmentData]] = None
+    drift_percent: Optional[float] = Field(None, description="Drift between first and last segment")
 
 class ActivityMetrics(BaseModel):
     """

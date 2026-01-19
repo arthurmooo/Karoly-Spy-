@@ -1,30 +1,31 @@
 import os
-import requests
-import base64
+import sys
+import json
 from dotenv import load_dotenv
+
 load_dotenv()
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-client_id = os.environ.get("NOLIO_CLIENT_ID")
-client_secret = os.environ.get("NOLIO_CLIENT_SECRET")
-refresh_token = os.environ.get("NOLIO_REFRESH_TOKEN")
+from projectk_core.auth.nolio_auth import NolioAuthenticator
+import requests
 
-print(f"Using Client ID: {client_id[:5]}...")
-print(f"Using Refresh Token: {refresh_token[:5]}...")
+def inspect_athlete(nolio_id):
+    auth = NolioAuthenticator()
+    token = auth.get_valid_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Correct endpoint for metadata (custom fields)
+    url = f"https://www.nolio.io/api/get/user/meta/"
+    params = {"athlete_id": nolio_id}
+    
+    response = requests.get(url, headers=headers, params=params)
+    
+    if response.status_code == 200:
+        print(f"--- Metadata for Athlete {nolio_id} ---")
+        print(json.dumps(response.json(), indent=2))
+    else:
+        print(f"❌ Error {response.status_code}: {response.text}")
 
-auth_str = f"{client_id}:{client_secret}"
-b64_auth = base64.b64encode(auth_str.encode()).decode()
-headers_auth = {"Authorization": f"Basic {b64_auth}", "Content-Type": "application/x-www-form-urlencoded"}
-data_auth = {"grant_type": "refresh_token", "refresh_token": refresh_token}
-
-res_token = requests.post("https://www.nolio.io/api/token/", headers=headers_auth, data=data_auth)
-print(f"Token Refresh Status: {res_token.status_code}")
-print(f"Token Refresh Body: {res_token.text}")
-
-if res_token.status_code == 200:
-    access_token = res_token.json().get("access_token")
-    headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-    url = "https://www.nolio.io/api/get/training/"
-    params = {"athlete_id": 57896, "from": "2026-01-01", "to": "2026-01-15"}
-    res = requests.get(url, headers=headers, params=params)
-    print(f"API Status: {res.status_code}")
-    print(f"API Body: {res.text}")
+if __name__ == "__main__":
+    # Test with Adrien Claeyssen (ID: 57896)
+    inspect_athlete(57896)

@@ -94,10 +94,12 @@
 **Statut:** ✅ Stabilisé & Déployé
 
 ### 🟢 Points de Succès (Résilience de Session)
-1.  **Auto-Authentification Robuste :** La boucle de rafraîchissement des jetons via Supabase (`app_secrets`) est validée. Le robot est désormais autonome sur le long terme sans intervention humaine sur les secrets GitHub.
-2.  **Dashboard Coach Opérationnel :** Création de la vue SQL `dashboard_karoly` qui transforme la DB brute en interface métier lisible (arrondis, noms en clair, tri chronologique).
-3.  **Consigne Métier Appliquée :** Le robot respecte désormais la règle "Seuils Read-Only". Karoly est le seul maître des profils physiologiques.
-4.  **Correction Charge Running :** La MLS Running est désormais calculée sur la base `Distance x Intensité`, supprimant les valeurs `NULL` pour les coureurs.
+1.  **Auto-Authentification Robuste :** La boucle de rafraîchissement des jetons via Supabase (`app_secrets`) est validée.
+2.  **Dashboard Coach Opérationnel :** Création de la vue SQL `dashboard_karoly` (arrondis, noms en clair).
+3.  **Consigne Métier Appliquée :** Le robot respecte désormais la règle "Seuils Read-Only". 
+4.  **Correction Charge Running :** La MLS Running est désormais calculée sur la base `Distance x Intensité`.
+5.  **Précision Temporelle :** Extraction de l'heure atomique (`start_time`) directement du fichier FIT, réglant le problème des séances à "00:00:00".
+6.  **Support Séances Manu :** Les séances sans cardio (heart_rate) ne font plus planter le robot.
 
 ### 🔴 Failles Critiques (Résolues)
 1.  **Bug "130.0" (Postgres Integer) :** Éliminé par la désactivation de l'écriture automatique des profils et le forçage des types.
