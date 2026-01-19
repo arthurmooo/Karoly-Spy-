@@ -23,7 +23,7 @@
     - [x] Test with no plan (Signal-based).
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
-## Phase 3: Surgical Detection (The Matcher)
+## Phase 3: Surgical Detection (The Matcher) [checkpoint: c7f9b20]
 - [x] Task: Implement `IntervalMatcher` class. d080aa1
     - [x] Input: `.fit` dataframe + Target Grid from Phase 1.
     - [x] **Algorithm:** Implement "Strict Window Sliding".
@@ -34,7 +34,7 @@
     - [x] Compute Avg Power/Pace & Avg HR for each detected window.
     - [x] Compute "Respect Score" (Realized / Target).
     - [x] Compute Global Interval Metrics (Mean of all intervals, Last interval).
-- [~] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Storage
 - [ ] Task: Update `ActivityMetrics` model.
