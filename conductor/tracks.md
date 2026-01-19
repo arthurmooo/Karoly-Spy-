@@ -80,5 +80,5 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [~] **Track: Interval Engine & Workout Classification**
+- [x] **Track: Interval Engine & Workout Classification**
 *Link: [./tracks/interval_classification_20260119/](./tracks/interval_classification_20260119/)*
