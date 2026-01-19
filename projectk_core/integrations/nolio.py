@@ -129,6 +129,70 @@ class NolioClient:
             print(f"⚠️ Failed to fetch planned workout {planned_id}: {e}")
             return None
 
+    def get_planned_workout_by_id(self, planned_id: int) -> Optional[Dict[str, Any]]:
+        """Alias for get_planned_workout for clarity."""
+        return self.get_planned_workout(planned_id)
+
+    def find_planned_workout(self, athlete_id: int, date: Any, title_filter: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Searches for a planned workout within the same week (Monday-Sunday) around the given date.
+        Optionally filters by fuzzy title match.
+        """
+        from datetime import timedelta
+        import pandas as pd
+        
+        # Convert to datetime if needed
+        if isinstance(date, str):
+            try:
+                date_obj = pd.to_datetime(date)
+            except:
+                return None
+        else:
+            date_obj = date
+
+        # Calculate Start/End of Week (Monday to Sunday)
+        start_of_week = date_obj - timedelta(days=date_obj.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        
+        date_from = start_of_week.strftime("%Y-%m-%d")
+        date_to = end_of_week.strftime("%Y-%m-%d")
+        
+        url = f"{self.BASE_URL}/get/planned/training/"
+        params = {
+            "athlete_id": athlete_id,
+            "from": date_from,
+            "to": date_to
+        }
+        
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params)
+            response.raise_for_status()
+            planned_sessions = response.json()
+            
+            if not planned_sessions:
+                return None
+                
+            # If title filter is provided, try to find a match
+            if title_filter:
+                # Normalize titles
+                t_norm = title_filter.lower().strip()
+                for s in planned_sessions:
+                    s_name = s.get("name", "").lower().strip()
+                    # Simple inclusion check or fuzzy logic could be used here
+                    # For now, strict inclusion
+                    if t_norm in s_name or s_name in t_norm:
+                        return s
+            
+            # If no filter or no match found, maybe return the one on the exact date?
+            # Or return None to avoid false positives?
+            # Spec says "search for a matching planned workout within the Same Week... based on title similarity"
+            # If filtering failed, we return None.
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ Failed to find planned workout for {athlete_id} around {date}: {e}")
+            return None
+
     def download_fit_file(self, file_url: str, retries: int = 3) -> Optional[bytes]:
         """
         Downloads the FIT file from the temporary URL provided by Nolio.
