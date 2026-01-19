@@ -24,12 +24,12 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Surgical Detection (The Matcher)
-- [ ] Task: Implement `IntervalMatcher` class.
-    - [ ] Input: `.fit` dataframe + Target Grid from Phase 1.
-    - [ ] **Algorithm:** Implement "Strict Window Sliding".
-        - [ ] For each target interval (e.g., 120s), scan the dataframe to find the 120s window with max average intensity (Power or Speed).
-        - [ ] Ensure detected windows do not overlap significantly.
-    - [ ] **Reality Check:** Count valid detections vs Plan.
+- [x] Task: Implement `IntervalMatcher` class. d080aa1
+    - [x] Input: `.fit` dataframe + Target Grid from Phase 1.
+    - [x] **Algorithm:** Implement "Strict Window Sliding".
+        - [x] For each target interval (e.g., 120s), scan the dataframe to find the 120s window with max average intensity (Power or Speed).
+        - [x] Ensure detected windows do not overlap significantly.
+    - [x] **Reality Check:** Count valid detections vs Plan.
 - [ ] Task: Metric Extraction Logic.
     - [ ] Compute Avg Power/Pace & Avg HR for each detected window.
     - [ ] Compute "Respect Score" (Realized / Target).
