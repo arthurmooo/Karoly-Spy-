@@ -21,7 +21,7 @@
     - [ ] Test with a Nolio JSON sample (Simple Reps).
     - [ ] Test with a Nolio JSON sample (Complex Waves).
     - [ ] Test with no plan (Signal-based).
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Surgical Detection (The Matcher)
 - [ ] Task: Implement `IntervalMatcher` class.
