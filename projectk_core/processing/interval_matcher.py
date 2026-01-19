@@ -63,66 +63,84 @@ class IntervalMatcher:
         temp_signal = signal.copy()
         current_ptr = 0
         
+        temp_signal = signal.copy()
+        current_ptr = 0
+        
         for target in target_grid:
             duration_s = int(target.get('duration', 0))
             if duration_s <= 0:
                 continue
                 
-            # FIRST-FIT SEQUENTIAL STRATEGY
-            # We search for the FIRST occurrence that satisfies the threshold
-            # starting from the current pointer.
-            
-            target_min = float(target.get('target_min', 0) or 0)
-            threshold_ratio = 0.40 if duration_s > 600 else 0.60
-            abs_thresh = 50 if sport == 'bike' else (0.5 if sport == 'swim' else 1.5)
-            
+            # 1. Look at everything from current_ptr to end
             search_signal = temp_signal[current_ptr:]
             if len(search_signal) < duration_s: break
             
             rolling = pd.Series(search_signal).rolling(window=duration_s).mean()
             
-            # Find all indices where rolling mean satisfies threshold
-            # We want the FIRST one.
-            # Criterion: (Avg >= AbsThresh) AND (Avg >= Ratio * TargetMin)
+            # 2. Identify the threshold
+            target_min = float(target.get('target_min', 0) or 0)
+            target_type = target.get('type', 'active')
+            
+            # STRICTER THRESHOLDS
+            # For 'active' reps, we expect at least 90% of target.
+            if target_type == 'active':
+                threshold_ratio = 0.90
+            else:
+                threshold_ratio = 0.60
+                
+            # Long blocks (>10min) are usually endurance, 40% is enough.
+            if duration_s > 600:
+                threshold_ratio = 0.40
+                
+            abs_thresh = 50 if sport == 'bike' else (0.5 if sport == 'swim' else 1.5)
             min_required = max(abs_thresh, threshold_ratio * target_min)
             
-            # Vectorized find first
-            valid_indices = rolling[rolling >= min_required].index
+            # 3. Find the first time we cross the threshold
+            valid_mask = rolling >= min_required
+            if not valid_mask.any():
+                continue 
+                
+            first_crossing_idx = valid_mask.idxmax()
             
-            if not valid_indices.empty:
-                # We take the first valid index (END of window)
-                abs_max_idx = int(current_ptr + valid_indices[0])
-                start_idx = int(abs_max_idx - duration_s + 1)
-                end_idx = int(abs_max_idx + 1)
-                
-                # Check if we didn't just pick a noisy spike (optional: could find local peak)
-                # But First-Fit is already a huge step for chronology.
-                
-                avg_p = float(df['power'].iloc[start_idx:end_idx].mean()) if 'power' in df.columns else None
-                avg_s = float(df['speed'].iloc[start_idx:end_idx].mean()) if 'speed' in df.columns else None
-                avg_h = float(df['heart_rate'].iloc[start_idx:end_idx].mean()) if 'heart_rate' in df.columns else None
-                
-                respect = None
-                if target_min > 0:
-                    realized = avg_p if signal_col == 'power' else avg_s
-                    if realized: respect = (realized / target_min) * 100.0
+            # 4. REFINEMENT: Don't take the first one, take the BEST in the next few minutes
+            # This ensures we get the 5.3 m/s plateau rather than the 4.5 m/s climb.
+            # Window: we look up to 5 minutes after the first crossing or until signal drops.
+            refinement_window = 300 
+            peak_zone = rolling.loc[first_crossing_idx : first_crossing_idx + refinement_window]
+            
+            best_idx_in_zone = peak_zone.idxmax()
+            max_val = peak_zone.max()
+            
+            # Absolute Index
+            abs_max_idx = int(current_ptr + best_idx_in_zone)
+            start_idx = int(abs_max_idx - duration_s + 1)
+            end_idx = int(abs_max_idx + 1)
+            
+            # Metrics
+            avg_p = float(df['power'].iloc[start_idx:end_idx].mean()) if 'power' in df.columns else None
+            avg_s = float(df['speed'].iloc[start_idx:end_idx].mean()) if 'speed' in df.columns else None
+            avg_h = float(df['heart_rate'].iloc[start_idx:end_idx].mean()) if 'heart_rate' in df.columns else None
+            
+            respect = None
+            if target_min > 0:
+                realized = avg_p if signal_col == 'power' else avg_s
+                if realized: respect = (realized / target_min) * 100.0
 
-                detected_intervals.append({
-                    "start_index": start_idx,
-                    "end_index": end_idx,
-                    "duration_sec": duration_s,
-                    "avg_power": avg_p,
-                    "avg_speed": avg_s,
-                    "avg_hr": avg_h,
-                    "respect_score": respect,
-                    "target": target
-                })
+            detected_intervals.append({
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "duration_sec": duration_s,
+                "avg_power": avg_p,
+                "avg_speed": avg_s,
+                "avg_hr": avg_h,
+                "respect_score": respect,
+                "target": target
+            })
+            
+            # 5. Move pointer forward
+            current_ptr = end_idx + 5
                 
-                current_ptr = end_idx + 5 # Small gap
-            else:
-                # No match found for this target in the rest of the session.
-                # Skip it.
-                pass
+        detected_intervals.sort(key=lambda x: x['start_index'])
                 
         detected_intervals.sort(key=lambda x: x['start_index'])
         
