@@ -1,4 +1,4 @@
-# Implementation Plan - Track: Interval Engine & Workout Classification
+# Implementation Plan - Track: Interval Engine & Workout Classification [checkpoint: 92f8fda]
 
 ## Phase 1: Nolio Plan Integration
 - [x] Task: Update `NolioClient` to fetch full structured workouts. f2c4709
@@ -8,7 +8,7 @@
     - [x] Implement logic to traverse the `structured_workout` JSON.
     - [x] **Flattening Logic:** Convert nested repetitions and complex steps (waves) into a linear "Target Grid" (List of expected intervals with Duration, Target Intensity, Type).
     - [x] Filter out `warmup`, `cooldown`, and `rest` steps to focus on the "Work" blocks.
-- [~] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Classification Engine
 - [ ] Task: Implement `WorkoutClassifier` class (upgrade from `ActivityClassifier`).
