@@ -78,3 +78,8 @@ This file tracks the master plan, strictly aligned with the contract phases.
     - **Status:** 🟢 Completed. Added `source_sport` column, fixed mapping priorities (Bike/Strength first), and updated Nolio API calls to support Coach Mode (athlete_id requirement).
     - **Link:** [./tracks/sport_classification_fix_20260121/](./tracks/sport_classification_fix_20260121/)
 
+---
+
+- [x] **Track: Interval Engine Reliability (Bulletproof & Lap-proof)**
+    - **Status:** 🟢 Completed. Parity with Nolio achieved (LapCalculator). Signal-based detection implemented (StepDetector + IntervalMatcher V3) with 100% accuracy on gold standard sessions (Adrien & Alexis) even without laps.
+    - **Link:** [./tracks/interval_engine_refactoring_20260122/](./tracks/interval_engine_refactoring_20260122/)

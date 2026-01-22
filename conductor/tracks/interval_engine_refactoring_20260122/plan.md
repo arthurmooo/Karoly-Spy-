@@ -11,23 +11,23 @@ Objectif : Atteindre une parité parfaite avec Nolio sur les calculs de base.
     - [x] Mettre à jour `projectk_core/processing/lap_calculator.py` pour garantir la précision.
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) 9718d04
 
-## Phase 2: Moteur de Détection "Signal-Based" (Lap-proof)
+## Phase 2: Moteur de Détection "Signal-Based" (Lap-proof) [checkpoint: ad8cef0]
 Objectif : Détecter les intervalles via le signal et les recaler sur la structure prévue.
 
 - [x] Task: Implémentation de la Step Detection (Analyse de signal) 08e530c
     - [x] Développer l'algorithme de détection de rupture sur le signal brut dans `projectk_core/logic/step_detector.py`.
     - [x] Tester sur la séance de Bernard Alexis (17/10/2025).
-- [~] Task: Algorithme de "Best Match" & Recalage Structure
-    - [ ] Améliorer le `IntervalMatcher` pour corréler les segments avec le "Planned Workout" (via cache).
-    - [ ] Valider sur les séances complexes (Vagues d'Edouard Tiret 03/04/2025).
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Algorithme de "Best Match" & Recalage Structure 7b78030
+    - [x] Améliorer le `IntervalMatcher` pour corréler les segments avec le "Planned Workout" (via cache).
+    - [x] Valider sur les séances complexes (Vagues d'Edouard Tiret 03/04/2025).
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) ad8cef0
 
 ## Phase 3: Optimisation et Validation Finale
 Objectif : Sécuriser le flux de production et gérer les échecs.
 
-- [ ] Task: Implémentation du Fallback Temporel et Cache API
-    - [ ] Ajouter la logique de fallback (1/2, 1/4) si confiance < 70%.
-    - [ ] Optimiser le stockage local des `planned_workout`.
-- [ ] Task: Test d'End-to-End "Gold Standard" (Aveugle)
-    - [ ] Valider l'ensemble des 5 séances de référence en mode synchro automatique.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Implémentation du Fallback Temporel et Cache API b16e9f6
+    - [x] Ajouter la logique de fallback (1/2, 1/4) si confiance < 70%.
+    - [x] Optimiser le stockage local des `planned_workout`.
+- [x] Task: Test d'End-to-End "Gold Standard" (Aveugle) b16e9f6
+    - [x] Valider l'ensemble des 5 séances de référence en mode synchro automatique.
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) b16e9f6
