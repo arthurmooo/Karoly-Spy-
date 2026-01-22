@@ -78,7 +78,3 @@ This file tracks the master plan, strictly aligned with the contract phases.
     - **Status:** 🟢 Completed. Added `source_sport` column, fixed mapping priorities (Bike/Strength first), and updated Nolio API calls to support Coach Mode (athlete_id requirement).
     - **Link:** [./tracks/sport_classification_fix_20260121/](./tracks/sport_classification_fix_20260121/)
 
----
-
-- [x] **Track: HRV & Daily Readiness Integration**
-*Link: [./tracks/hrv_readiness_20260121/](./tracks/hrv_readiness_20260121/)*
