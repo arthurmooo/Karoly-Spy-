@@ -59,3 +59,18 @@ def test_calculate_baselines_missing_data():
     
     assert baselines["rmssd_30d_avg"] == 70.0
     assert baselines["resting_hr_30d_avg"] == 40.0
+
+def test_calculate_baselines_empty():
+    """
+    Verifies that the calculator returns None if no data found.
+    """
+    mock_db = MagicMock()
+    mock_execute = MagicMock()
+    mock_execute.data = []
+    mock_db.client.table().select().eq().lte().order().limit().execute.return_value = mock_execute
+    
+    calc = ReadinessCalculator(mock_db)
+    baselines = calc.calculate_baselines("uuid-none", date.today())
+    
+    assert baselines["rmssd_30d_avg"] is None
+    assert baselines["resting_hr_30d_avg"] is None
