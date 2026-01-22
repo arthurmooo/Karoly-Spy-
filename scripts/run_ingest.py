@@ -33,12 +33,13 @@ def calculate_file_hash(content: bytes) -> str:
     return hashlib.md5(content).hexdigest()
 
 class IngestionRobot:
-    def __init__(self, history_days: int = 14):
+    def __init__(self, history_days: int = 14, enable_writeback: bool = False):
         self.db = DBConnector()
         self.nolio = NolioClient()
         self.storage = StorageManager()
         self.weather = WeatherClient()
         self.history_days = history_days
+        self.enable_writeback = enable_writeback
         self.config = AthleteConfig() # Global Karoly coefficients
         self.calculator = MetricsCalculator(self.config)
         self.profile_manager = ProfileManager(self.db)
@@ -102,7 +103,19 @@ class IngestionRobot:
                     weight = get_latest("weight")
                     cp_bike = get_latest("criticalpowercycling")
                     cs_run_raw = get_latest("criticalspeedrunning") # in sec/km or min/km
+                    rmssd = get_latest("rmssd")
+                    resting_hr = get_latest("restinghr")
                     
+                    # 2.1 Sync HRV (Daily Readiness)
+                    if rmssd or resting_hr:
+                        print(f"      💓 Syncing HRV for {na.get('name')}...")
+                        self.db.client.table("daily_readiness").upsert({
+                            "athlete_id": athlete_uuid,
+                            "date": datetime.now(timezone.utc).date().isoformat(),
+                            "rmssd": rmssd,
+                            "resting_hr": resting_hr
+                        }, on_conflict="athlete_id, date").execute()
+
                     # Conversion CS: sec/km -> m/s
                     cs_run = None
                     if cs_run_raw:
@@ -140,6 +153,22 @@ class IngestionRobot:
                     
                     cs_display = f"{cs_run:.2f}" if cs_run else "None"
                     print(f"      ✅ Metrics synced: CP={cp_bike}W, CS={cs_display}m/s, Weight={weight}kg")
+
+                    # 3. Sync Daily Health Readiness (RMSSD, Sleep, RHR)
+                    print(f"      ❤️ Syncing health readiness for {na.get('name')}...")
+                    health_data = self.nolio.get_athlete_health_metrics(nid, days=self.history_days)
+                    for day_str, metrics in health_data.items():
+                        self.db.client.table("daily_readiness").upsert({
+                            "athlete_id": athlete_uuid,
+                            "date": day_str,
+                            "rmssd": metrics.get("rmssd"),
+                            "resting_hr": metrics.get("resting_hr"),
+                            "sleep_duration": metrics.get("sleep_duration"),
+                            "sleep_score": metrics.get("sleep_score")
+                        }, on_conflict="athlete_id, date").execute()
+                    
+                    if health_data:
+                        print(f"      ✅ Health data synced for {len(health_data)} days.")
 
                 except Exception as e:
                     print(f"      ⚠️ Could not sync metrics from Nolio for {nid}: {e}")
@@ -317,6 +346,7 @@ class IngestionRobot:
 
         duration_sec = float(nolio_act.get("duration_total", nolio_act.get("duration", 0)))
         distance_m = float(nolio_act.get("distance", 0))
+        elevation_gain = float(nolio_act.get("elevation_pos", nolio_act.get("elevation_gain", 0)))
         rpe = nolio_act.get("rpe")
         
         meta = ActivityMetadata(
@@ -325,6 +355,7 @@ class IngestionRobot:
             start_time=start_date,
             duration_sec=max(1.0, duration_sec), # Pydantic gt=0
             distance_m=distance_m,
+            elevation_gain=elevation_gain,
             rpe=rpe
         )
 
@@ -376,6 +407,10 @@ class IngestionRobot:
                         if start_date.tzinfo is None:
                             start_date = start_date.replace(tzinfo=timezone.utc)
                         meta.start_time = start_date
+                    
+                    # Update elevation if FIT has better data
+                    if device_meta.get('total_ascent'):
+                        meta.elevation_gain = float(device_meta['total_ascent'])
                     
                     # Fetch Weather (API)
                     if not df.empty and 'lat' in df.columns and 'lon' in df.columns:
@@ -432,6 +467,35 @@ class IngestionRobot:
                     metrics_dict.pop(k, None)
             
             activity.metrics = ActivityMetrics(**metrics_dict)
+            
+            # 6.1 Write-back to Nolio (Optional)
+            if self.enable_writeback and activity.metrics.mls_load:
+                load_val = activity.metrics.mls_load
+                dur_val = activity.metrics.dur_index
+                
+                # Format a clean, professional comment for Karoly
+                # Example: "📊 [Project K] Karoly Load: 142.5 | Durability: 1.05"
+                new_comment = f"📊 [Project K] Karoly Load: {load_val:.1f} | Durabilité: {dur_val:.2f}"
+                
+                # Check if we should append or overwrite
+                existing_comment = nolio_act.get("comment", "")
+                if existing_comment and "[Project K]" not in existing_comment:
+                    final_comment = f"{existing_comment}\n\n{new_comment}"
+                elif "[Project K]" in existing_comment:
+                    # Logic to replace old Project K info if it exists (for re-runs)
+                    import re
+                    final_comment = re.sub(r"📊 \[Project K\].*", new_comment, existing_comment)
+                else:
+                    final_comment = new_comment
+                
+                success = self.nolio.update_activity_comment(
+                    int(act_id), 
+                    final_comment, 
+                    athlete_id=athlete_nolio_id
+                )
+                if success:
+                    print(f"         📝 Nolio Comment Updated: {new_comment}")
+
         else:
             # Mode B: Degraded Mode (Metadata only)
             # Basic Load = RPE * (Duration in minutes) if RPE exists
@@ -471,8 +535,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Project K Ingestion Robot")
     parser.add_argument("--days", type=int, default=14, help="Number of days to look back")
     parser.add_argument("--athlete", type=str, help="Filter by athlete first name")
+    parser.add_argument("--writeback", action="store_true", help="Enable writing scores back to Nolio comments")
     
     args = parser.parse_args()
     
-    robot = IngestionRobot(history_days=args.days)
+    robot = IngestionRobot(history_days=args.days, enable_writeback=args.writeback)
     robot.run(specific_athlete_name=args.athlete)
