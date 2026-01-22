@@ -75,6 +75,7 @@ class ActivityMetadata(BaseModel):
     start_time: datetime
     duration_sec: float = Field(gt=0)
     distance_m: Optional[float] = Field(None, ge=0)
+    elevation_gain: Optional[float] = Field(None, ge=0, description="Total ascent in meters")
     device_id: Optional[str] = None
     rpe: Optional[float] = Field(None, ge=0, le=10)
     work_type: Optional[str] = Field(None, description="endurance, intervals, competition")

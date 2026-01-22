@@ -293,3 +293,24 @@ class NolioClient:
                     print(f"❌ Final download failure.")
                     return None
         return None
+
+    def update_activity_comment(self, activity_id: int, comment: str, athlete_id: Optional[int] = None) -> bool:
+        """
+        Updates the comment of an activity on Nolio.
+        Used to write back the 'Karoly Load' (MLS) and other indices.
+        """
+        url = f"{self.BASE_URL}/update/training/"
+        payload = {
+            "id": activity_id,
+            "comment": comment
+        }
+        if athlete_id:
+            payload["athlete_id"] = athlete_id
+            
+        try:
+            response = requests.post(url, headers=self._get_headers(), json=payload)
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"⚠️ Failed to update Nolio comment for activity {activity_id}: {e}")
+            return False

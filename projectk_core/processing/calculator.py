@@ -90,7 +90,7 @@ class MetricsCalculator:
              mech_ref = 1.0
 
         # 3. Energy (kJ) or Mechanical Base
-        # Karoly: Bike uses kJ, Run uses Distance * IF_Weight
+        # Karoly: Bike uses kJ, Run uses Distance/Ascent/Weight based Energy
         energy_kj = None
         mec_base = 0.0
         
@@ -98,8 +98,16 @@ class MetricsCalculator:
             energy_kj = df['power'].fillna(0).sum() * 1.0 / 1000.0
             mec_base = energy_kj
         elif sport == "run":
-            # For Running, we use distance in km as the base for mechanical load
-            mec_base = meta.distance_m / 1000.0 if meta.distance_m else 0.0
+            # Updated Formula (WhatsApp 2026-01-20):
+            # Energy (kcal) = Weight (kg) * [Distance (km) + (D+ / 100)]
+            # Energy (kJ) = Energy (kcal) * 4.184
+            weight = profile.weight if profile.weight else 70.0 # Default fallback
+            dist_km = meta.distance_m / 1000.0 if meta.distance_m else 0.0
+            ascent_m = meta.elevation_gain if meta.elevation_gain else 0.0
+            
+            kcal = weight * (dist_km + (ascent_m / 100.0))
+            energy_kj = kcal * 4.184
+            mec_base = energy_kj
 
         # 4. IF (Intensity Factor)
         # Mean of intensity series on active points

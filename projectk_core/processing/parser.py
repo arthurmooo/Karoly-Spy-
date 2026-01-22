@@ -46,7 +46,8 @@ class FitParser:
             'serial_number': None,
             'manufacturer': None,
             'product': None,
-            'start_time': None
+            'start_time': None,
+            'total_ascent': None
         }
         
         # 1. Read Raw Data & Metadata
@@ -55,10 +56,12 @@ class FitParser:
                 for frame in fit:
                     if frame.frame_type == fitdecode.FIT_FRAME_DATA:
                         if frame.name == 'session':
-                            # Session frame often has the best start_time
+                            # Session frame often has the best start_time and totals
                             for field in frame.fields:
                                 if field.name == 'start_time':
                                     metadata['start_time'] = field.value
+                                elif field.name == 'total_ascent':
+                                    metadata['total_ascent'] = field.value
                         
                         elif frame.name == 'file_id':
                             # DEBUG: Print all file_id fields to see what's available

@@ -49,6 +49,7 @@ class ActivityWriter:
             "rpe": int(meta.rpe) if meta.rpe is not None else None,
             "missing_rpe_flag": meta.rpe is None,
             "work_type": meta.work_type,
+            "elevation_gain": meta.elevation_gain,
             
             # Weather
             "temp_avg": temp_avg,
