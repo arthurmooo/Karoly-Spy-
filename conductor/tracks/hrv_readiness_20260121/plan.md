@@ -12,10 +12,10 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Readiness Logic & Baselines
-- [ ] Task: Implement `ReadinessCalculator` in `projectk_core/processing/readiness.py`.
+- [x] Task: Implement `ReadinessCalculator` in `projectk_core/processing/readiness.py`. c3c7ffc
     - [ ] Logic: Fetch last 30 entries for an athlete and compute means.
     - [ ] Handle missing days gracefully (interpolation or gap).
-- [ ] Task: Write unit tests for baseline calculations with mock data.
+- [x] Task: Write unit tests for baseline calculations with mock data. 6313243
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Validation
