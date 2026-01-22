@@ -23,6 +23,7 @@ from projectk_core.integrations.weather import WeatherClient
 from projectk_core.processing.parser import FitParser
 from projectk_core.processing.calculator import MetricsCalculator
 from projectk_core.processing.plan_parser import NolioPlanParser
+from projectk_core.processing.readiness import ReadinessCalculator
 from projectk_core.logic.profile_manager import ProfileManager
 from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetrics
@@ -45,14 +46,14 @@ class IngestionRobot:
         self.profile_manager = ProfileManager(self.db)
         self.classifier = ActivityClassifier()
         self.plan_parser = NolioPlanParser()
+        self.readiness_calc = ReadinessCalculator(self.db)
 
     def sync_athletes_roster(self, force_metrics: bool = False):
         """
         Fetches athletes from Nolio and ensures they exist in DB.
         Syncs physiological metrics ONLY during the night run (02:00-04:00 UTC) or if forced.
         """
-        import datetime
-        current_hour = datetime.datetime.now(datetime.timezone.utc).hour
+        current_hour = datetime.now(timezone.utc).hour
         # On définit la fenêtre de synchro profonde (ex: 2h du matin UTC)
         is_main_run = (2 <= current_hour <= 4) or force_metrics
         
@@ -111,7 +112,7 @@ class IngestionRobot:
                         print(f"      💓 Syncing HRV for {na.get('name')}...")
                         self.db.client.table("daily_readiness").upsert({
                             "athlete_id": athlete_uuid,
-                            "date": datetime.now(timezone.utc).date().isoformat(),
+                            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                             "rmssd": rmssd,
                             "resting_hr": resting_hr
                         }, on_conflict="athlete_id, date").execute()
@@ -169,6 +170,19 @@ class IngestionRobot:
                     
                     if health_data:
                         print(f"      ✅ Health data synced for {len(health_data)} days.")
+                        
+                        # 4. Update Baselines (30d rolling averages)
+                        print(f"      📈 Updating physiological baselines for {na.get('name')}...")
+                        baselines = self.readiness_calc.calculate_baselines(athlete_uuid, datetime.now(timezone.utc).date())
+                        
+                        # Apply baselines to the most recent entry (today)
+                        self.db.client.table("daily_readiness").upsert({
+                            "athlete_id": athlete_uuid,
+                            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                            "rmssd_30d_avg": baselines.get("rmssd_30d_avg"),
+                            "resting_hr_30d_avg": baselines.get("resting_hr_30d_avg")
+                        }, on_conflict="athlete_id, date").execute()
+                        print(f"      ✅ Baselines updated: RMSSD_30d={baselines.get('rmssd_30d_avg')}ms, RHR_30d={baselines.get('resting_hr_30d_avg')}bpm")
 
                 except Exception as e:
                     print(f"      ⚠️ Could not sync metrics from Nolio for {nid}: {e}")
