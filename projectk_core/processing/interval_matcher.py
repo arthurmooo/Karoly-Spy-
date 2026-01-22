@@ -181,7 +181,8 @@ class IntervalMatcher:
                     target_min=target_min,
                     duration_s=duration_s,
                     sport=sport,
-                    target_idx=target_idx
+                    target_idx=target_idx,
+                    is_resync=(target_idx > 0 and len(detected_intervals) > 0 and detected_intervals[-1]['status'] == MatchStatus.NOT_FOUND.value)
                 )
                 detected_intervals.append(result)
                 
@@ -189,9 +190,14 @@ class IntervalMatcher:
                 if result['status'] == MatchStatus.MATCHED.value:
                     current_ptr = result['end_index'] + 5
                 else:
-                    # Smart Skip: Move forward by duration + typical recovery (e.g. 60s)
-                    # to align the window for the next target
-                    current_ptr += duration_s + 30
+                    # SMART RESYNC: If target not found, the sequence might be broken.
+                    # We look ahead for the NEXT target to see if we can find it.
+                    # This allows skipping an interval the athlete didn't do.
+                    current_ptr += duration_s // 2 # Small advance to avoid loop
+                    
+                    # If we've missed 2 targets in a row, we allow a wider search for the next one
+                    # (This is implicitly handled by prox_limit being large for fallback search)
+                    pass
         
         return detected_intervals
     
@@ -442,7 +448,8 @@ class IntervalMatcher:
         target_min: float,
         duration_s: int,
         sport: str,
-        target_idx: int
+        target_idx: int,
+        is_resync: bool = False
     ) -> Dict[str, Any]:
         """
         Uses pre-detected signal segments to find the best match for a target.
@@ -482,17 +489,23 @@ class IntervalMatcher:
                 
             # 2. Intensity score (how close to target_min)
             intensity_ratio = seg['mean'] / target_min if target_min > 0 else 0
-            if intensity_ratio >= cfg.entry_threshold_ratio:
+            if intensity_ratio >= cfg.entry_threshold_ratio: # 0.8
                 int_score = 1.0
-            elif intensity_ratio >= 0.5:
-                # Still count as something, but lower score
-                int_score = 0.5 * (intensity_ratio / cfg.entry_threshold_ratio)
+            elif intensity_ratio >= 0.70: # Increased hard floor from 0.5 to 0.7
+                # Linear penalty between 0.7 and 0.8
+                # If ratio is 0.75, score is 0.5
+                int_score = 0.5 + 0.5 * ((intensity_ratio - 0.70) / 0.10)
             else:
                 int_score = 0
                 
+            # KILL SWITCH: If intensity score is 0 (i.e. < 70% of target), 
+            # the total score is capped at 0.4 to prevent matching purely on duration/proximity.
+            if int_score == 0:
+                dur_score *= 0.5 # Heavy penalty on duration score too
+                
             # 3. Proximity score (prefer segments closer to current pointer)
-            # Make it more forgiving for the first target
-            prox_limit = 1200 if target_idx == 0 else 600
+            # Make it more forgiving for the first target OR if we are resyncing
+            prox_limit = 3600 if (target_idx == 0 or is_resync) else 900
             prox_score = 1 - min(1.0, abs(seg['start'] - start_ptr) / prox_limit)
             
             total_score = dur_score * 0.4 + int_score * 0.4 + prox_score * 0.2
