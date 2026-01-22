@@ -145,6 +145,7 @@ class ReprocessingEngine:
 
             meta = ActivityMetadata(
                 activity_type=sport,
+                activity_name=activity_title,
                 start_time=start_time,
                 duration_sec=len(df),
                 rpe=act_record.get('rpe'),

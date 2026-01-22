@@ -43,9 +43,12 @@ class ActivityWriter:
         record = {
             "athlete_id": athlete_id,
             "nolio_id": nolio_id,
+            "activity_name": meta.activity_name,
             "session_date": meta.start_time.isoformat(),
             "sport_type": meta.activity_type,
             "source_sport": meta.source_sport,
+            "duration_sec": meta.duration_sec,
+            "distance_m": meta.distance_m,
             "rpe": int(meta.rpe) if meta.rpe is not None else None,
             "missing_rpe_flag": meta.rpe is None,
             "work_type": meta.work_type,

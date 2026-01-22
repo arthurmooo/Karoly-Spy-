@@ -71,6 +71,7 @@ class ActivityMetadata(BaseModel):
     Basic metadata for an activity.
     """
     activity_type: str
+    activity_name: Optional[str] = Field(None, description="Name of the activity from source")
     source_sport: Optional[str] = Field(None, description="Original sport name from source")
     start_time: datetime
     duration_sec: float = Field(gt=0)

@@ -370,6 +370,7 @@ class IngestionRobot:
         
         meta = ActivityMetadata(
             activity_type=internal_sport,
+            activity_name=nolio_act.get("name"),
             source_sport=nolio_sport,
             start_time=start_date,
             duration_sec=max(1.0, duration_sec), # Pydantic gt=0
