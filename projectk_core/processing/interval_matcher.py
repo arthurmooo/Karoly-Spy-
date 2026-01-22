@@ -465,11 +465,17 @@ class IntervalMatcher:
             # Score this segment
             # 1. Duration score (how close to expected duration)
             dur_ratio = seg['duration'] / duration_s
-            # Allow shorter segments (down to 70% duration) because detector cuts transitions aggressively
+            # Allow shorter segments (down to 70%)
+            # CRITICAL FIX: Allow much longer segments (up to 4x) because StepDetector might merge intervals
+            # We will trim them later in the 'if best_segment' block
             if 0.7 <= dur_ratio <= 1.5:
                 dur_score = 1 - abs(1 - dur_ratio)
+            elif 1.5 < dur_ratio <= 4.0:
+                # It's a "Big Block" (potentially multiple intervals fused)
+                # We give it a decent score because it likely contains our target
+                dur_score = 0.8
             elif 0.5 <= dur_ratio < 0.7:
-                # Partial credit for short segments (e.g. 60s for 120s target)
+                # Partial credit for short segments
                 dur_score = 0.5
             else:
                 dur_score = 0
