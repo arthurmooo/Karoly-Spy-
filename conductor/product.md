@@ -33,7 +33,8 @@ To transform Karoly Spy's coaching methodology into a scalable, automated, and s
     -   **Health:** RMSSD (HRV), Resting Heart Rate, Sleep Duration, Sleep Score.
 
 ### 2. The "Intelligence Engine" (Python Core)
--   **Physiological Brain:** High-precision calculation of Load, Durability, Decoupling, and Normalized Power/Grade Adjusted Pace.
+-   **Physiological Brain:** High-precision calculation of Load (MLS), Durability, and Decoupling. **100% certified alignment** with Karoly's original mathematical models (strict exclusion of pauses, precise split-halves by time).
+-   **Magnitude Rule:** Automatic intelligence to switch between Stryd Power (Watts) and Critical Speed (m/s) based on threshold magnitudes (CP > 100 vs CS < 20), ensuring scientific validity across different sensor setups.
 -   **Readiness Calculator:** Automated 30-day baseline computation for health markers to detect significant physiological deviations.
 -   **Data Quality Engine:** 
     -   *Best Effort Repair:* Smoothing and interpolation for minor gaps.
