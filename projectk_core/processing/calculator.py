@@ -6,6 +6,7 @@ from projectk_core.logic.config_manager import AthleteConfig
 from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.processing.segmentation import SegmentCalculator
 from projectk_core.processing.interval_matcher import IntervalMatcher
+from projectk_core.processing.lap_calculator import LapCalculator
 
 class MetricsCalculator:
     """
@@ -215,20 +216,31 @@ class MetricsCalculator:
                     global_respect_score = sum(valid_r) / len(valid_r)
         else:
             # LAP-BASED MODE (Fallback)
-            # Weighted averages for all intervals (laps)
-            total_lap_time = sum(l.get('total_elapsed_time', 0) for l in activity.laps)
+            # Weighted averages for all intervals (laps) using Recalculated Durations
+            # This ensures we respect Moving Time (vs Elapsed) for performance metrics.
+            
+            clean_laps = []
+            for l in activity.laps:
+                recalc = LapCalculator.recalculate(l)
+                clean_laps.append({
+                    **l,
+                    'effective_duration': recalc['effective_duration']
+                })
+
+            total_lap_time = sum(l.get('effective_duration', 0) for l in clean_laps)
+            
             if total_lap_time > 0:
-                valid_p_laps = [l for l in activity.laps if l.get('avg_power') is not None]
-                valid_hr_laps = [l for l in activity.laps if l.get('avg_heart_rate') is not None]
+                valid_p_laps = [l for l in clean_laps if l.get('avg_power') is not None]
+                valid_hr_laps = [l for l in clean_laps if l.get('avg_heart_rate') is not None]
                 
-                p_time = sum(l.get('total_elapsed_time', 0) for l in valid_p_laps)
-                hr_time = sum(l.get('total_elapsed_time', 0) for l in valid_hr_laps)
+                p_time = sum(l.get('effective_duration', 0) for l in valid_p_laps)
+                hr_time = sum(l.get('effective_duration', 0) for l in valid_hr_laps)
                 
-                avg_intervals_power = sum(l.get('avg_power', 0) * l.get('total_elapsed_time', 0) for l in valid_p_laps) / p_time if p_time > 0 else 0.0
-                avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('total_elapsed_time', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else 0.0
+                avg_intervals_power = sum(l.get('avg_power', 0) * l.get('effective_duration', 0) for l in valid_p_laps) / p_time if p_time > 0 else 0.0
+                avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('effective_duration', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else 0.0
                 
-                if activity.laps:
-                    last_lap = activity.laps[-1]
+                if clean_laps:
+                    last_lap = clean_laps[-1]
                     last_interval_power = last_lap.get('avg_power', 0) or 0
                     last_interval_hr = last_lap.get('avg_heart_rate', 0) or 0
 
