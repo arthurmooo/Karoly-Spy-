@@ -79,7 +79,3 @@ This file tracks the master plan, strictly aligned with the contract phases.
     - **Link:** [./tracks/sport_classification_fix_20260121/](./tracks/sport_classification_fix_20260121/)
 
 ---
-
-- [x] **Track: Mathematical Fidelity Audit (MLS & EF/Drift)**
-    - **Status:** 🟢 Completed. 100% Karoly-aligned logic (Pauses excluded, Magnitude Rule for Stryd, Threshold sensitivity validated).
-    - **Link:** [./tracks/math_fidelity_audit_20260122/](./tracks/math_fidelity_audit_20260122/)
