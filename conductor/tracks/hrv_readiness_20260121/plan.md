@@ -1,10 +1,10 @@
 # Implementation Plan - Track: HRV & Daily Readiness Integration
 
-## Phase 1: Database & Model Preparation
+## Phase 1: Database & Model Preparation [checkpoint: 4f4d95c]
 - [x] Task: Create a DB migration to establish the `daily_readiness` table. d39b117
     - [ ] Columns: `athlete_id`, `date` (primary key composite), `rmssd`, `resting_hr`, `sleep_duration`, `sleep_score`, `rmssd_30d_avg`, `resting_hr_30d_avg`.
 - [x] Task: Create a Pydantic model `DailyReadiness` in `projectk_core/logic/models.py`. b0f97da
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Nolio Ingestion Extension
 - [ ] Task: Update `NolioClient` in `projectk_core/integrations/nolio.py` to fetch daily health metadata.
