@@ -14,10 +14,10 @@ Objectif : Atteindre une parité parfaite avec Nolio sur les calculs de base.
 ## Phase 2: Moteur de Détection "Signal-Based" (Lap-proof)
 Objectif : Détecter les intervalles via le signal et les recaler sur la structure prévue.
 
-- [~] Task: Implémentation de la Step Detection (Analyse de signal)
-    - [ ] Développer l'algorithme de détection de rupture sur le signal brut dans `projectk_core/logic/step_detector.py`.
-    - [ ] Tester sur la séance de Bernard Alexis (17/10/2025).
-- [ ] Task: Algorithme de "Best Match" & Recalage Structure
+- [x] Task: Implémentation de la Step Detection (Analyse de signal) 08e530c
+    - [x] Développer l'algorithme de détection de rupture sur le signal brut dans `projectk_core/logic/step_detector.py`.
+    - [x] Tester sur la séance de Bernard Alexis (17/10/2025).
+- [~] Task: Algorithme de "Best Match" & Recalage Structure
     - [ ] Améliorer le `IntervalMatcher` pour corréler les segments avec le "Planned Workout" (via cache).
     - [ ] Valider sur les séances complexes (Vagues d'Edouard Tiret 03/04/2025).
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
