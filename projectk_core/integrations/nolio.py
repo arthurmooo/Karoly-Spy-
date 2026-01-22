@@ -302,7 +302,7 @@ class NolioClient:
         url = f"{self.BASE_URL}/update/training/"
         payload = {
             "id": activity_id,
-            "comment": comment
+            "description": comment
         }
         if athlete_id:
             payload["athlete_id"] = athlete_id

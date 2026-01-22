@@ -48,7 +48,7 @@ class IngestionRobot:
         self.plan_parser = NolioPlanParser()
         self.readiness_calc = ReadinessCalculator(self.db)
 
-    def sync_athletes_roster(self, force_metrics: bool = False):
+    def sync_athletes_roster(self, force_metrics: bool = False, specific_athlete_name: Optional[str] = None):
         """
         Fetches athletes from Nolio and ensures they exist in DB.
         Syncs physiological metrics ONLY during the night run (02:00-04:00 UTC) or if forced.
@@ -64,6 +64,11 @@ class IngestionRobot:
             for na in nolio_athletes:
                 nid = na.get('nolio_id', na.get('id'))
                 if not nid:
+                    continue
+                
+                # Filter by name if requested
+                athlete_name = na.get('name', '')
+                if specific_athlete_name and specific_athlete_name.lower() not in athlete_name.lower():
                     continue
                     
                 # 1. Check/Create Athlete
@@ -195,7 +200,7 @@ class IngestionRobot:
         print(f"🚀 Starting Ingestion Robot (Window: {self.history_days} days)")
         
         # 1. Sync Roster (Discovery Phase)
-        self.sync_athletes_roster(force_metrics=force_metrics)
+        self.sync_athletes_roster(force_metrics=force_metrics, specific_athlete_name=specific_athlete_name)
 
         # 2. Process Webhooks first (Priority)
         self.process_webhooks()
@@ -492,7 +497,7 @@ class IngestionRobot:
                 new_comment = f"📊 [Project K] Karoly Load: {load_val:.1f} | Durabilité: {dur_val:.2f}"
                 
                 # Check if we should append or overwrite
-                existing_comment = nolio_act.get("comment", "")
+                existing_comment = nolio_act.get("description", "")
                 if existing_comment and "[Project K]" not in existing_comment:
                     final_comment = f"{existing_comment}\n\n{new_comment}"
                 elif "[Project K]" in existing_comment:
@@ -550,8 +555,9 @@ if __name__ == "__main__":
     parser.add_argument("--days", type=int, default=14, help="Number of days to look back")
     parser.add_argument("--athlete", type=str, help="Filter by athlete first name")
     parser.add_argument("--writeback", action="store_true", help="Enable writing scores back to Nolio comments")
+    parser.add_argument("--force", action="store_true", help="Force metrics and health sync regardless of hour")
     
     args = parser.parse_args()
     
     robot = IngestionRobot(history_days=args.days, enable_writeback=args.writeback)
-    robot.run(specific_athlete_name=args.athlete)
+    robot.run(specific_athlete_name=args.athlete, force_metrics=args.force)

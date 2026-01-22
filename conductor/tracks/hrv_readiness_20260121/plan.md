@@ -18,5 +18,5 @@
 
 ## Phase 4: Integration & Validation
 - [x] Task: Wire the calculator into the ingestion robot's post-sync process. 94a0b3e
-- [ ] Task: Run a real-world test for an athlete known to have HRV data (e.g., Estelle-Marie Kieffer).
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
+- [x] Task: Run a real-world test for an athlete known to have HRV data (e.g., Estelle-Marie Kieffer). 10b0bb1
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)

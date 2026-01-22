@@ -31,8 +31,8 @@ class PhysioProfile(BaseModel):
 
     @property
     def cp(self) -> Optional[float]:
-        """Legacy/Alias access for CP/CS"""
-        return self.lt2_power_pace # Karoly uses LT2 as the main anchor for IF
+        """Legacy/Alias access for CP/CS. Prioritizes cp_cs which is synced from Nolio."""
+        return self.cp_cs or self.lt2_power_pace
 
     @field_validator('lt2_hr')
     @classmethod

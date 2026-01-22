@@ -108,6 +108,7 @@ class MetricsCalculator:
             kcal = weight * (dist_km + (ascent_m / 100.0))
             energy_kj = kcal * 4.184
             mec_base = energy_kj
+            print(f"DEBUG RUN MEC: Weight={weight}, Dist={dist_km}km, Ascent={ascent_m}m -> kcal={kcal}, kJ={energy_kj}")
 
         # 4. IF (Intensity Factor)
         # Mean of intensity series on active points
