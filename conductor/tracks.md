@@ -80,6 +80,6 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [x] **Track: Interval Engine Reliability (Bulletproof & Lap-proof)**
-    - **Status:** 🟢 Completed. Parity with Nolio achieved (LapCalculator). Signal-based detection implemented (StepDetector + IntervalMatcher V3) with 100% accuracy on gold standard sessions (Adrien & Alexis) even without laps.
-    - **Link:** [./tracks/interval_engine_refactoring_20260122/](./tracks/interval_engine_refactoring_20260122/)
+- [ ] **Track: Mathematical Fidelity Audit (MLS & EF/Drift)**
+
+    *Link: [./tracks/math_fidelity_audit_20260122/](./tracks/math_fidelity_audit_20260122/)*
