@@ -21,6 +21,7 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from projectk_core.logic.step_detector import StepDetector
 
 
 class MatchStatus(Enum):
@@ -82,6 +83,7 @@ class IntervalMatcher:
     
     def __init__(self, config: Optional[MatchConfig] = None):
         self.config = config or MatchConfig()
+        self.detector = StepDetector(window_size=20, threshold_factor=1.5)
     
     def match(
         self, 
@@ -110,17 +112,22 @@ class IntervalMatcher:
         if signal is None:
             return []
         
-        # 2. Preprocess LAPs if available
+        # 2. Pre-detect all intensity segments (Step Detection)
+        # This gives us a "global view" of where intensity shifts happened
+        detected_steps = self.detector.detect_steps(signal)
+        signal_segments = self.detector.segment_by_steps(signal, detected_steps)
+        
+        # 3. Preprocess LAPs if available
         processed_laps = self._preprocess_laps(laps, signal_col) if laps else []
         
-        # 3. Detect pause zones (for signal fallback)
+        # 4. Detect pause zones
         pause_mask = self._detect_pauses(signal, sport)
         
-        # 4. Filter LAPs to only WORK laps with meaningful duration (>20s)
+        # 5. Filter LAPs to only WORK laps with meaningful duration (>20s)
         work_laps = [l for l in processed_laps 
                      if l.get('intensity') == 'work' and l.get('duration', 0) >= 20]
         
-        # 5. Simple sequential matching: consume LAPs in order, fallback to signal
+        # 6. Simple sequential matching: consume LAPs in order, fallback to signal
         detected_intervals = []
         lap_idx = 0      # Index into work_laps
         current_ptr = 0  # Current position in signal for fallback
@@ -135,9 +142,7 @@ class IntervalMatcher:
             if target_min <= 0:
                 target_min = self._get_sport_minimum(sport, signal_col)
             
-            target_type = target.get('type', 'active')
-            
-            # Try to find a matching LAP - take FIRST valid match (sequential matching)
+            # Try to find a matching LAP
             matched_lap = None
             matched_idx = None
             search_limit = min(lap_idx + 5, len(work_laps))
@@ -148,25 +153,24 @@ class IntervalMatcher:
                     lap, target_min, duration_s, signal_col
                 )
                 if confidence >= self.config.lap_confidence_threshold:
-                    # Take first valid match
                     matched_lap = {**lap, 'lap_index': i, 'confidence': confidence}
                     matched_idx = i
                     break
             
-            # Check if match was found
             if matched_lap:
                 result = self._build_lap_result(
                     df, matched_lap, target, target_idx, signal_col
                 )
                 detected_intervals.append(result)
-                lap_idx = matched_idx + 1  # Consume this LAP
+                lap_idx = matched_idx + 1
+                current_ptr = result['end_index'] + 5 # Sync pointer
             else:
-                # No matching LAP found - fall back to signal-based detection
-                result = self._match_by_signal(
+                # No matching LAP - fall back to Step Detection + Correlation
+                result = self._match_by_signal_refined(
                     df=df,
                     signal=signal,
                     signal_col=signal_col,
-                    pause_mask=pause_mask,
+                    segments=signal_segments,
                     start_ptr=current_ptr,
                     target=target,
                     target_min=target_min,
@@ -176,7 +180,6 @@ class IntervalMatcher:
                 )
                 detected_intervals.append(result)
                 
-                # Advance pointer based on result
                 if result['status'] == MatchStatus.MATCHED.value:
                     current_ptr = result['end_index'] + 5
                 else:
@@ -420,6 +423,103 @@ class IntervalMatcher:
             "target": target
         }
     
+    def _match_by_signal_refined(
+        self,
+        df: pd.DataFrame,
+        signal: np.ndarray,
+        signal_col: str,
+        segments: List[Dict[str, Any]],
+        start_ptr: int,
+        target: Dict[str, Any],
+        target_min: float,
+        duration_s: int,
+        sport: str,
+        target_idx: int
+    ) -> Dict[str, Any]:
+        """
+        Uses pre-detected signal segments to find the best match for a target.
+        """
+        cfg = self.config
+        best_segment = None
+        best_score = 0
+        
+        # Search window
+        search_window_start = start_ptr - 30
+        search_window_end = start_ptr + max(cfg.max_search_gap, duration_s * 3)
+        
+        for seg in segments:
+            # Must be in window
+            if seg['start'] < search_window_start:
+                continue
+            if seg['start'] > search_window_end:
+                break
+                
+            # Score this segment
+            # 1. Duration score (how close to expected duration)
+            dur_ratio = seg['duration'] / duration_s
+            if 0.5 <= dur_ratio <= 2.0:
+                dur_score = 1 - abs(1 - dur_ratio)
+            else:
+                dur_score = 0
+                
+            # 2. Intensity score (how close to target_min)
+            intensity_ratio = seg['mean'] / target_min if target_min > 0 else 0
+            if intensity_ratio >= cfg.entry_threshold_ratio:
+                int_score = 1.0
+            elif intensity_ratio >= 0.5:
+                # Still count as something, but lower score
+                int_score = 0.5 * (intensity_ratio / cfg.entry_threshold_ratio)
+            else:
+                int_score = 0
+                
+            # 3. Proximity score (prefer segments closer to current pointer)
+            # Make it more forgiving for the first target
+            prox_limit = 1200 if target_idx == 0 else 600
+            prox_score = 1 - min(1.0, abs(seg['start'] - start_ptr) / prox_limit)
+            
+            total_score = dur_score * 0.4 + int_score * 0.4 + prox_score * 0.2
+            
+            if total_score > best_score:
+                best_score = total_score
+                best_segment = seg
+
+        if best_segment and best_score > 0.5: # Lowered threshold from 0.6
+            start_idx = best_segment['start']
+            end_idx = best_segment['end']
+            
+            # Handle too long segments (if grouped by detector)
+            if best_segment['duration'] > duration_s * 1.5:
+                 # Trim to expected duration centered around max intensity
+                 start_idx, end_idx = self._find_best_window(signal, start_idx, end_idx, duration_s)
+
+            plateau_metrics = self._calculate_plateau_metrics(
+                df, signal_col, start_idx, end_idx, duration_s
+            )
+            
+            realized = plateau_metrics.get(f'avg_{signal_col}', 0)
+            respect_score = (realized / target_min * 100) if target_min > 0 else None
+            
+            return {
+                "status": MatchStatus.MATCHED.value,
+                "source": MatchSource.SIGNAL.value,
+                "confidence": round(best_score, 2),
+                "lap_index": None,
+                "target_index": target_idx,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "duration_sec": end_idx - start_idx,
+                "expected_duration": duration_s,
+                "avg_power": plateau_metrics.get('avg_power'),
+                "avg_speed": plateau_metrics.get('avg_speed'),
+                "avg_hr": plateau_metrics.get('avg_hr'),
+                "plateau_avg_power": plateau_metrics.get('plateau_avg_power'),
+                "plateau_avg_speed": plateau_metrics.get('plateau_avg_speed'),
+                "respect_score": respect_score,
+                "target": target
+            }
+
+        return self._create_not_found_result(target, target_idx)
+
     def _match_by_signal(
         self,
         df: pd.DataFrame,
