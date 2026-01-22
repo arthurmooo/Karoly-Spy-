@@ -80,5 +80,5 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [~] **Track: HRV & Daily Readiness Integration**
+- [x] **Track: HRV & Daily Readiness Integration**
 *Link: [./tracks/hrv_readiness_20260121/](./tracks/hrv_readiness_20260121/)*
