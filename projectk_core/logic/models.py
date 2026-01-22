@@ -1,7 +1,21 @@
 from typing import List, Optional, Dict
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
 import pandas as pd
+
+class DailyReadiness(BaseModel):
+    """
+    Represents an athlete's daily health markers and recovery status.
+    """
+    athlete_id: str
+    date: date
+    rmssd: Optional[float] = Field(None, ge=0)
+    resting_hr: Optional[float] = Field(None, ge=0)
+    sleep_duration: Optional[float] = Field(None, ge=0)
+    sleep_score: Optional[float] = Field(None, ge=0, le=100)
+    rmssd_30d_avg: Optional[float] = Field(None, ge=0)
+    resting_hr_30d_avg: Optional[float] = Field(None, ge=0)
+    created_at: Optional[datetime] = None
 
 class PhysioProfile(BaseModel):
     """
@@ -57,6 +71,7 @@ class ActivityMetadata(BaseModel):
     Basic metadata for an activity.
     """
     activity_type: str
+    source_sport: Optional[str] = Field(None, description="Original sport name from source")
     start_time: datetime
     duration_sec: float = Field(gt=0)
     distance_m: Optional[float] = Field(None, ge=0)
