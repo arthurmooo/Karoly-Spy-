@@ -113,7 +113,10 @@ class IntervalMatcher:
             return []
         
         # 2. Pre-detect all intensity segments (Step Detection)
-        # This gives us a "global view" of where intensity shifts happened
+        # Use sport-specific min_delta
+        min_delta = 10.0 if signal_col == 'power' else 0.2
+        self.detector.min_delta = min_delta
+        
         detected_steps = self.detector.detect_steps(signal)
         signal_segments = self.detector.segment_by_steps(signal, detected_steps)
         

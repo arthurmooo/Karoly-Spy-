@@ -10,31 +10,28 @@ class StepDetector:
     Ideal for finding interval boundaries without relying on fixed thresholds.
     """
 
-    def __init__(self, window_size: int = 15, threshold_factor: float = 2.0):
+    def __init__(self, window_size: int = 30, threshold_factor: float = 1.5, min_delta: float = 5.0):
         """
         Args:
             window_size: Size of the sliding windows to compare (in seconds).
-            threshold_factor: Sensitivity. Higher = fewer steps detected.
+            threshold_factor: Sensitivity. Lower = more steps detected.
+            min_delta: Minimum change in mean to be considered a step (e.g., 5W or 0.2m/s).
         """
         self.window_size = window_size
         self.threshold_factor = threshold_factor
+        self.min_delta = min_delta
 
     def detect_steps(self, signal: np.ndarray) -> List[int]:
         """
         Identifies indices where the signal mean shifts significantly.
-        
-        Returns:
-            List of indices corresponding to detected steps.
         """
         if len(signal) < self.window_size * 2:
             return []
 
-        # 1. Smooth signal to remove high-frequency noise
-        # We use a relatively small window for Savitzky-Golay to keep transitions sharp
-        smooth_signal = savgol_filter(signal, min(len(signal), 11), 2)
+        # 1. Smooth signal
+        smooth_signal = savgol_filter(signal, min(len(signal), 61) if len(signal) > 61 else 11, 2)
         
-        # 2. Calculate Mean Difference between two adjacent windows
-        # diff[i] = mean(signal[i:i+W]) - mean(signal[i-W:i])
+        # 2. Calculate Mean Difference
         shifts = np.zeros(len(smooth_signal))
         w = self.window_size
         
@@ -43,23 +40,22 @@ class StepDetector:
             next_mean = np.mean(smooth_signal[i:i+w])
             shifts[i] = next_mean - prev_mean
             
-        # 3. Detect Peaks in the absolute shift
+        # 3. Detect Peaks
         abs_shifts = np.abs(shifts)
-        std_shift = np.std(abs_shifts)
-        mean_shift = np.mean(abs_shifts)
         
-        # Threshold for a "significant" step
-        threshold = mean_shift + self.threshold_factor * std_shift
+        mean_abs = np.mean(abs_shifts)
+        std_abs = np.std(abs_shifts)
+        
+        # Threshold: must be higher than statistical noise AND min_delta
+        threshold = max(self.min_delta, mean_abs + self.threshold_factor * std_abs)
         
         steps = []
         i = w
         while i < len(abs_shifts) - w:
             if abs_shifts[i] > threshold:
-                # Find local maximum in a small neighborhood to get precise transition point
-                search_range = abs_shifts[i : i + 10]
-                local_max_idx = i + np.argmax(search_range)
+                search_end = min(i + w, len(abs_shifts))
+                local_max_idx = i + np.argmax(abs_shifts[i : search_end])
                 steps.append(local_max_idx)
-                # Skip some points to avoid multiple detections for the same step
                 i = local_max_idx + w
             else:
                 i += 1
