@@ -88,27 +88,55 @@ class NolioPlanParser:
         # Convert Target values to Speed (m/s) if they look like Pace
         if target_type == "pace":
             t_min_val = float(target_min or 0)
+            t_max_val = float(target_max or 0)
             
-            # FINAL HEURISTIC:
-            if t_min_val > 8.0: # KM/H (e.g. 18.5)
-                target_min = t_min_val / 3.6
-                if target_max: target_max = float(target_max) / 3.6
-            elif t_min_val < 3.5: # Clearly Pace (min/km) e.g. 3.0 min/km -> 5.5 m/s
-                target_min = 1000.0 / (t_min_val * 60.0)
-                if target_max and float(target_max) > 0:
-                    target_max = 1000.0 / (float(target_max) * 60.0)
-            else:
-                # Value is 3.5 to 8.0. 
-                # Adrien 5.14 (m/s) falls here.
-                # Baptiste 5.02 (min/km) also falls here.
-                # If we convert Baptiste 5.02 -> 3.32 m/s. 
-                # If we leave Adrien 5.14 -> 5.14 m/s.
-                
-                # Observation: Nolio "Pace" targets for Running seem to be m/s 
-                # when exported via API for some accounts/apps.
-                # Since Adrien is the priority and 5.14 m/s is his target, 
-                # we leave this range AS IS. 
+            # IMPROVED HEURISTIC:
+            # The challenge: Nolio API can send pace as:
+            # - km/h (>10): e.g., 18.5 km/h
+            # - min/km (<2.5): e.g., 3.0 min/km = 5.55 m/s  
+            # - m/s (2.5-10): e.g., 5.14 m/s
+            #
+            # The key insight: a realistic running speed is between 1.5 m/s (11:00/km) 
+            # and 6.5 m/s (2:34/km). If treating the value as m/s gives a realistic
+            # speed, we keep it. Otherwise, we try to convert.
+            
+            def is_realistic_speed(val):
+                """Check if value represents a realistic running/cycling speed in m/s."""
+                # 1.5 m/s = 11:00/km (slow jog), 6.5 m/s = 2:34/km (elite sprinting)
+                return 1.5 <= val <= 6.5
+            
+            def convert_pace_to_speed(val):
+                """Convert min/km to m/s. E.g., 3.0 min/km -> 5.55 m/s"""
+                if val <= 0:
+                    return 0
+                return 1000.0 / (val * 60.0)
+            
+            def convert_kmh_to_speed(val):
+                """Convert km/h to m/s. E.g., 18 km/h -> 5.0 m/s"""
+                return val / 3.6
+            
+            # Clear case: > 10 = definitely km/h
+            if t_min_val > 10.0:
+                target_min = convert_kmh_to_speed(t_min_val)
+                target_max = convert_kmh_to_speed(t_max_val) if t_max_val else None
+            
+            # Clear case: < 2.0 = definitely min/km (nobody runs at 1.5 m/s for intervals)
+            elif t_min_val < 2.0:
+                target_min = convert_pace_to_speed(t_min_val)
+                target_max = convert_pace_to_speed(t_max_val) if t_max_val else None
+            
+            # Ambiguous zone (2.0 - 10.0): check if it's a realistic speed
+            elif is_realistic_speed(t_min_val):
+                # Already m/s - keep as is
                 pass
+            
+            # Not realistic as m/s, try converting from min/km
+            else:
+                converted = convert_pace_to_speed(t_min_val)
+                if is_realistic_speed(converted):
+                    target_min = converted
+                    target_max = convert_pace_to_speed(t_max_val) if t_max_val else None
+                # If still not realistic, keep original (let matcher handle it)
             
             target_type = "speed"
             

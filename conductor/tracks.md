@@ -64,21 +64,21 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 
 
-- [~] **Track: Auto-Detection of Interval Metrics (Nolio Plan Driven)**
-
-    - **Status:** 🟠 Logic completed & tested. Integration blocked by Nolio API permissions.
-
-    - **Link:** [./tracks/intervals_nolio_20260115/](./tracks/intervals_nolio_20260115/)
-
-
-
 - [x] **Track: Smart Segmentation & Multi-Phase Analysis**
-
     - **Status:** 🟢 Completed. Multi-phase (2/4) and manual splits (#split) implemented & integrated in ingestion pipeline.
-
     - **Link:** [./tracks/smart_segmentation_20260115/](./tracks/smart_segmentation_20260115/)
+
+- [x] **Track: Interval Engine & Workout Classification**
+    - **Status:** 🟢 Completed & Validated. Robust plan linking, surgical detection (10x2'), and automatic work_type classification.
+    - **Link:** [./tracks/interval_classification_20260119/](./tracks/interval_classification_20260119/)
 
 ---
 
-- [x] **Track: Interval Engine & Workout Classification**
-*Link: [./tracks/interval_classification_20260119/](./tracks/interval_classification_20260119/)*
+- [x] **Track: Sport Classification & Source Mapping Fix**
+    - **Status:** 🟢 Completed. Added `source_sport` column, fixed mapping priorities (Bike/Strength first), and updated Nolio API calls to support Coach Mode (athlete_id requirement).
+    - **Link:** [./tracks/sport_classification_fix_20260121/](./tracks/sport_classification_fix_20260121/)
+
+---
+
+- [~] **Track: HRV & Daily Readiness Integration**
+*Link: [./tracks/hrv_readiness_20260121/](./tracks/hrv_readiness_20260121/)*

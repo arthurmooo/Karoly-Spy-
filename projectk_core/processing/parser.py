@@ -79,8 +79,19 @@ class FitParser:
                             lap_row = {}
                             for field in frame.fields:
                                 # We only care about a few fields for interval analysis
-                                if field.name in ['start_time', 'total_elapsed_time', 'avg_heart_rate', 'avg_power']:
+                                if field.name in ['start_time', 'total_elapsed_time', 'total_timer_time', 'avg_heart_rate', 'avg_power', 'total_distance', 'avg_speed', 'enhanced_avg_speed']:
                                     lap_row[field.name] = field.value
+                            
+                            # Fallback for speed if missing or None but dist/dur present
+                            spd = lap_row.get('enhanced_avg_speed')
+                            if spd is None: spd = lap_row.get('avg_speed')
+                            
+                            if (spd is None or spd == 0):
+                                dist = lap_row.get('total_distance', 0)
+                                dur = lap_row.get('total_elapsed_time', 0)
+                                if dist and dur:
+                                    lap_row['avg_speed'] = float(dist) / float(dur)
+                                    
                             if lap_row:
                                 laps.append(lap_row)
 

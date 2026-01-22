@@ -25,7 +25,10 @@ class SegmentCalculator:
         avg_torque = None
         ratio = None
         
-        is_bike = activity_type.lower() in ["bike", "ride", "virtualride", "cycling"]
+        # Robust sport check
+        s = activity_type.lower()
+        is_bike = any(x in s for x in ["bike", "ride", "cycling", "vélo", "vtt", "gravel"])
+        is_run = any(x in s for x in ["run", "trail", "hiking", "randonnée", "ski", "course", "rando"])
         
         if is_bike:
             # Karoly ignores 0 power for decoupling analysis usually
@@ -35,15 +38,11 @@ class SegmentCalculator:
             avg_torque = float(df['torque'].mean()) if 'torque' in df.columns else None
             
             if avg_power and avg_hr and avg_power > 0:
-                # Efficiency Factor: Power / HR or HR / Power? 
-                # Karoly's notebook uses: HR_dec / PWR_dec (relative)
                 # Raw Ratio: avg_hr / avg_power
                 ratio = avg_hr / avg_power
-        else:
+        elif is_run:
             # Run/Trail: Karoly uses km/h
             if 'speed' in df.columns:
-                # Convert m/s to km/h if needed (FIT standard is m/s)
-                # We check if values are small (m/s) or large (km/h)
                 speed_series = df['speed'][df['speed'] > 0]
                 raw_speed_avg = speed_series.mean()
                 if raw_speed_avg < 15: # Likely m/s
@@ -54,6 +53,7 @@ class SegmentCalculator:
             if avg_speed and avg_hr and avg_speed > 0:
                 # Efficiency Factor: HR / Speed (km/h)
                 ratio = avg_hr / avg_speed
+        # Other sports (Swim, Strength) only get HR by default in SegmentData
                 
         return SegmentData(
             hr=avg_hr,

@@ -1,54 +1,46 @@
-PROJET K : PHASE 1 
-Thème : L'Industrialisation Logistique
-Objectif : Transformer Karoly de "secrétaire de ses propres données" en "utilisateur de plateforme". Passer d'un bricolage de scripts à une usine à données.
+PROJET K : PHASE 1 (Version Mise à jour - 22/01/2026)
+Thème : L'Industrialisation Logistique & Précision Physiologique
+Objectif : Transformer Karoly de "secrétaire de ses propres données" en "utilisateur de plateforme". Passer d'un bricolage de scripts à une usine à données capable de calculer les indices propriétaires (MLS, Durabilité) de manière automatisée.
 
 1. LES CHANGEMENTS CONCRETS DANS LE WORKFLOW (WF) DE KAROLY
-Voici les scénarios "Avant/Après" :
 Scénario A : Mise à jour des seuils (Le test de terrain)
-	•	Avant : Jean fait un test lactate. Karoly doit ouvrir son fichier TrainingLoad.py, chercher la ligne 42, changer lt1_hr = 142 en 148, enregistrer, et ne pas oublier de le refaire pour tous ses autres scripts. S'il veut analyser une séance de la semaine dernière, il doit remettre l'ancien chiffre manuellement, sinon les calculs historiques sont faussés.
-	•	Après: Karoly va sur son interface Supabase (Web) ou via un dashboard simple, et change la valeur dans le profil de l'athlète. L'amélioration technique : Le système utilise une architecture SCD Type 2 (Slowly Changing Dimensions). Il enregistre que le seuil de 148 est valide "à partir de telle date". Si Karoly relance une analyse sur 2023, le moteur va chercher automatiquement le seuil de 142. On préserve la vérité scientifique historique sans effort.
+	•	Interface : Karoly renseigne les métriques `K_LT1_HR` et `K_LT2_HR` directement dans l'onglet "Suivi > Métriques" de Nolio.
+	•	Automatisation : Le robot récupère ces valeurs et utilise l'architecture SCD Type 2 pour appliquer les bons seuils selon la date de la séance (vérité scientifique historique).
+
 Scénario B : Analyse d'une séance clé
-	•	Avant : Karoly se connecte à Nolio, télécharge le .fit, le déplace dans C:/Users/Karo/Desktop/ProjectK/data, renomme le fichier, puis lance son script en spécifiant le chemin.
-	•	Après (V2 Hardened) : Karoly tape python run_k.py --athlete "Jean".
-	•	Le script fait le travail invisible : Il interroge Supabase, voit que le dernier fichier de Jean n'est pas encore traité, le télécharge depuis le Storage Cloud, récupère les seuils de Jean à la date de la séance, et sort le rapport.
-	•	Gain de temps : 5 à 10 minutes de "cliquologie" économisées par séance. Sur 50 athlètes, c'est ce qui rend le projet rentable.
+	•	Zéro Friction : Le robot scanne Nolio toutes les 2h. Les séances (y compris sports croisés : ski de rando, etc.) sont ingérées automatiquement.
+	•	Traitement : Karoly lance `python run_k.py --athlete "Jean"`. Le moteur calcule le MLS (Running & Vélo), le Drift, et les indices d'intervalles sans aucune saisie manuelle.
 
 2. LES FONCTIONNALITÉS À IMPLÉMENTER (DÉTAIL TECHNIQUE)
-Je vais construire 4 modules. Voici la version "Production" de chacun :
 
-A. Le Cerveau (projectk-core)
-	•	Action : Transformer les scripts de recherche (.ipynb) en une librairie Python robuste.
-	•	Amélioration Lead Dev : * OOP (Object Oriented Programming) : On crée des classes Activity et Athlete.
-	•	Vectorisation : Interdiction des boucles for. On utilise Pandas et Numpy pour que le calcul de la dérive cardiaque sur un fichier de 5 heures se fasse en millisecondes.
-	•	Validation : Utilisation de Pydantic pour s'assurer que si un capteur de puissance a envoyé une donnée aberrante (ex: 4000 Watts), le script ne crashe pas.
-B. L'Ingestion (Pipeline Nolio)
-	•	Action : Coder le script qui "écoute" Nolio et remplit le stockage.
-	•	Amélioration Lead Dev : Ajout d'un ID unique global. On ne se base plus sur le nom du fichier (trop fragile), mais sur un hash unique pour éviter les doublons si on importe deux fois la même séance.
+A. Le Cerveau (projectk-core) & Modèles de Calcul
+	•	MLS Running : Adaptation de la formule (MEC × INT × DUR). MEC estimé via le coût énergétique : `kcal = Poids * (Distance + D+/100)`. Conversion en kJ (1 kcal = 4.184 kJ).
+	•	Détection Auto des Intervalles : Algorithme de détection des phases de travail (indépendamment des "laps" montres souvent mal gérés par les athlètes).
+	•	Indices de Durabilité : Comparaison systématique entre la moyenne des intervalles et le dernier intervalle (Pmoy vs Puissance/HR de fin).
+	•	Analyse Compétition : Découpage automatique en 4 phases (1/4, 2/4...) et 2 phases (1/2, 2/2) pour l'analyse du découplage et des ratios HR/Vitesse ou HR/Puissance (permettant l'analyse comparative de courses similaires).
+	•	Analyse "Lambda" : Découpage en 2 parties pour les footings et sorties longues pour suivi de la dérive.
+
+B. L'Ingestion & Enrichissement (Pipeline Nolio + Météo)
+	•	Multi-Sources : Ingestion des .fit, métadonnées (RPE, nutrition), notes de santé (suivi des blessures) et métriques (Poids, CP, CS, VO2max, rMSSD/HRV).
+	•	Météo Précise : Intégration de l'API OpenWeather pour récupérer Température + Humidité réelle (évite les erreurs des capteurs thermiques des montres).
+	•	Données Spécifiques : 
+		- Vélo : % Pente, Cadence, Torque, Puissance (sans les zéros).
+		- CàP : % Pente, Cadence de foulée, Puissance Stryd (si dispo).
+
 C. La Mémoire (Supabase)
-	•	Action : Créer le schéma SQL.
-	•	Détail des Tables : * athletes : Nom, prénom, date de début de suivi.
-	•	physio_profiles : La table "vivante" des seuils (LT1/LT2/CP/Poids…).
-	•	activities : ID Nolio, date, type de sport, et surtout les résultats des calculs (Charge, Durabilité, Découplage) pour ne pas avoir à les recalculer à chaque fois qu'on veut voir un graphique.
-	•	athlete_devices : Le mapping des numéros de série des montres (Garmin/Coros) pour l'attribution automatique.
+	•	Stockage Cloud : Plan Pro (100 Go) pour conserver l'historique des fichiers .fit (6 mois d'historique initial + flux continu).
+	•	Vues Coach : Création de tableaux de bord "type Excel" dans Supabase permettant de voir par athlète : MLS, Durabilité, et indices de séances côte à côte.
+
 D. Le Bridge Python v1
-	•	Action : Le connecteur qui fait parler le code Python avec la base de données.
-	•	Amélioration Lead Dev : Gestion sécurisée des secrets (clés d'API) via un fichier .env. Jamais de clés en clair dans le code.
+	•	Webhooks : Notification automatique du serveur dès qu'une séance est chargée sur Nolio.
+	•	Write-back : Capacité future d'écrire le "Karoly Load" (MLS) directement dans les commentaires Nolio (via POST /update/training/).
 
-3. LE PLANNING DÉTAILLÉ (3 SEMAINES)
-SEMAINE 1 : Le Référentiel & Schéma SQL
-	•	Jour 1-2 : Setup technique. Création du projet Supabase, configuration des tables et des clés d'API (Environnement .env).
-	•	Jour 3-5 : Le Référentiel Athlète. Remplissage de la table athletes et de leurs seuils actuels.
-	•	Test de validation : Arriver à exécuter une commande Python qui affiche : "Profil de Jean chargé : LT1 = 142bpm, calculé sur la base de son test du 12 Mars."
-SEMAINE 2 : L'Ingestion & Migration
-	•	Jour 1-4 : L'Ingestion Nolio. Développement du script de synchro API Nolio -> Supabase Storage.
-	•	Test de validation : Faire une séance test sur sa montre, vérifier qu'elle apparaît dans le Storage Cloud et qu'une ligne est créée dans la table activities sans aucune action manuelle.
-	•	Jour 5 : La Migration Historique. Lancer le "Legacy Uploader" sur les archives de Karoly. C'est ici qu'on nettoie le passé.
-SEMAINE 3 : Le Bridge 
-	•	Action : Refactoring des scripts (TrainingLoad.ipynb, etc.). On remplace les variables "en dur" par des appels à la DB.
-	•	Finalisation : Création du script maître run_k.py.
-	•	Test final : Lancer l'analyse complète d'un mois d'entraînement pour un athlète en une seule commande.
+3. LE PLANNING DÉTAILLÉ
+	•	SEMAINE 1 : Setup SQL, Référentiel Athlète (Poids, CP, CS, LT1/LT2) et Ingestion API.
+	•	SEMAINE 2 : Robot d'ingestion (6 mois d'historique), Intégration OpenWeather et stockage .fit.
+	•	SEMAINE 3 : Refactoring des modèles de calcul (MLS Running, Intervalles, Découpage Compétition) et Vues Coach.
 
-4. CE QUI VA ÊTRE COMPLEXE 
-	•	Le Mapping Hardware : Si un athlète a deux montres (Garmin pour le sport, Apple Watch pour le quotidien), le fichier .fit doit être attribué au bon profil. On va lire le serial_number dans le header du fichier FIT pour automatiser ça.
-	•	Les Fuseaux Horaires : Les fichiers .fit sont souvent en UTC. Nolio est en local. Si on ne gère pas ça, une séance de 23h le lundi peut apparaître le mardi. On va tout normaliser en UTC dans la DB.
-
+4. POINTS DE COMPLEXITÉ
+	•	Détection des séances complexes (vagues, changements d'allure sans repos).
+	•	Fiabilité de la HRV (rMSSD) matinale via Nolio.
+	•	Calcul du Torque et traitement du signal .fit pour les sports croisés.

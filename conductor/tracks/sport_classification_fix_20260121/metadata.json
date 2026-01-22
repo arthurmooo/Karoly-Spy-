@@ -1,0 +1,8 @@
+{
+  "track_id": "sport_classification_fix_20260121",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-21T15:00:00Z",
+  "updated_at": "2026-01-21T15:00:00Z",
+  "description": "Fix the systematic misclassification of activities and implement a two-tier sport tracking system (Technical Category vs. Source Name)."
+}

@@ -23,6 +23,20 @@ class MetricsCalculator:
     )
     IF_FACTORS = (0.8, 1.0, 1.2, 1.4)
 
+    def _get_sport_category(self, activity_type: str) -> str:
+        """Categorizes sport for physiological logic."""
+        s = activity_type.lower()
+        # Order matters for priority
+        if any(x in s for x in ["bike", "ride", "cycling", "vélo", "vtt", "gravel"]):
+            return "bike"
+        if any(x in s for x in ["strength", "renforcement", "musculation", "ppg", "marche", "gainage"]):
+            return "strength"
+        if any(x in s for x in ["swim", "natation", "nage"]):
+            return "swim"
+        if any(x in s for x in ["run", "trail", "hiking", "randonnée", "ski", "course", "rando"]):
+            return "run"
+        return "other"
+
     def __init__(self, config: AthleteConfig):
         self.config = config
         self.classifier = ActivityClassifier()
@@ -39,10 +53,7 @@ class MetricsCalculator:
 
         df = activity.streams
         meta = activity.metadata
-        sport = "bike" if meta.activity_type.lower() in ["bike", "ride", "virtualride", "cycling"] else "run"
-        
-        # ... (keep existing calculations) ...
-        # (I will perform a partial replace to keep the existing logic intact)
+        sport = self._get_sport_category(meta.activity_type)
         
         # 1. Basic Pre-calc
         # Duration: Karoly counts active time (rows with HR and valid dt)
@@ -62,7 +73,7 @@ class MetricsCalculator:
         # 2. Intensity & Power Logic
         # Determine if we use Power (Bike/Stryd) or Speed (Run fallback)
         has_power = 'power' in df.columns and df['power'].mean() > 10
-        sport = "bike" if meta.activity_type.lower() in ["bike", "ride", "virtualride", "cycling"] else "run"
+        sport = self._get_sport_category(meta.activity_type)
         
         if has_power and profile.cp:
             intensity_series = df['power'] / profile.cp
@@ -215,22 +226,22 @@ class MetricsCalculator:
         # 11. Smart Segmentation (Karoly's Request)
         # Determine strategy
         strategy = self.classifier.get_strategy(meta.activity_type, nolio_type or "", nolio_comment or "")
-        sport = "bike" if meta.activity_type.lower() in ["bike", "ride", "virtualride", "cycling"] else "run"
+        sport_cat = self._get_sport_category(meta.activity_type)
         
         seg_output = SegmentationOutput(segmentation_type=strategy)
         
         if strategy == "manual":
             manual_config = self.classifier.parse_splits(nolio_comment)
-            seg_output.manual = self.segmenter.manual_split(df, manual_config, sport)
+            seg_output.manual = self.segmenter.manual_split(df, manual_config, sport_cat)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.manual)
         elif strategy == "auto_competition":
             # 2 phases AND 4 phases for competition
-            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport)
-            seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport)
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport_cat)
+            seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport_cat)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
         else: # auto_training
             # Systematic 2 phases for continuous training
-            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport)
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport_cat)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
 
         return {

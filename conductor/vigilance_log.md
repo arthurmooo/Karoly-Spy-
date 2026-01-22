@@ -113,5 +113,75 @@
     *   *Mitigation :* Passage du robot à un rythme toutes les 2h (validé).
 
 ### 🔭 Watchlist (Sujets à Surveiller)
+
 - **Vues SQL par athlète :** Surveiller l'ergonomie de l'interface Supabase au fur et à mesure que Karoly ajoute des vues personnalisées.
+
 - **Audit de lissage :** Vérifier si le lissage 30s de la HR (`ffill().bfill()`) n'étouffe pas trop les variations sur les sprints courts.
+
+
+
+---
+
+
+
+## [Track 1.5] Interval Engine & Workout Classification
+
+**Date:** 19 Janvier 2026
+
+**Statut:** ✅ Terminé & Validé (Adrien 10x2')
+
+
+
+### 🟢 Points de Succès
+
+1.  **Liaison Plan Robuste :** Le mécanisme de fallback "Same Week" permet de retrouver les séances prévues même quand Nolio ne fournit pas de lien direct `planned_id`.
+
+2.  **Détection Chirurgicale :** L'algorithme de "Strict Window Sliding" (IntervalMatcher) isole parfaitement les répétitions sur les séances types (validé sur Adrien Claeyssen 10x2').
+
+3.  **Classification Automatique :** Distinction fiable entre Endurance, Intervalles et Compétition basée sur le plan ET le signal (CV de la puissance/vitesse).
+
+4.  **Respect Score :** Calcul du % d'adhérence à l'intensité cible Karoly (Realized / Target).
+
+
+
+### 🟠 Points Bancales (Dettes Techniques)
+
+1.  **Conversion Distance -> Durée :**
+
+    *   *Le Problème :* Pour les plans en kilomètres (ex: 3x4km), le matcher estime la durée via une allure par défaut (4:00/km).
+
+    *   *Risque :* Si l'athlète est beaucoup plus lent ou plus rapide, la fenêtre glissante de détection est décalée.
+
+    *   *Action (Phase 2) :* Utiliser l'allure seuil (CS) réelle de l'athlète pour une estimation personnalisée.
+
+2.  **Séries Imbriquées (Nested Reps) :**
+
+    *   *Le Problème :* Le parser aplatit tout en une liste linéaire. Sur des structures complexes (ex: 5x(12x30/30)), le mode "Blind" (sans plan) peut fusionner des blocs.
+
+    *   *Action :* Prioriser systématiquement la saisie structurée dans Nolio.
+
+
+
+### 🔭 Watchlist
+
+- **Consommation Quota Nolio :** L'ajout d'un appel API par séance pour récupérer la structure (`structured_workout`) double quasiment le nombre de requêtes. Surveiller le Rate Limit.
+
+- **Natation :** Les structures de natation Nolio sont souvent fragmentées (nombreux petits blocs). À tester spécifiquement.
+
+---
+
+## [Track 1.6] HRV Investigation & Context Update
+**Date:** 20 Janvier 2026
+**Statut:** ✅ Terminé (Recherche API)
+
+### 🟢 Points de Succès
+1.  **Validation API :** Confirmation que Nolio expose bien la donnée `rmssd` via `/get/user/meta/`.
+2.  **Audit de Données Réel :** Scan de 60 athlètes confirmant que ~10% d'entre eux ont déjà des données RMSSD qui remontent (Estelle-Marie Kieffer, Romu Philippot, etc.).
+3.  **Backlog mis à jour :** L'intégration de la HRV est désormais officiellement dans la Phase 2.
+
+### 🟠 Points Bancales (Risques)
+1.  **Qualité de Saisie :** Le RMSSD dépend de la rigueur de l'athlète (mesure matinale au repos). Une donnée irrégulière peut fausser l'analyse de readiness.
+2.  **Unités :** Nolio renvoie du `ms` (standard), mais il faudra s'assurer qu'aucune conversion n'est faite par d'autres apps tierces (ex: HRV4Training -> Nolio) qui pourrait altérer la valeur.
+
+### 🔭 Watchlist
+- **Calcul de Readiness :** Karoly devra définir s'il souhaite utiliser la valeur brute (ex: 60ms) ou une baseline glissante (7-day average) pour son dashboard.

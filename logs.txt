@@ -1,0 +1,1039 @@
+﻿2026-01-19T13:03:54.3023080Z ##[group]Run echo "💿 Installing Dependencies V8 (Supabase 2.13.0)..."
+2026-01-19T13:03:54.3025186Z [36;1mecho "💿 Installing Dependencies V8 (Supabase 2.13.0)..."[0m
+2026-01-19T13:03:54.3026859Z [36;1mpip install --upgrade pip[0m
+2026-01-19T13:03:54.3031008Z [36;1mpip install supabase==2.13.0 requests==2.31.0 python-dotenv==1.0.0 pandas==2.1.4 numpy==1.26.2 tqdm==4.66.1 pydantic==2.5.3 fitparse==1.2.0 fitdecode matplotlib==3.8.2 scipy==1.11.4 geopy==2.4.1 fastapi==0.108.0 uvicorn==0.25.0 rich[0m
+2026-01-19T13:03:54.3034935Z [36;1m[0m
+2026-01-19T13:03:54.3035839Z [36;1mecho "✅ Imports Check..."[0m
+2026-01-19T13:03:54.3037755Z [36;1mpython -c "import rich; import fitdecode; import supabase; print('ALL SYSTEMS GO')"[0m
+2026-01-19T13:03:54.3040012Z [36;1m[0m
+2026-01-19T13:03:54.3041201Z [36;1mecho "🚀 STARTING ROBOT V8 (Centralized Token Mode)..."[0m
+2026-01-19T13:03:54.3042810Z [36;1mpython run_k.py ingest --days 3[0m
+2026-01-19T13:03:54.3091312Z shell: /usr/bin/bash -e {0}
+2026-01-19T13:03:54.3092441Z env:
+2026-01-19T13:03:54.3093530Z   pythonLocation: /opt/hostedtoolcache/Python/3.10.19/x64
+2026-01-19T13:03:54.3095428Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib/pkgconfig
+2026-01-19T13:03:54.3097300Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+2026-01-19T13:03:54.3099179Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+2026-01-19T13:03:54.3100905Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.19/x64
+2026-01-19T13:03:54.3102632Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.19/x64/lib
+2026-01-19T13:03:54.3104519Z   SUPABASE_URL: ***
+2026-01-19T13:03:54.3110479Z   SUPABASE_SERVICE_ROLE_KEY: ***
+2026-01-19T13:03:54.3111871Z   NOLIO_CLIENT_ID: ***
+2026-01-19T13:03:54.3115091Z   NOLIO_CLIENT_SECRET: ***
+2026-01-19T13:03:54.3116323Z   NOLIO_REFRESH_TOKEN: ***
+2026-01-19T13:03:54.3117555Z   OPENWEATHER_API_KEY: ***
+2026-01-19T13:03:54.3118837Z ##[endgroup]
+2026-01-19T13:03:54.3219318Z 💿 Installing Dependencies V8 (Supabase 2.13.0)...
+2026-01-19T13:03:55.6720709Z Requirement already satisfied: pip in /opt/hostedtoolcache/Python/3.10.19/x64/lib/python3.10/site-packages (25.3)
+2026-01-19T13:03:56.3727932Z Collecting supabase==2.13.0
+2026-01-19T13:03:56.4774835Z   Downloading supabase-2.13.0-py3-none-any.whl.metadata (10 kB)
+2026-01-19T13:03:56.5111641Z Collecting requests==2.31.0
+2026-01-19T13:03:56.5319462Z   Downloading requests-2.31.0-py3-none-any.whl.metadata (4.6 kB)
+2026-01-19T13:03:56.5602316Z Collecting python-dotenv==1.0.0
+2026-01-19T13:03:56.5810558Z   Downloading python_dotenv-1.0.0-py3-none-any.whl.metadata (21 kB)
+2026-01-19T13:03:56.7302445Z Collecting pandas==2.1.4
+2026-01-19T13:03:56.7510237Z   Downloading pandas-2.1.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (18 kB)
+2026-01-19T13:03:57.0200148Z Collecting numpy==1.26.2
+2026-01-19T13:03:57.0413051Z   Downloading numpy-1.26.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (61 kB)
+2026-01-19T13:03:57.1001668Z Collecting tqdm==4.66.1
+2026-01-19T13:03:57.1212532Z   Downloading tqdm-4.66.1-py3-none-any.whl.metadata (57 kB)
+2026-01-19T13:03:57.2808633Z Collecting pydantic==2.5.3
+2026-01-19T13:03:57.3033170Z   Downloading pydantic-2.5.3-py3-none-any.whl.metadata (65 kB)
+2026-01-19T13:03:57.3210713Z Collecting fitparse==1.2.0
+2026-01-19T13:03:57.3418692Z   Downloading fitparse-1.2.0.tar.gz (65 kB)
+2026-01-19T13:03:57.3559986Z   Installing build dependencies: started
+2026-01-19T13:03:58.5193559Z   Installing build dependencies: finished with status 'done'
+2026-01-19T13:03:58.5198508Z   Getting requirements to build wheel: started
+2026-01-19T13:03:58.9177849Z   Getting requirements to build wheel: finished with status 'done'
+2026-01-19T13:03:58.9188389Z   Preparing metadata (pyproject.toml): started
+2026-01-19T13:03:59.1387409Z   Preparing metadata (pyproject.toml): finished with status 'done'
+2026-01-19T13:03:59.1700857Z Collecting fitdecode
+2026-01-19T13:03:59.1914178Z   Downloading fitdecode-0.11.0-py3-none-any.whl.metadata (11 kB)
+2026-01-19T13:03:59.3540586Z Collecting matplotlib==3.8.2
+2026-01-19T13:03:59.3754570Z   Downloading matplotlib-3.8.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (5.8 kB)
+2026-01-19T13:03:59.5273902Z Collecting scipy==1.11.4
+2026-01-19T13:03:59.5493972Z   Downloading scipy-1.11.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (60 kB)
+2026-01-19T13:03:59.5798908Z Collecting geopy==2.4.1
+2026-01-19T13:03:59.6009203Z   Downloading geopy-2.4.1-py3-none-any.whl.metadata (6.8 kB)
+2026-01-19T13:03:59.6632605Z Collecting fastapi==0.108.0
+2026-01-19T13:03:59.6862963Z   Downloading fastapi-0.108.0-py3-none-any.whl.metadata (24 kB)
+2026-01-19T13:03:59.7184752Z Collecting uvicorn==0.25.0
+2026-01-19T13:03:59.7395776Z   Downloading uvicorn-0.25.0-py3-none-any.whl.metadata (6.4 kB)
+2026-01-19T13:03:59.8185117Z Collecting rich
+2026-01-19T13:03:59.8396479Z   Downloading rich-14.2.0-py3-none-any.whl.metadata (18 kB)
+2026-01-19T13:03:59.8634467Z Collecting gotrue<3.0.0,>=2.11.0 (from supabase==2.13.0)
+2026-01-19T13:03:59.8834905Z   Downloading gotrue-2.12.4-py3-none-any.whl.metadata (2.0 kB)
+2026-01-19T13:03:59.9085364Z Collecting httpx<0.29,>=0.26 (from supabase==2.13.0)
+2026-01-19T13:03:59.9291045Z   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+2026-01-19T13:03:59.9528861Z Collecting postgrest<0.20,>=0.19 (from supabase==2.13.0)
+2026-01-19T13:03:59.9735962Z   Downloading postgrest-0.19.3-py3-none-any.whl.metadata (3.5 kB)
+2026-01-19T13:03:59.9979700Z Collecting realtime<3.0.0,>=2.0.0 (from supabase==2.13.0)
+2026-01-19T13:04:00.0188988Z   Downloading realtime-2.27.2-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:00.0411779Z Collecting storage3<0.12,>=0.10 (from supabase==2.13.0)
+2026-01-19T13:04:00.0631763Z   Downloading storage3-0.11.3-py3-none-any.whl.metadata (1.8 kB)
+2026-01-19T13:04:00.0838448Z Collecting supafunc<0.10,>=0.9 (from supabase==2.13.0)
+2026-01-19T13:04:00.1046257Z   Downloading supafunc-0.9.4-py3-none-any.whl.metadata (1.2 kB)
+2026-01-19T13:04:00.2170718Z Collecting charset-normalizer<4,>=2 (from requests==2.31.0)
+2026-01-19T13:04:00.2400524Z   Downloading charset_normalizer-3.4.4-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (37 kB)
+2026-01-19T13:04:00.2609503Z Collecting idna<4,>=2.5 (from requests==2.31.0)
+2026-01-19T13:04:00.2826622Z   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+2026-01-19T13:04:00.3251029Z Collecting urllib3<3,>=1.21.1 (from requests==2.31.0)
+2026-01-19T13:04:00.3471255Z   Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+2026-01-19T13:04:00.3749014Z Collecting certifi>=2017.4.17 (from requests==2.31.0)
+2026-01-19T13:04:00.3982224Z   Downloading certifi-2026.1.4-py3-none-any.whl.metadata (2.5 kB)
+2026-01-19T13:04:00.4238004Z Collecting python-dateutil>=2.8.2 (from pandas==2.1.4)
+2026-01-19T13:04:00.4445027Z   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+2026-01-19T13:04:00.4881940Z Collecting pytz>=2020.1 (from pandas==2.1.4)
+2026-01-19T13:04:00.5092616Z   Downloading pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+2026-01-19T13:04:00.5265606Z Collecting tzdata>=2022.1 (from pandas==2.1.4)
+2026-01-19T13:04:00.5476132Z   Downloading tzdata-2025.3-py2.py3-none-any.whl.metadata (1.4 kB)
+2026-01-19T13:04:00.5629519Z Collecting annotated-types>=0.4.0 (from pydantic==2.5.3)
+2026-01-19T13:04:00.5849488Z   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+2026-01-19T13:04:01.5416925Z Collecting pydantic-core==2.14.6 (from pydantic==2.5.3)
+2026-01-19T13:04:01.5624096Z   Downloading pydantic_core-2.14.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.5 kB)
+2026-01-19T13:04:01.5844234Z Collecting typing-extensions>=4.6.1 (from pydantic==2.5.3)
+2026-01-19T13:04:01.6047632Z   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+2026-01-19T13:04:01.6840218Z Collecting contourpy>=1.0.1 (from matplotlib==3.8.2)
+2026-01-19T13:04:01.7052245Z   Downloading contourpy-1.3.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (5.5 kB)
+2026-01-19T13:04:01.7210266Z Collecting cycler>=0.10 (from matplotlib==3.8.2)
+2026-01-19T13:04:01.7425980Z   Downloading cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+2026-01-19T13:04:01.9354835Z Collecting fonttools>=4.22.0 (from matplotlib==3.8.2)
+2026-01-19T13:04:01.9569227Z   Downloading fonttools-4.61.1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (114 kB)
+2026-01-19T13:04:02.0467343Z Collecting kiwisolver>=1.3.1 (from matplotlib==3.8.2)
+2026-01-19T13:04:02.0674609Z   Downloading kiwisolver-1.4.9-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl.metadata (6.3 kB)
+2026-01-19T13:04:02.0969716Z Collecting packaging>=20.0 (from matplotlib==3.8.2)
+2026-01-19T13:04:02.1171588Z   Downloading packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+2026-01-19T13:04:02.3771529Z Collecting pillow>=8 (from matplotlib==3.8.2)
+2026-01-19T13:04:02.3975744Z   Downloading pillow-12.1.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (8.8 kB)
+2026-01-19T13:04:02.4349506Z Collecting pyparsing>=2.3.1 (from matplotlib==3.8.2)
+2026-01-19T13:04:02.4555988Z   Downloading pyparsing-3.3.1-py3-none-any.whl.metadata (5.6 kB)
+2026-01-19T13:04:02.4807228Z Collecting geographiclib<3,>=1.52 (from geopy==2.4.1)
+2026-01-19T13:04:02.5010660Z   Downloading geographiclib-2.1-py3-none-any.whl.metadata (1.6 kB)
+2026-01-19T13:04:02.5623819Z Collecting starlette<0.33.0,>=0.29.0 (from fastapi==0.108.0)
+2026-01-19T13:04:02.5827859Z   Downloading starlette-0.32.0.post1-py3-none-any.whl.metadata (5.8 kB)
+2026-01-19T13:04:02.6102989Z Collecting click>=7.0 (from uvicorn==0.25.0)
+2026-01-19T13:04:02.6303835Z   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+2026-01-19T13:04:02.6437508Z Collecting h11>=0.8 (from uvicorn==0.25.0)
+2026-01-19T13:04:02.6640166Z   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+2026-01-19T13:04:02.7257696Z Collecting pyjwt<3.0.0,>=2.10.1 (from gotrue<3.0.0,>=2.11.0->supabase==2.13.0)
+2026-01-19T13:04:02.7464636Z   Downloading PyJWT-2.10.1-py3-none-any.whl.metadata (4.0 kB)
+2026-01-19T13:04:02.7718701Z Collecting anyio (from httpx<0.29,>=0.26->supabase==2.13.0)
+2026-01-19T13:04:02.7921253Z   Downloading anyio-4.12.1-py3-none-any.whl.metadata (4.3 kB)
+2026-01-19T13:04:02.8144201Z Collecting httpcore==1.* (from httpx<0.29,>=0.26->supabase==2.13.0)
+2026-01-19T13:04:02.8354264Z   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+2026-01-19T13:04:02.8630539Z Collecting h2<5,>=3 (from httpx[http2]<0.29,>=0.26->gotrue<3.0.0,>=2.11.0->supabase==2.13.0)
+2026-01-19T13:04:02.8835582Z   Downloading h2-4.3.0-py3-none-any.whl.metadata (5.1 kB)
+2026-01-19T13:04:02.9032020Z Collecting hyperframe<7,>=6.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->gotrue<3.0.0,>=2.11.0->supabase==2.13.0)
+2026-01-19T13:04:02.9239321Z   Downloading hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)
+2026-01-19T13:04:02.9361448Z Collecting hpack<5,>=4.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->gotrue<3.0.0,>=2.11.0->supabase==2.13.0)
+2026-01-19T13:04:02.9564100Z   Downloading hpack-4.1.0-py3-none-any.whl.metadata (4.6 kB)
+2026-01-19T13:04:02.9728633Z Collecting deprecation<3.0.0,>=2.1.0 (from postgrest<0.20,>=0.19->supabase==2.13.0)
+2026-01-19T13:04:02.9928918Z   Downloading deprecation-2.1.0-py2.py3-none-any.whl.metadata (4.6 kB)
+2026-01-19T13:04:03.0354091Z Collecting strenum<0.5.0,>=0.4.9 (from postgrest<0.20,>=0.19->supabase==2.13.0)
+2026-01-19T13:04:03.0559177Z   Downloading StrEnum-0.4.15-py3-none-any.whl.metadata (5.3 kB)
+2026-01-19T13:04:03.0826952Z INFO: pip is looking at multiple versions of realtime to determine which version is compatible with other requirements. This could take a while.
+2026-01-19T13:04:03.0832737Z Collecting realtime<3.0.0,>=2.0.0 (from supabase==2.13.0)
+2026-01-19T13:04:03.1045575Z   Downloading realtime-2.27.1-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.1293254Z   Downloading realtime-2.27.0-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.1547449Z   Downloading realtime-2.26.0-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.1810371Z   Downloading realtime-2.25.1-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.2974213Z   Downloading realtime-2.25.0-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.3235548Z   Downloading realtime-2.24.0-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.3495096Z   Downloading realtime-2.23.2-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.3541197Z INFO: pip is still looking at multiple versions of realtime to determine which version is compatible with other requirements. This could take a while.
+2026-01-19T13:04:03.3758722Z   Downloading realtime-2.23.1-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.4004501Z   Downloading realtime-2.23.0-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.4256136Z   Downloading realtime-2.22.4-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.4508462Z   Downloading realtime-2.22.3-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.4758876Z   Downloading realtime-2.22.2-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.4802574Z INFO: This is taking longer than usual. You might need to provide the dependency resolver with stricter constraints to reduce runtime. See https://pip.pypa.io/warnings/backtracking for guidance. If you want to abort this run, press Ctrl + C.
+2026-01-19T13:04:03.5007594Z   Downloading realtime-2.22.1-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.5278779Z   Downloading realtime-2.22.0-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.5530388Z   Downloading realtime-2.21.1-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.5783332Z   Downloading realtime-2.21.0-py3-none-any.whl.metadata (7.0 kB)
+2026-01-19T13:04:03.6034088Z   Downloading realtime-2.20.0-py3-none-any.whl.metadata (6.9 kB)
+2026-01-19T13:04:03.6291327Z   Downloading realtime-2.19.0-py3-none-any.whl.metadata (6.9 kB)
+2026-01-19T13:04:03.6537018Z   Downloading realtime-2.7.0-py3-none-any.whl.metadata (6.6 kB)
+2026-01-19T13:04:03.6789633Z   Downloading realtime-2.6.0-py3-none-any.whl.metadata (6.6 kB)
+2026-01-19T13:04:03.7037396Z   Downloading realtime-2.5.3-py3-none-any.whl.metadata (6.7 kB)
+2026-01-19T13:04:03.8192440Z Collecting websockets<16,>=11 (from realtime<3.0.0,>=2.0.0->supabase==2.13.0)
+2026-01-19T13:04:03.8455750Z   Downloading websockets-15.0.1-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+2026-01-19T13:04:03.8712625Z Collecting exceptiongroup>=1.0.2 (from anyio->httpx<0.29,>=0.26->supabase==2.13.0)
+2026-01-19T13:04:03.8914305Z   Downloading exceptiongroup-1.3.1-py3-none-any.whl.metadata (6.7 kB)
+2026-01-19T13:04:03.9223348Z Collecting six>=1.5 (from python-dateutil>=2.8.2->pandas==2.1.4)
+2026-01-19T13:04:03.9425664Z   Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+2026-01-19T13:04:03.9710500Z Collecting markdown-it-py>=2.2.0 (from rich)
+2026-01-19T13:04:03.9914546Z   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+2026-01-19T13:04:04.0194212Z Collecting pygments<3.0.0,>=2.13.0 (from rich)
+2026-01-19T13:04:04.0399041Z   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+2026-01-19T13:04:04.0732980Z Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich)
+2026-01-19T13:04:04.0952256Z   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+2026-01-19T13:04:04.1298510Z Downloading supabase-2.13.0-py3-none-any.whl (17 kB)
+2026-01-19T13:04:04.1529361Z Downloading requests-2.31.0-py3-none-any.whl (62 kB)
+2026-01-19T13:04:04.1776139Z Downloading python_dotenv-1.0.0-py3-none-any.whl (19 kB)
+2026-01-19T13:04:04.2004026Z Downloading pandas-2.1.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.3 MB)
+2026-01-19T13:04:04.3326992Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.3/12.3 MB 107.5 MB/s  0:00:00
+2026-01-19T13:04:04.3533882Z Downloading numpy-1.26.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (18.2 MB)
+2026-01-19T13:04:04.4553333Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 18.2/18.2 MB 182.0 MB/s  0:00:00
+2026-01-19T13:04:04.4760722Z Downloading tqdm-4.66.1-py3-none-any.whl (78 kB)
+2026-01-19T13:04:04.4989442Z Downloading pydantic-2.5.3-py3-none-any.whl (381 kB)
+2026-01-19T13:04:04.5236174Z Downloading matplotlib-3.8.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (11.6 MB)
+2026-01-19T13:04:04.6393972Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.6/11.6 MB 162.3 MB/s  0:00:00
+2026-01-19T13:04:04.6600440Z Downloading scipy-1.11.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (36.4 MB)
+2026-01-19T13:04:04.8660610Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 36.4/36.4 MB 178.8 MB/s  0:00:00
+2026-01-19T13:04:04.8868888Z Downloading geopy-2.4.1-py3-none-any.whl (125 kB)
+2026-01-19T13:04:04.9101286Z Downloading fastapi-0.108.0-py3-none-any.whl (92 kB)
+2026-01-19T13:04:04.9336727Z Downloading uvicorn-0.25.0-py3-none-any.whl (60 kB)
+2026-01-19T13:04:04.9570107Z Downloading pydantic_core-2.14.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+2026-01-19T13:04:04.9714680Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 160.5 MB/s  0:00:00
+2026-01-19T13:04:04.9918293Z Downloading charset_normalizer-3.4.4-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (153 kB)
+2026-01-19T13:04:05.0146785Z Downloading geographiclib-2.1-py3-none-any.whl (40 kB)
+2026-01-19T13:04:05.0368959Z Downloading gotrue-2.12.4-py3-none-any.whl (42 kB)
+2026-01-19T13:04:05.0642664Z Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+2026-01-19T13:04:05.0875252Z Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+2026-01-19T13:04:05.1113442Z Downloading h2-4.3.0-py3-none-any.whl (61 kB)
+2026-01-19T13:04:05.1344302Z Downloading hpack-4.1.0-py3-none-any.whl (34 kB)
+2026-01-19T13:04:05.1574196Z Downloading hyperframe-6.1.0-py3-none-any.whl (13 kB)
+2026-01-19T13:04:05.1796585Z Downloading idna-3.11-py3-none-any.whl (71 kB)
+2026-01-19T13:04:05.2022941Z Downloading postgrest-0.19.3-py3-none-any.whl (22 kB)
+2026-01-19T13:04:05.2246149Z Downloading deprecation-2.1.0-py2.py3-none-any.whl (11 kB)
+2026-01-19T13:04:05.2466658Z Downloading PyJWT-2.10.1-py3-none-any.whl (22 kB)
+2026-01-19T13:04:05.2687759Z Downloading realtime-2.5.3-py3-none-any.whl (21 kB)
+2026-01-19T13:04:05.2923704Z Downloading starlette-0.32.0.post1-py3-none-any.whl (70 kB)
+2026-01-19T13:04:05.3149092Z Downloading anyio-4.12.1-py3-none-any.whl (113 kB)
+2026-01-19T13:04:05.3375463Z Downloading storage3-0.11.3-py3-none-any.whl (17 kB)
+2026-01-19T13:04:05.3598404Z Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+2026-01-19T13:04:05.3834074Z Downloading StrEnum-0.4.15-py3-none-any.whl (8.9 kB)
+2026-01-19T13:04:05.4066171Z Downloading supafunc-0.9.4-py3-none-any.whl (7.8 kB)
+2026-01-19T13:04:05.4315229Z Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+2026-01-19T13:04:05.4543065Z Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+2026-01-19T13:04:05.4776315Z Downloading websockets-15.0.1-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (181 kB)
+2026-01-19T13:04:05.5012325Z Downloading fitdecode-0.11.0-py3-none-any.whl (109 kB)
+2026-01-19T13:04:05.5243847Z Downloading rich-14.2.0-py3-none-any.whl (243 kB)
+2026-01-19T13:04:05.5476994Z Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+2026-01-19T13:04:05.5577418Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 134.7 MB/s  0:00:00
+2026-01-19T13:04:05.5783530Z Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+2026-01-19T13:04:05.6026112Z Downloading certifi-2026.1.4-py3-none-any.whl (152 kB)
+2026-01-19T13:04:05.6253798Z Downloading click-8.3.1-py3-none-any.whl (108 kB)
+2026-01-19T13:04:05.6481898Z Downloading contourpy-1.3.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (325 kB)
+2026-01-19T13:04:05.6715781Z Downloading cycler-0.12.1-py3-none-any.whl (8.3 kB)
+2026-01-19T13:04:05.6939264Z Downloading exceptiongroup-1.3.1-py3-none-any.whl (16 kB)
+2026-01-19T13:04:05.7188945Z Downloading fonttools-4.61.1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.9 MB)
+2026-01-19T13:04:05.7497231Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.9/4.9 MB 165.2 MB/s  0:00:00
+2026-01-19T13:04:05.7699095Z Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+2026-01-19T13:04:05.7926497Z Downloading kiwisolver-1.4.9-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (1.6 MB)
+2026-01-19T13:04:05.8034132Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.6/1.6 MB 169.3 MB/s  0:00:00
+2026-01-19T13:04:05.8234529Z Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+2026-01-19T13:04:05.8474767Z Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+2026-01-19T13:04:05.8694275Z Downloading packaging-25.0-py3-none-any.whl (66 kB)
+2026-01-19T13:04:05.8920410Z Downloading pillow-12.1.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (7.0 MB)
+2026-01-19T13:04:05.9309606Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.0/7.0 MB 188.1 MB/s  0:00:00
+2026-01-19T13:04:05.9513568Z Downloading pyparsing-3.3.1-py3-none-any.whl (121 kB)
+2026-01-19T13:04:05.9747895Z Downloading pytz-2025.2-py2.py3-none-any.whl (509 kB)
+2026-01-19T13:04:05.9986900Z Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+2026-01-19T13:04:06.0220102Z Downloading tzdata-2025.3-py2.py3-none-any.whl (348 kB)
+2026-01-19T13:04:06.1697726Z Building wheels for collected packages: fitparse
+2026-01-19T13:04:06.1707850Z   Building wheel for fitparse (pyproject.toml): started
+2026-01-19T13:04:06.4880407Z   Building wheel for fitparse (pyproject.toml): finished with status 'done'
+2026-01-19T13:04:06.4887258Z   Created wheel for fitparse: filename=fitparse-1.2.0-py3-none-any.whl size=68276 sha256=4c75772cecd2a260155285eb9dd598b63add779759826b6e95334ed79e57a0db
+2026-01-19T13:04:06.4889727Z   Stored in directory: /home/runner/.cache/pip/wheels/81/67/7b/77a2f8ba348bafbbad6262a80bc51be27b2f9fccbaefc74671
+2026-01-19T13:04:06.4905375Z Successfully built fitparse
+2026-01-19T13:04:06.6845735Z Installing collected packages: strenum, pytz, fitparse, websockets, urllib3, tzdata, typing-extensions, tqdm, six, python-dotenv, pyparsing, pyjwt, pygments, pillow, packaging, numpy, mdurl, kiwisolver, idna, hyperframe, hpack, h11, geographiclib, fonttools, fitdecode, cycler, click, charset-normalizer, certifi, annotated-types, uvicorn, scipy, requests, realtime, python-dateutil, pydantic-core, markdown-it-py, httpcore, h2, geopy, exceptiongroup, deprecation, contourpy, rich, pydantic, pandas, matplotlib, anyio, starlette, httpx, fastapi, supafunc, storage3, postgrest, gotrue, supabase
+2026-01-19T13:04:21.3846803Z 
+2026-01-19T13:04:21.3941291Z Successfully installed annotated-types-0.7.0 anyio-4.12.1 certifi-2026.1.4 charset-normalizer-3.4.4 click-8.3.1 contourpy-1.3.2 cycler-0.12.1 deprecation-2.1.0 exceptiongroup-1.3.1 fastapi-0.108.0 fitdecode-0.11.0 fitparse-1.2.0 fonttools-4.61.1 geographiclib-2.1 geopy-2.4.1 gotrue-2.12.4 h11-0.16.0 h2-4.3.0 hpack-4.1.0 httpcore-1.0.9 httpx-0.28.1 hyperframe-6.1.0 idna-3.11 kiwisolver-1.4.9 markdown-it-py-4.0.0 matplotlib-3.8.2 mdurl-0.1.2 numpy-1.26.2 packaging-25.0 pandas-2.1.4 pillow-12.1.0 postgrest-0.19.3 pydantic-2.5.3 pydantic-core-2.14.6 pygments-2.19.2 pyjwt-2.10.1 pyparsing-3.3.1 python-dateutil-2.9.0.post0 python-dotenv-1.0.0 pytz-2025.2 realtime-2.5.3 requests-2.31.0 rich-14.2.0 scipy-1.11.4 six-1.17.0 starlette-0.32.0.post1 storage3-0.11.3 strenum-0.4.15 supabase-2.13.0 supafunc-0.9.4 tqdm-4.66.1 typing-extensions-4.15.0 tzdata-2025.3 urllib3-2.6.3 uvicorn-0.25.0 websockets-15.0.1
+2026-01-19T13:04:21.8028812Z ✅ Imports Check...
+2026-01-19T13:04:22.1862027Z ALL SYSTEMS GO
+2026-01-19T13:04:22.2191775Z 🚀 STARTING ROBOT V8 (Centralized Token Mode)...
+2026-01-19T13:04:22.3191603Z 🚀 Launching Ingestion Robot...
+2026-01-19T13:04:22.3195678Z    • Lookback: 3 days
+2026-01-19T13:04:23.6616804Z [13:04:23] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:23.6617986Z                     ***/res                
+2026-01-19T13:04:23.6624253Z                     t/v1/app_secrets?select=value&key=eq.NOLIO_R                
+2026-01-19T13:04:23.6625018Z                     EFRESH_TOKEN "HTTP/2 200 OK"                                
+2026-01-19T13:04:24.1291645Z [13:04:24] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:24.1293152Z                     ***/res                
+2026-01-19T13:04:24.1294228Z                     t/v1/processing_config?select=key%2Cvalue                   
+2026-01-19T13:04:24.1302304Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:24.3025773Z 🚀 Starting Ingestion Robot (Window: 3 days)
+2026-01-19T13:04:24.3026972Z 🔄 Syncing Athlete Roster & Metrics...
+2026-01-19T13:04:24.3029835Z Token expired or missing, refreshing...
+2026-01-19T13:04:24.3030456Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:24.3031597Z                     ***/res                
+2026-01-19T13:04:24.3032162Z                     t/v1/app_secrets?select=value&key=eq.NOLIO_R                
+2026-01-19T13:04:24.3032875Z                     EFRESH_TOKEN "HTTP/2 200 OK"                                
+2026-01-19T13:04:25.8077204Z [13:04:25] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:25.8080140Z                     ***/res                
+2026-01-19T13:04:25.8080716Z                     t/v1/app_secrets "HTTP/2 200 OK"                            
+2026-01-19T13:04:26.7415139Z 💾 SECURITY: Updated Refresh Token in DB.
+2026-01-19T13:04:26.7415928Z [13:04:26] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:26.7417116Z                     ***/res                
+2026-01-19T13:04:26.7417759Z                     t/v1/athletes?select=id&nolio_id=eq.57896                   
+2026-01-19T13:04:26.7418631Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:27.8087810Z    📊 Syncing metrics from Nolio for Adrien Claeyssen...
+2026-01-19T13:04:27.8089921Z [13:04:27] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:27.8091000Z                     ***/res                
+2026-01-19T13:04:27.8091648Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:27.8092386Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:27.9917952Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:27.9919731Z                     ***/res                
+2026-01-19T13:04:27.9920329Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:27.9921032Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:28.1291449Z       ✅ Metrics synced: CP=346.0W, CS=4.85m/s, Weight=74.0kg
+2026-01-19T13:04:28.1292621Z [13:04:28] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:28.1294042Z                     ***/res                
+2026-01-19T13:04:28.1295103Z                     t/v1/athletes?select=id&nolio_id=eq.25813                   
+2026-01-19T13:04:28.1296202Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:29.0404518Z    📊 Syncing metrics from Nolio for Adrien Patras...
+2026-01-19T13:04:29.0405744Z [13:04:29] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:29.0407402Z                     ***/res                
+2026-01-19T13:04:29.0414271Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:29.0415289Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:29.1681788Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:29.1683195Z                     ***/res                
+2026-01-19T13:04:29.1684292Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:29.1685350Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:29.3235790Z       ✅ Metrics synced: CP=237.0W, CS=4.48m/s, Weight=68.099kg
+2026-01-19T13:04:29.3236861Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:29.3242799Z                     ***/res                
+2026-01-19T13:04:29.3243938Z                     t/v1/athletes?select=id&nolio_id=eq.25820                   
+2026-01-19T13:04:29.3245894Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:30.1443372Z    📊 Syncing metrics from Nolio for Alin Brinza...
+2026-01-19T13:04:30.1444512Z [13:04:30] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:30.1446022Z                     ***/res                
+2026-01-19T13:04:30.1446955Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:30.1448033Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:30.3091872Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:30.3093206Z                     ***/res                
+2026-01-19T13:04:30.3094194Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:30.3095488Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:30.4365023Z       ✅ Metrics synced: CP=228.0W, CS=4.00m/s, Weight=69.959kg
+2026-01-19T13:04:30.4366145Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:30.4367535Z                     ***/res                
+2026-01-19T13:04:30.4368675Z                     t/v1/athletes?select=id&nolio_id=eq.25789                   
+2026-01-19T13:04:30.4369713Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:31.1937781Z    📊 Syncing metrics from Nolio for Audrey Spy Marradi...
+2026-01-19T13:04:31.1938749Z [13:04:31] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:31.1939870Z                     ***/res                
+2026-01-19T13:04:31.1940411Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:31.1941061Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:31.3372509Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:31.3374011Z                     ***/res                
+2026-01-19T13:04:31.3375033Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:31.3376178Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:31.4825818Z       ✅ Metrics synced: CP=NoneW, CS=4.08m/s, Weight=60.5kg
+2026-01-19T13:04:31.4826921Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:31.4828509Z                     ***/res                
+2026-01-19T13:04:31.4829529Z                     t/v1/athletes?select=id&nolio_id=eq.21420                   
+2026-01-19T13:04:31.4830835Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:32.5412925Z    📊 Syncing metrics from Nolio for Baptiste Delmas...
+2026-01-19T13:04:32.5415046Z [13:04:32] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:32.5416196Z                     ***/res                
+2026-01-19T13:04:32.5416811Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:32.5417529Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:32.6944565Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:32.6946731Z                     ***/res                
+2026-01-19T13:04:32.6958604Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:32.6959737Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:32.8252034Z       ✅ Metrics synced: CP=297.0W, CS=5.29m/s, Weight=69.0kg
+2026-01-19T13:04:32.8253823Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:32.8254765Z                     ***/res                
+2026-01-19T13:04:32.8255393Z                     t/v1/athletes?select=id&nolio_id=eq.307157                  
+2026-01-19T13:04:32.8256101Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:33.5304597Z    📊 Syncing metrics from Nolio for Bastien Ibanez...
+2026-01-19T13:04:33.5305725Z [13:04:33] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:33.5307245Z                     ***/res                
+2026-01-19T13:04:33.5308439Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:33.5309588Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:33.6658340Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:33.6659526Z                     ***/res                
+2026-01-19T13:04:33.6660137Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:33.6660904Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:33.7983129Z       ✅ Metrics synced: CP=343.0W, CS=4.57m/s, Weight=Nonekg
+2026-01-19T13:04:33.7986411Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:33.7987328Z                     ***/res                
+2026-01-19T13:04:33.7987899Z                     t/v1/athletes?select=id&nolio_id=eq.3613                    
+2026-01-19T13:04:33.7988804Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:34.8720711Z    📊 Syncing metrics from Nolio for Benjamin Jouglas...
+2026-01-19T13:04:34.8722489Z [13:04:34] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:34.8723504Z                     ***/res                
+2026-01-19T13:04:34.8724116Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:34.8725262Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:34.9958331Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:34.9960705Z                     ***/res                
+2026-01-19T13:04:34.9961368Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:34.9962139Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:35.1245858Z       ✅ Metrics synced: CP=286.0W, CS=4.81m/s, Weight=64.0kg
+2026-01-19T13:04:35.1247997Z [13:04:35] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:35.1249239Z                     ***/res                
+2026-01-19T13:04:35.1249894Z                     t/v1/athletes?select=id&nolio_id=eq.127273                  
+2026-01-19T13:04:35.1250601Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:35.9893446Z    📊 Syncing metrics from Nolio for Bernard Alexis...
+2026-01-19T13:04:35.9894779Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:35.9896787Z                     ***/res                
+2026-01-19T13:04:35.9897418Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:35.9898316Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:36.1186176Z [13:04:36] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:36.1187650Z                     ***/res                
+2026-01-19T13:04:36.1189593Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:36.1192598Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:36.2415803Z       ✅ Metrics synced: CP=220.0W, CS=5.08m/s, Weight=60.0kg
+2026-01-19T13:04:36.2416546Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:36.2417508Z                     ***/res                
+2026-01-19T13:04:36.2418344Z                     t/v1/athletes?select=id&nolio_id=eq.25824                   
+2026-01-19T13:04:36.2419122Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:37.2926404Z    📊 Syncing metrics from Nolio for Boris Chenal...
+2026-01-19T13:04:37.2927578Z [13:04:37] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:37.2929246Z                     ***/res                
+2026-01-19T13:04:37.2930196Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:37.2931187Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:37.4209603Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:37.4210904Z                     ***/res                
+2026-01-19T13:04:37.4211883Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:37.4212996Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:37.5436605Z       ✅ Metrics synced: CP=341.0W, CS=4.98m/s, Weight=74.8kg
+2026-01-19T13:04:37.5437801Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:37.5439302Z                     ***/res                
+2026-01-19T13:04:37.5440224Z                     t/v1/athletes?select=id&nolio_id=eq.25812                   
+2026-01-19T13:04:37.5441224Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:38.3567075Z    📊 Syncing metrics from Nolio for Cauvin Mélanie...
+2026-01-19T13:04:38.3568524Z [13:04:38] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:38.3569927Z                     ***/res                
+2026-01-19T13:04:38.3570900Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:38.3572431Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:38.4916009Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:38.4917357Z                     ***/res                
+2026-01-19T13:04:38.4918533Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:38.4919601Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:38.6167060Z       ✅ Metrics synced: CP=225.0W, CS=3.85m/s, Weight=Nonekg
+2026-01-19T13:04:38.6167897Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:38.6168958Z                     ***/res                
+2026-01-19T13:04:38.6169537Z                     t/v1/athletes?select=id&nolio_id=eq.25825                   
+2026-01-19T13:04:38.6170235Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:39.3926176Z    📊 Syncing metrics from Nolio for Christophe Rivart...
+2026-01-19T13:04:39.3951294Z [13:04:39] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:39.3952272Z                     ***/res                
+2026-01-19T13:04:39.3952866Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:39.3953515Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:39.5192067Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:39.5194681Z                     ***/res                
+2026-01-19T13:04:39.5199708Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:39.5201015Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:39.6503381Z       ✅ Metrics synced: CP=258.0W, CS=4.41m/s, Weight=64.8kg
+2026-01-19T13:04:39.6505702Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:39.6506658Z                     ***/res                
+2026-01-19T13:04:39.6507248Z                     t/v1/athletes?select=id&nolio_id=eq.314215                  
+2026-01-19T13:04:39.6507902Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:40.4186463Z    📊 Syncing metrics from Nolio for Cyril Neirynck...
+2026-01-19T13:04:40.4187238Z [13:04:40] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:40.4188307Z                     ***/res                
+2026-01-19T13:04:40.4188914Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:40.4189707Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:40.5455354Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:40.5460201Z                     ***/res                
+2026-01-19T13:04:40.5460909Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:40.5461673Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:40.6837239Z       ✅ Metrics synced: CP=238.0W, CS=4.07m/s, Weight=74.0kg
+2026-01-19T13:04:40.6839787Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:40.6840751Z                     ***/res                
+2026-01-19T13:04:40.6841342Z                     t/v1/athletes?select=id&nolio_id=eq.138748                  
+2026-01-19T13:04:40.6842013Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:41.4067486Z    📊 Syncing metrics from Nolio for Dries Matthys...
+2026-01-19T13:04:41.4068459Z [13:04:41] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:41.4069397Z                     ***/res                
+2026-01-19T13:04:41.4069985Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:41.4071107Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:41.5352387Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:41.5353869Z                     ***/res                
+2026-01-19T13:04:41.5355661Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:41.5356406Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:41.6581598Z       ✅ Metrics synced: CP=366.0W, CS=5.13m/s, Weight=66.5kg
+2026-01-19T13:04:41.6582919Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:41.6584303Z                     ***/res                
+2026-01-19T13:04:41.6587186Z                     t/v1/athletes?select=id&nolio_id=eq.25787                   
+2026-01-19T13:04:41.6588439Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:42.3365181Z    📊 Syncing metrics from Nolio for Edouard Tiret...
+2026-01-19T13:04:42.3366335Z [13:04:42] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:42.3367773Z                     ***/res                
+2026-01-19T13:04:42.3368977Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:42.3369943Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:42.4625269Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:42.4626235Z                     ***/res                
+2026-01-19T13:04:42.4626821Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:42.4627948Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:42.5940006Z       ✅ Metrics synced: CP=300.0W, CS=4.81m/s, Weight=63.0kg
+2026-01-19T13:04:42.5941154Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:42.5943016Z                     ***/res                
+2026-01-19T13:04:42.5948822Z                     t/v1/athletes?select=id&nolio_id=eq.1824                    
+2026-01-19T13:04:42.5949589Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:43.6010674Z    📊 Syncing metrics from Nolio for Estelle-Marie Kieffer...
+2026-01-19T13:04:43.6029917Z [13:04:43] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:43.6031730Z                     ***/res                
+2026-01-19T13:04:43.6033534Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:43.6034348Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:44.0646495Z [13:04:44] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:44.0650795Z                     ***/res                
+2026-01-19T13:04:44.0651455Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:44.0652214Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:44.1975120Z       ✅ Metrics synced: CP=195.0W, CS=3.72m/s, Weight=56.389kg
+2026-01-19T13:04:44.1977256Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:44.1979654Z                     ***/res                
+2026-01-19T13:04:44.1981534Z                     t/v1/athletes?select=id&nolio_id=eq.25826                   
+2026-01-19T13:04:44.1982276Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:45.0303908Z    📊 Syncing metrics from Nolio for Fabien Frappart...
+2026-01-19T13:04:45.0305696Z [13:04:45] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:45.0306881Z                     ***/res                
+2026-01-19T13:04:45.0307886Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:45.0308824Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:45.1768933Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:45.1770776Z                     ***/res                
+2026-01-19T13:04:45.1771438Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:45.1772213Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:45.3041243Z       ✅ Metrics synced: CP=226.0W, CS=4.08m/s, Weight=69.5kg
+2026-01-19T13:04:45.3043315Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:45.3044219Z                     ***/res                
+2026-01-19T13:04:45.3044858Z                     t/v1/athletes?select=id&nolio_id=eq.25814                   
+2026-01-19T13:04:45.3045562Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:46.2473885Z    📊 Syncing metrics from Nolio for Franck Dupeu...
+2026-01-19T13:04:46.2474738Z [13:04:46] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:46.2481221Z                     ***/res                
+2026-01-19T13:04:46.2482006Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:46.2482807Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:46.3796360Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:46.3797979Z                     ***/res                
+2026-01-19T13:04:46.3799471Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:46.3800455Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:46.5214399Z       ✅ Metrics synced: CP=316.0W, CS=4.00m/s, Weight=83.3kg
+2026-01-19T13:04:46.5215540Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:46.5216765Z                     ***/res                
+2026-01-19T13:04:46.5217835Z                     t/v1/athletes?select=id&nolio_id=eq.107821                  
+2026-01-19T13:04:46.5219293Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:47.1379074Z    📊 Syncing metrics from Nolio for Francois Profit...
+2026-01-19T13:04:47.1381237Z [13:04:47] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:47.1382372Z                     ***/res                
+2026-01-19T13:04:47.1383017Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:47.1383734Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:47.2720377Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:47.2723530Z                     ***/res                
+2026-01-19T13:04:47.2724172Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:47.2724904Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:47.3965183Z       ✅ Metrics synced: CP=247.0W, CS=Nonem/s, Weight=68.0kg
+2026-01-19T13:04:47.3965921Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:47.3966734Z                     ***/res                
+2026-01-19T13:04:47.3967314Z                     t/v1/athletes?select=id&nolio_id=eq.25780                   
+2026-01-19T13:04:47.3967993Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:48.1555869Z    📊 Syncing metrics from Nolio for François Schoen...
+2026-01-19T13:04:48.1557027Z [13:04:48] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:48.1559011Z                     ***/res                
+2026-01-19T13:04:48.1560016Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:48.1570638Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:48.3041840Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:48.3044688Z                     ***/res                
+2026-01-19T13:04:48.3045352Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:48.3046133Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:48.4372743Z       ✅ Metrics synced: CP=258.0W, CS=4.17m/s, Weight=Nonekg
+2026-01-19T13:04:48.4373821Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:48.4375032Z                     ***/res                
+2026-01-19T13:04:48.4375966Z                     t/v1/athletes?select=id&nolio_id=eq.53318                   
+2026-01-19T13:04:48.4376991Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:49.3173826Z    📊 Syncing metrics from Nolio for Geoffrey Tisserand...
+2026-01-19T13:04:49.3175035Z [13:04:49] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:49.3176363Z                     ***/res                
+2026-01-19T13:04:49.3177334Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:49.3178683Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:49.4500143Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:49.4501898Z                     ***/res                
+2026-01-19T13:04:49.4502874Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:49.4503945Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:49.5776151Z       ✅ Metrics synced: CP=278.0W, CS=3.83m/s, Weight=90.0kg
+2026-01-19T13:04:49.5776890Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:49.5777702Z                     ***/res                
+2026-01-19T13:04:49.5778449Z                     t/v1/athletes?select=id&nolio_id=eq.825187                  
+2026-01-19T13:04:49.5779133Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:50.2411433Z    📊 Syncing metrics from Nolio for Gilles Bernard...
+2026-01-19T13:04:50.2412573Z [13:04:50] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:50.2413840Z                     ***/res                
+2026-01-19T13:04:50.2414810Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:50.2415917Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:50.3760018Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:50.3761445Z                     ***/res                
+2026-01-19T13:04:50.3762398Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:50.3763439Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:50.5189864Z       ✅ Metrics synced: CP=257.0W, CS=4.12m/s, Weight=70.0kg
+2026-01-19T13:04:50.5190997Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:50.5192226Z                     ***/res                
+2026-01-19T13:04:50.5193146Z                     t/v1/athletes?select=id&nolio_id=eq.25819                   
+2026-01-19T13:04:50.5194404Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:51.3277533Z    📊 Syncing metrics from Nolio for Gilles Geneix...
+2026-01-19T13:04:51.3279555Z [13:04:51] INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:51.3280968Z                     ***/res                
+2026-01-19T13:04:51.3281569Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:51.3282285Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:51.4668463Z            INFO     HTTP Request: POST                           _client.py:1025
+2026-01-19T13:04:51.4670314Z                     ***/res                
+2026-01-19T13:04:51.4670970Z                     t/v1/physio_profiles?on_conflict=athlete_id%                
+2026-01-19T13:04:51.4671767Z                     2C+sport "HTTP/2 200 OK"                                    
+2026-01-19T13:04:51.5936325Z       ✅ Metrics synced: CP=210.0W, CS=Nonem/s, Weight=68.309kg
+2026-01-19T13:04:51.5938639Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:51.5940985Z                     ***/res                
+2026-01-19T13:04:51.5941634Z                     t/v1/athletes?select=id&nolio_id=eq.25821                   
+2026-01-19T13:04:51.5942345Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:52.1411157Z    📊 Syncing metrics from Nolio for Guillaume Fournier...
+2026-01-19T13:04:52.1413961Z       ⚠️ Could not sync metrics from Nolio for 25821: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=25821
+2026-01-19T13:04:52.1415236Z [13:04:52] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:52.1416135Z                     ***/res                
+2026-01-19T13:04:52.1416743Z                     t/v1/athletes?select=id&nolio_id=eq.137670                  
+2026-01-19T13:04:52.1417813Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:52.6361641Z    📊 Syncing metrics from Nolio for Guillaume Montoisy...
+2026-01-19T13:04:52.6364795Z       ⚠️ Could not sync metrics from Nolio for 137670: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=137670
+2026-01-19T13:04:52.6366073Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:52.6366954Z                     ***/res                
+2026-01-19T13:04:52.6367573Z                     t/v1/athletes?select=id&nolio_id=eq.717708                  
+2026-01-19T13:04:52.6368454Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:53.1711675Z    📊 Syncing metrics from Nolio for Hadrien Tabou...
+2026-01-19T13:04:53.1724274Z       ⚠️ Could not sync metrics from Nolio for 717708: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=717708
+2026-01-19T13:04:53.1725491Z [13:04:53] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:53.1726348Z                     ***/res                
+2026-01-19T13:04:53.1726941Z                     t/v1/athletes?select=id&nolio_id=eq.260491                  
+2026-01-19T13:04:53.1727644Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:53.7423589Z    📊 Syncing metrics from Nolio for Ilan Spy...
+2026-01-19T13:04:53.7426539Z       ⚠️ Could not sync metrics from Nolio for 260491: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=260491
+2026-01-19T13:04:53.7428037Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:53.7431326Z                     ***/res                
+2026-01-19T13:04:53.7431962Z                     t/v1/athletes?select=id&nolio_id=eq.47922                   
+2026-01-19T13:04:53.7432717Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:54.2332945Z    📊 Syncing metrics from Nolio for Jean Charles Jacquier...
+2026-01-19T13:04:54.2335868Z       ⚠️ Could not sync metrics from Nolio for 47922: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=47922
+2026-01-19T13:04:54.2337737Z [13:04:54] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:54.2340252Z                     ***/res                
+2026-01-19T13:04:54.2340898Z                     t/v1/athletes?select=id&nolio_id=eq.27070                   
+2026-01-19T13:04:54.2341621Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:54.7273416Z    📊 Syncing metrics from Nolio for Jean Louis Barile...
+2026-01-19T13:04:54.7276389Z       ⚠️ Could not sync metrics from Nolio for 27070: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=27070
+2026-01-19T13:04:54.7279927Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:54.7280837Z                     ***/res                
+2026-01-19T13:04:54.7281467Z                     t/v1/athletes?select=id&nolio_id=eq.35451                   
+2026-01-19T13:04:54.7282220Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:55.2152772Z    📊 Syncing metrics from Nolio for Ju Blondin...
+2026-01-19T13:04:55.2155054Z       ⚠️ Could not sync metrics from Nolio for 35451: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=35451
+2026-01-19T13:04:55.2156779Z [13:04:55] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:55.2158369Z                     ***/res                
+2026-01-19T13:04:55.2159313Z                     t/v1/athletes?select=id&nolio_id=eq.49449                   
+2026-01-19T13:04:55.2160369Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:55.7001956Z    📊 Syncing metrics from Nolio for Ju Bou...
+2026-01-19T13:04:55.7004528Z       ⚠️ Could not sync metrics from Nolio for 49449: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=49449
+2026-01-19T13:04:55.7005821Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:55.7006683Z                     ***/res                
+2026-01-19T13:04:55.7007294Z                     t/v1/athletes?select=id&nolio_id=eq.5348                    
+2026-01-19T13:04:55.7008022Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:56.2393401Z    📊 Syncing metrics from Nolio for Kylian Herpin...
+2026-01-19T13:04:56.2396385Z       ⚠️ Could not sync metrics from Nolio for 5348: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=5348
+2026-01-19T13:04:56.2399825Z [13:04:56] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:56.2400794Z                     ***/res                
+2026-01-19T13:04:56.2401416Z                     t/v1/athletes?select=id&nolio_id=eq.173704                  
+2026-01-19T13:04:56.2402134Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:57.0069569Z    📊 Syncing metrics from Nolio for Laurent Lemonnier...
+2026-01-19T13:04:57.0071534Z       ⚠️ Could not sync metrics from Nolio for 173704: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=173704
+2026-01-19T13:04:57.0073114Z [13:04:57] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:57.0074305Z                     ***/res                
+2026-01-19T13:04:57.0075221Z                     t/v1/athletes?select=id&nolio_id=eq.25781                   
+2026-01-19T13:04:57.0076216Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:57.5299385Z    📊 Syncing metrics from Nolio for Lorena Rondi...
+2026-01-19T13:04:57.5302035Z       ⚠️ Could not sync metrics from Nolio for 25781: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=25781
+2026-01-19T13:04:57.5303675Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:57.5304523Z                     ***/res                
+2026-01-19T13:04:57.5305126Z                     t/v1/athletes?select=id&nolio_id=eq.3245                    
+2026-01-19T13:04:57.5305832Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:58.0329580Z    📊 Syncing metrics from Nolio for Louis Richard...
+2026-01-19T13:04:58.0332402Z       ⚠️ Could not sync metrics from Nolio for 3245: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=3245
+2026-01-19T13:04:58.0334737Z [13:04:58] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:58.0335685Z                     ***/res                
+2026-01-19T13:04:58.0336350Z                     t/v1/athletes?select=id&nolio_id=eq.804382                  
+2026-01-19T13:04:58.0337053Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:58.5930495Z    📊 Syncing metrics from Nolio for Louka Spy...
+2026-01-19T13:04:58.5932328Z       ⚠️ Could not sync metrics from Nolio for 804382: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=804382
+2026-01-19T13:04:58.5934028Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:58.5935096Z                     ***/res                
+2026-01-19T13:04:58.5936131Z                     t/v1/athletes?select=id&nolio_id=eq.127583                  
+2026-01-19T13:04:58.5937028Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:59.1044267Z    📊 Syncing metrics from Nolio for Lucas Hzg ...
+2026-01-19T13:04:59.1046601Z       ⚠️ Could not sync metrics from Nolio for 127583: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=127583
+2026-01-19T13:04:59.1048363Z [13:04:59] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:59.1049826Z                     ***/res                
+2026-01-19T13:04:59.1051002Z                     t/v1/athletes?select=id&nolio_id=eq.349428                  
+2026-01-19T13:04:59.1052023Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:04:59.6535550Z    📊 Syncing metrics from Nolio for Ludovic Marchand...
+2026-01-19T13:04:59.6538599Z       ⚠️ Could not sync metrics from Nolio for 349428: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=349428
+2026-01-19T13:04:59.6539784Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:04:59.6540625Z                     ***/res                
+2026-01-19T13:04:59.6541265Z                     t/v1/athletes?select=id&nolio_id=eq.25758                   
+2026-01-19T13:04:59.6541970Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:00.1820154Z    📊 Syncing metrics from Nolio for Manuguerra Allan...
+2026-01-19T13:05:00.1824996Z       ⚠️ Could not sync metrics from Nolio for 25758: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=25758
+2026-01-19T13:05:00.1826245Z [13:05:00] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:00.1827121Z                     ***/res                
+2026-01-19T13:05:00.1827719Z                     t/v1/athletes?select=id&nolio_id=eq.94153                   
+2026-01-19T13:05:00.1828611Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:00.7447752Z    📊 Syncing metrics from Nolio for Margot Sellem...
+2026-01-19T13:05:00.7450895Z       ⚠️ Could not sync metrics from Nolio for 94153: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=94153
+2026-01-19T13:05:00.7452166Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:00.7453061Z                     ***/res                
+2026-01-19T13:05:00.7454053Z                     t/v1/athletes?select=id&nolio_id=eq.711896                  
+2026-01-19T13:05:00.7454759Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:01.2799852Z    📊 Syncing metrics from Nolio for Mathieu Buirette...
+2026-01-19T13:05:01.2804755Z       ⚠️ Could not sync metrics from Nolio for 711896: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=711896
+2026-01-19T13:05:01.2806020Z [13:05:01] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:01.2806879Z                     ***/res                
+2026-01-19T13:05:01.2807484Z                     t/v1/athletes?select=id&nolio_id=eq.88267                   
+2026-01-19T13:05:01.2808385Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:01.8276536Z    📊 Syncing metrics from Nolio for Matthieu Poullain...
+2026-01-19T13:05:01.8278001Z       ⚠️ Could not sync metrics from Nolio for 88267: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=88267
+2026-01-19T13:05:01.8279461Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:01.8280363Z                     ***/res                
+2026-01-19T13:05:01.8280970Z                     t/v1/athletes?select=id&nolio_id=eq.433                     
+2026-01-19T13:05:01.8281679Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:02.3394656Z    📊 Syncing metrics from Nolio for Robin Lemercier...
+2026-01-19T13:05:02.3396501Z       ⚠️ Could not sync metrics from Nolio for 433: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=433
+2026-01-19T13:05:02.3398587Z [13:05:02] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:02.3400487Z                     ***/res                
+2026-01-19T13:05:02.3401100Z                     t/v1/athletes?select=id&nolio_id=eq.122287                  
+2026-01-19T13:05:02.3401820Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:02.8367330Z    📊 Syncing metrics from Nolio for Romain Perjoc...
+2026-01-19T13:05:02.8369352Z       ⚠️ Could not sync metrics from Nolio for 122287: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=122287
+2026-01-19T13:05:02.8370974Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:02.8372174Z                     ***/res                
+2026-01-19T13:05:02.8373237Z                     t/v1/athletes?select=id&nolio_id=eq.777734                  
+2026-01-19T13:05:02.8374230Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:03.3492843Z    📊 Syncing metrics from Nolio for Romain Rezsohazy...
+2026-01-19T13:05:03.3494720Z       ⚠️ Could not sync metrics from Nolio for 777734: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=777734
+2026-01-19T13:05:03.3496323Z [13:05:03] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:03.3497498Z                     ***/res                
+2026-01-19T13:05:03.3498589Z                     t/v1/athletes?select=id&nolio_id=eq.56564                   
+2026-01-19T13:05:03.3499712Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:03.9003852Z    📊 Syncing metrics from Nolio for Romu Philippot...
+2026-01-19T13:05:03.9005713Z       ⚠️ Could not sync metrics from Nolio for 56564: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=56564
+2026-01-19T13:05:03.9007307Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:03.9008670Z                     ***/res                
+2026-01-19T13:05:03.9009659Z                     t/v1/athletes?select=id&nolio_id=eq.60892                   
+2026-01-19T13:05:03.9010975Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:04.4493656Z    📊 Syncing metrics from Nolio for Sebastien Sahyoun...
+2026-01-19T13:05:04.4495593Z       ⚠️ Could not sync metrics from Nolio for 60892: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=60892
+2026-01-19T13:05:04.4497308Z [13:05:04] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:04.4498775Z                     ***/res                
+2026-01-19T13:05:04.4499676Z                     t/v1/athletes?select=id&nolio_id=eq.25768                   
+2026-01-19T13:05:04.4500826Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:05.0058362Z    📊 Syncing metrics from Nolio for Sébastien Collin...
+2026-01-19T13:05:05.0060291Z       ⚠️ Could not sync metrics from Nolio for 25768: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=25768
+2026-01-19T13:05:05.0061914Z [13:05:05] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:05.0063125Z                     ***/res                
+2026-01-19T13:05:05.0064089Z                     t/v1/athletes?select=id&nolio_id=eq.29817                   
+2026-01-19T13:05:05.0065337Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:05.5395803Z    📊 Syncing metrics from Nolio for Seraphin Barbot...
+2026-01-19T13:05:05.5397185Z       ⚠️ Could not sync metrics from Nolio for 29817: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=29817
+2026-01-19T13:05:05.5398515Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:05.5399789Z                     ***/res                
+2026-01-19T13:05:05.5400419Z                     t/v1/athletes?select=id&nolio_id=eq.28448                   
+2026-01-19T13:05:05.5401181Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:06.0404634Z    📊 Syncing metrics from Nolio for Simond Culot...
+2026-01-19T13:05:06.0407645Z       ⚠️ Could not sync metrics from Nolio for 28448: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=28448
+2026-01-19T13:05:06.0409085Z [13:05:06] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:06.0409933Z                     ***/res                
+2026-01-19T13:05:06.0410531Z                     t/v1/athletes?select=id&nolio_id=eq.36901                   
+2026-01-19T13:05:06.0411241Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:06.5916733Z    📊 Syncing metrics from Nolio for Stephane Bodson...
+2026-01-19T13:05:06.5919145Z       ⚠️ Could not sync metrics from Nolio for 36901: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=36901
+2026-01-19T13:05:06.5920587Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:06.5921689Z                     ***/res                
+2026-01-19T13:05:06.5922606Z                     t/v1/athletes?select=id&nolio_id=eq.25785                   
+2026-01-19T13:05:06.5923582Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:07.0987829Z    📊 Syncing metrics from Nolio for Steven Galibert...
+2026-01-19T13:05:07.0990607Z       ⚠️ Could not sync metrics from Nolio for 25785: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=25785
+2026-01-19T13:05:07.0991833Z [13:05:07] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:07.0992703Z                     ***/res                
+2026-01-19T13:05:07.0993279Z                     t/v1/athletes?select=id&nolio_id=eq.28555                   
+2026-01-19T13:05:07.0993984Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:07.6464649Z    📊 Syncing metrics from Nolio for Sylvain Harmand...
+2026-01-19T13:05:07.6466543Z       ⚠️ Could not sync metrics from Nolio for 28555: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=28555
+2026-01-19T13:05:07.6468061Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:07.6469446Z                     ***/res                
+2026-01-19T13:05:07.6470470Z                     t/v1/athletes?select=id&nolio_id=eq.2787                    
+2026-01-19T13:05:07.6471454Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:08.1801529Z    📊 Syncing metrics from Nolio for Tanguy Tirel...
+2026-01-19T13:05:08.1804371Z       ⚠️ Could not sync metrics from Nolio for 2787: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=2787
+2026-01-19T13:05:08.1805596Z [13:05:08] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:08.1806464Z                     ***/res                
+2026-01-19T13:05:08.1807034Z                     t/v1/athletes?select=id&nolio_id=eq.207260                  
+2026-01-19T13:05:08.1807746Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:08.6981983Z    📊 Syncing metrics from Nolio for Thibault Montmeat...
+2026-01-19T13:05:08.6994632Z       ⚠️ Could not sync metrics from Nolio for 207260: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=207260
+2026-01-19T13:05:08.6995832Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:08.6996644Z                     ***/res                
+2026-01-19T13:05:08.6997543Z                     t/v1/athletes?select=id&nolio_id=eq.26004                   
+2026-01-19T13:05:08.6998446Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:09.1953178Z    📊 Syncing metrics from Nolio for Thierry Legagnoux...
+2026-01-19T13:05:09.1955932Z       ⚠️ Could not sync metrics from Nolio for 26004: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=26004
+2026-01-19T13:05:09.1957119Z [13:05:09] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:09.1958035Z                     ***/res                
+2026-01-19T13:05:09.1958945Z                     t/v1/athletes?select=id&nolio_id=eq.186558                  
+2026-01-19T13:05:09.1959654Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:09.6973292Z    📊 Syncing metrics from Nolio for Thomas Clatot...
+2026-01-19T13:05:09.6981664Z       ⚠️ Could not sync metrics from Nolio for 186558: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=186558
+2026-01-19T13:05:09.6982977Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:09.6984196Z                     ***/res                
+2026-01-19T13:05:09.6984780Z                     t/v1/athletes?select=id&nolio_id=eq.778921                  
+2026-01-19T13:05:09.6985495Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:10.2088576Z    📊 Syncing metrics from Nolio for Tom Vaelen...
+2026-01-19T13:05:10.2091387Z       ⚠️ Could not sync metrics from Nolio for 778921: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=778921
+2026-01-19T13:05:10.2092639Z [13:05:10] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:10.2093533Z                     ***/res                
+2026-01-19T13:05:10.2094160Z                     t/v1/athletes?select=id&nolio_id=eq.32676                   
+2026-01-19T13:05:10.2094860Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:10.7292830Z    📊 Syncing metrics from Nolio for Valentin Francavilla...
+2026-01-19T13:05:10.7296824Z       ⚠️ Could not sync metrics from Nolio for 32676: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=32676
+2026-01-19T13:05:10.7298617Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:10.7299991Z                     ***/res                
+2026-01-19T13:05:10.7300947Z                     t/v1/athletes?select=id&nolio_id=eq.778922                  
+2026-01-19T13:05:10.7301924Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:11.3033263Z    📊 Syncing metrics from Nolio for Victor Alexandre...
+2026-01-19T13:05:11.3035193Z       ⚠️ Could not sync metrics from Nolio for 778922: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=778922
+2026-01-19T13:05:11.3037142Z [13:05:11] INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:11.3038425Z                     ***/res                
+2026-01-19T13:05:11.3039284Z                     t/v1/athletes?select=id&nolio_id=eq.17540                   
+2026-01-19T13:05:11.3041284Z                     "HTTP/2 200 OK"                                             
+2026-01-19T13:05:11.8644156Z    📊 Syncing metrics from Nolio for Victor Soler...
+2026-01-19T13:05:11.8646088Z       ⚠️ Could not sync metrics from Nolio for 17540: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/user/meta/?athlete_id=17540
+2026-01-19T13:05:11.8647554Z 🔗 Checking for Webhook events...
+2026-01-19T13:05:11.8648680Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:11.8650627Z                     ***/res                
+2026-01-19T13:05:11.8651292Z                     t/v1/webhook_events?select=%2A&processed=eq.                
+2026-01-19T13:05:11.8652090Z                     False&provider=eq.nolio "HTTP/2 200 OK"                     
+2026-01-19T13:05:11.9948749Z    ✅ No new webhook events.
+2026-01-19T13:05:11.9950563Z            INFO     HTTP Request: GET                            _client.py:1025
+2026-01-19T13:05:11.9951437Z                     ***/res                
+2026-01-19T13:05:11.9952071Z                     t/v1/athletes?select=id%2Cfirst_name%2Clast_                
+2026-01-19T13:05:11.9952830Z                     name%2Cnolio_id&is_active=eq.True&nolio_id=n                
+2026-01-19T13:05:11.9953579Z                     ot.is.null "HTTP/2 200 OK"                                  
+2026-01-19T13:05:31.4960972Z 📊 Running scheduled scan for 60 athletes.
+2026-01-19T13:05:31.4961736Z 
+2026-01-19T13:05:31.4962271Z 👤 Processing: Adrien Claeyssen (Nolio: 57896)
+2026-01-19T13:05:31.4963972Z    ❌ Error for Adrien Claeyssen: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=57896&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4965154Z 
+2026-01-19T13:05:31.4965602Z 👤 Processing: Adrien Patras (Nolio: 25813)
+2026-01-19T13:05:31.4967675Z    ❌ Error for Adrien Patras: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25813&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4969229Z 
+2026-01-19T13:05:31.4969633Z 👤 Processing: Alin Brinza (Nolio: 25820)
+2026-01-19T13:05:31.4971101Z    ❌ Error for Alin Brinza: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25820&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4972369Z 
+2026-01-19T13:05:31.4972812Z 👤 Processing: Audrey Spy Marradi (Nolio: 25789)
+2026-01-19T13:05:31.4974476Z    ❌ Error for Audrey Spy Marradi: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25789&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4975776Z 
+2026-01-19T13:05:31.4976184Z 👤 Processing: Baptiste Delmas (Nolio: 21420)
+2026-01-19T13:05:31.4979302Z    ❌ Error for Baptiste Delmas: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=21420&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4980390Z 
+2026-01-19T13:05:31.4980700Z 👤 Processing: Bastien Ibanez (Nolio: 307157)
+2026-01-19T13:05:31.4982109Z    ❌ Error for Bastien Ibanez: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=307157&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4983157Z 
+2026-01-19T13:05:31.4983467Z 👤 Processing: Benjamin Jouglas (Nolio: 3613)
+2026-01-19T13:05:31.4984835Z    ❌ Error for Benjamin Jouglas: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=3613&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4985773Z 
+2026-01-19T13:05:31.4986049Z 👤 Processing: Bernard Alexis (Nolio: 127273)
+2026-01-19T13:05:31.4987701Z    ❌ Error for Bernard Alexis: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=127273&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4992317Z 
+2026-01-19T13:05:31.4992739Z 👤 Processing: Boris Chenal (Nolio: 25824)
+2026-01-19T13:05:31.4993995Z    ❌ Error for Boris Chenal: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25824&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4994575Z 
+2026-01-19T13:05:31.4994763Z 👤 Processing: Cauvin Mélanie (Nolio: 25812)
+2026-01-19T13:05:31.4996014Z    ❌ Error for Cauvin Mélanie: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25812&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4996605Z 
+2026-01-19T13:05:31.4996786Z 👤 Processing: Christophe Rivart (Nolio: 25825)
+2026-01-19T13:05:31.4997574Z    ❌ Error for Christophe Rivart: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25825&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4998393Z 
+2026-01-19T13:05:31.4998561Z 👤 Processing: Cyril Neirynck (Nolio: 314215)
+2026-01-19T13:05:31.4999320Z    ❌ Error for Cyril Neirynck: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=314215&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.4999884Z 
+2026-01-19T13:05:31.5000029Z 👤 Processing: Dries Matthys (Nolio: 138748)
+2026-01-19T13:05:31.5000786Z    ❌ Error for Dries Matthys: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=138748&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5001332Z 
+2026-01-19T13:05:31.5001472Z 👤 Processing: Edouard Tiret (Nolio: 25787)
+2026-01-19T13:05:31.5002658Z    ❌ Error for Edouard Tiret: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25787&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5003691Z 
+2026-01-19T13:05:31.5004027Z 👤 Processing: Estelle-Marie Kieffer (Nolio: 1824)
+2026-01-19T13:05:31.5005416Z    ❌ Error for Estelle-Marie Kieffer: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=1824&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5006020Z 
+2026-01-19T13:05:31.5006599Z 👤 Processing: Fabien Frappart (Nolio: 25826)
+2026-01-19T13:05:31.5007979Z    ❌ Error for Fabien Frappart: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25826&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5009116Z 
+2026-01-19T13:05:31.5009376Z 👤 Processing: Franck Dupeu (Nolio: 25814)
+2026-01-19T13:05:31.5010382Z    ❌ Error for Franck Dupeu: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25814&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5010944Z 
+2026-01-19T13:05:31.5011102Z 👤 Processing: Francois Profit (Nolio: 107821)
+2026-01-19T13:05:31.5011883Z    ❌ Error for Francois Profit: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=107821&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5012475Z 
+2026-01-19T13:05:31.5012632Z 👤 Processing: François Schoen (Nolio: 25780)
+2026-01-19T13:05:31.5013453Z    ❌ Error for François Schoen: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=25780&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5014033Z 
+2026-01-19T13:05:31.5014198Z 👤 Processing: Geoffrey Tisserand (Nolio: 53318)
+2026-01-19T13:05:31.5015000Z    ❌ Error for Geoffrey Tisserand: 403 Client Error: Forbidden for url: https://www.nolio.io/api/get/training/?athlete_id=53318&from=2026-01-16&to=2026-01-19&limit=50
+2026-01-19T13:05:31.5015582Z 
+2026-01-19T13:05:31.5015734Z 👤 Processing: Gilles Bernard (Nolio: 825187)
+2026-01-19T13:05:31.5016060Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5016391Z    ❌ Error for Gilles Bernard: NolioRateLimitError
+2026-01-19T13:05:31.5016604Z 
+2026-01-19T13:05:31.5016745Z 👤 Processing: Gilles Geneix (Nolio: 25819)
+2026-01-19T13:05:31.5017229Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5017542Z    ❌ Error for Gilles Geneix: NolioRateLimitError
+2026-01-19T13:05:31.5017748Z 
+2026-01-19T13:05:31.5017903Z 👤 Processing: Guillaume Fournier (Nolio: 25821)
+2026-01-19T13:05:31.5018453Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5018791Z    ❌ Error for Guillaume Fournier: NolioRateLimitError
+2026-01-19T13:05:31.5019011Z 
+2026-01-19T13:05:31.5019168Z 👤 Processing: Guillaume Montoisy (Nolio: 137670)
+2026-01-19T13:05:31.5019485Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5019808Z    ❌ Error for Guillaume Montoisy: NolioRateLimitError
+2026-01-19T13:05:31.5020022Z 
+2026-01-19T13:05:31.5020165Z 👤 Processing: Hadrien Tabou (Nolio: 717708)
+2026-01-19T13:05:31.5020466Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5020776Z    ❌ Error for Hadrien Tabou: NolioRateLimitError
+2026-01-19T13:05:31.5020970Z 
+2026-01-19T13:05:31.5021105Z 👤 Processing: Ilan Spy (Nolio: 260491)
+2026-01-19T13:05:31.5021408Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5021698Z    ❌ Error for Ilan Spy: NolioRateLimitError
+2026-01-19T13:05:31.5021883Z 
+2026-01-19T13:05:31.5022059Z 👤 Processing: Jean Charles Jacquier (Nolio: 47922)
+2026-01-19T13:05:31.5022387Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5022734Z    ❌ Error for Jean Charles Jacquier: NolioRateLimitError
+2026-01-19T13:05:31.5022958Z 
+2026-01-19T13:05:31.5023116Z 👤 Processing: Jean Louis Barile (Nolio: 27070)
+2026-01-19T13:05:31.5023425Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5023745Z    ❌ Error for Jean Louis Barile: NolioRateLimitError
+2026-01-19T13:05:31.5023949Z 
+2026-01-19T13:05:31.5024084Z 👤 Processing: Ju Blondin (Nolio: 35451)
+2026-01-19T13:05:31.5024377Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5024671Z    ❌ Error for Ju Blondin: NolioRateLimitError
+2026-01-19T13:05:31.5024863Z 
+2026-01-19T13:05:31.5024991Z 👤 Processing: Ju Bou (Nolio: 49449)
+2026-01-19T13:05:31.5025274Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5025571Z    ❌ Error for Ju Bou: NolioRateLimitError
+2026-01-19T13:05:31.5025755Z 
+2026-01-19T13:05:31.5025888Z 👤 Processing: Kylian Herpin (Nolio: 5348)
+2026-01-19T13:05:31.5026192Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5026655Z    ❌ Error for Kylian Herpin: NolioRateLimitError
+2026-01-19T13:05:31.5026865Z 
+2026-01-19T13:05:31.5027021Z 👤 Processing: Laurent Lemonnier (Nolio: 173704)
+2026-01-19T13:05:31.5027338Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5027663Z    ❌ Error for Laurent Lemonnier: NolioRateLimitError
+2026-01-19T13:05:31.5027879Z 
+2026-01-19T13:05:31.5028016Z 👤 Processing: Lorena Rondi (Nolio: 25781)
+2026-01-19T13:05:31.5028586Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5028904Z    ❌ Error for Lorena Rondi: NolioRateLimitError
+2026-01-19T13:05:31.5029103Z 
+2026-01-19T13:05:31.5029239Z 👤 Processing: Louis Richard (Nolio: 3245)
+2026-01-19T13:05:31.5029531Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5029838Z    ❌ Error for Louis Richard: NolioRateLimitError
+2026-01-19T13:05:31.5030047Z 
+2026-01-19T13:05:31.5030183Z 👤 Processing: Louka Spy (Nolio: 804382)
+2026-01-19T13:05:31.5030474Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5030771Z    ❌ Error for Louka Spy: NolioRateLimitError
+2026-01-19T13:05:31.5030965Z 
+2026-01-19T13:05:31.5031104Z 👤 Processing: Lucas Hzg  (Nolio: 127583)
+2026-01-19T13:05:31.5031394Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5031692Z    ❌ Error for Lucas Hzg : NolioRateLimitError
+2026-01-19T13:05:31.5031879Z 
+2026-01-19T13:05:31.5032035Z 👤 Processing: Ludovic Marchand (Nolio: 349428)
+2026-01-19T13:05:31.5032346Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5032661Z    ❌ Error for Ludovic Marchand: NolioRateLimitError
+2026-01-19T13:05:31.5032873Z 
+2026-01-19T13:05:31.5033024Z 👤 Processing: Manuguerra Allan (Nolio: 25758)
+2026-01-19T13:05:31.5033326Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5033638Z    ❌ Error for Manuguerra Allan: NolioRateLimitError
+2026-01-19T13:05:31.5033987Z 
+2026-01-19T13:05:31.5034132Z 👤 Processing: Margot Sellem (Nolio: 94153)
+2026-01-19T13:05:31.5034427Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5034734Z    ❌ Error for Margot Sellem: NolioRateLimitError
+2026-01-19T13:05:31.5034945Z 
+2026-01-19T13:05:31.5035095Z 👤 Processing: Mathieu Buirette (Nolio: 711896)
+2026-01-19T13:05:31.5035405Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5035718Z    ❌ Error for Mathieu Buirette: NolioRateLimitError
+2026-01-19T13:05:31.5035925Z 
+2026-01-19T13:05:31.5036077Z 👤 Processing: Matthieu Poullain (Nolio: 88267)
+2026-01-19T13:05:31.5036386Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5036706Z    ❌ Error for Matthieu Poullain: NolioRateLimitError
+2026-01-19T13:05:31.5036922Z 
+2026-01-19T13:05:31.5037059Z 👤 Processing: Robin Lemercier (Nolio: 433)
+2026-01-19T13:05:31.5037361Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5037677Z    ❌ Error for Robin Lemercier: NolioRateLimitError
+2026-01-19T13:05:31.5037902Z 
+2026-01-19T13:05:31.5038044Z 👤 Processing: Romain Perjoc (Nolio: 122287)
+2026-01-19T13:05:31.5038590Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5038902Z    ❌ Error for Romain Perjoc: NolioRateLimitError
+2026-01-19T13:05:31.5039110Z 
+2026-01-19T13:05:31.5039262Z 👤 Processing: Romain Rezsohazy (Nolio: 777734)
+2026-01-19T13:05:31.5039569Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5039883Z    ❌ Error for Romain Rezsohazy: NolioRateLimitError
+2026-01-19T13:05:31.5040086Z 
+2026-01-19T13:05:31.5040234Z 👤 Processing: Romu Philippot (Nolio: 56564)
+2026-01-19T13:05:31.5040535Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5040856Z    ❌ Error for Romu Philippot: NolioRateLimitError
+2026-01-19T13:05:31.5041058Z 
+2026-01-19T13:05:31.5041208Z 👤 Processing: Sebastien Sahyoun (Nolio: 60892)
+2026-01-19T13:05:31.5041512Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5041831Z    ❌ Error for Sebastien Sahyoun: NolioRateLimitError
+2026-01-19T13:05:31.5042038Z 
+2026-01-19T13:05:31.5042206Z 👤 Processing: Sébastien Collin (Nolio: 25768)
+2026-01-19T13:05:31.5042515Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:31.5042827Z    ❌ Error for Sébastien Collin: NolioRateLimitError
+2026-01-19T13:05:31.5043027Z 
+2026-01-19T13:05:31.5043315Z 👤 Processing: Seraphin Barbot (Nolio: 29817)
+2026-01-19T13:05:36.0573574Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0575367Z    ❌ Error for Seraphin Barbot: NolioRateLimitError
+2026-01-19T13:05:36.0575743Z 
+2026-01-19T13:05:36.0575997Z 👤 Processing: Simond Culot (Nolio: 28448)
+2026-01-19T13:05:36.0576483Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0576986Z    ❌ Error for Simond Culot: NolioRateLimitError
+2026-01-19T13:05:36.0577310Z 
+2026-01-19T13:05:36.0577545Z 👤 Processing: Stephane Bodson (Nolio: 36901)
+2026-01-19T13:05:36.0578044Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0578795Z    ❌ Error for Stephane Bodson: NolioRateLimitError
+2026-01-19T13:05:36.0579141Z 
+2026-01-19T13:05:36.0579373Z 👤 Processing: Steven Galibert (Nolio: 25785)
+2026-01-19T13:05:36.0579908Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0580424Z    ❌ Error for Steven Galibert: NolioRateLimitError
+2026-01-19T13:05:36.0580756Z 
+2026-01-19T13:05:36.0580978Z 👤 Processing: Sylvain Harmand (Nolio: 28555)
+2026-01-19T13:05:36.0581485Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0581970Z    ❌ Error for Sylvain Harmand: NolioRateLimitError
+2026-01-19T13:05:36.0582303Z 
+2026-01-19T13:05:36.0582519Z 👤 Processing: Tanguy Tirel (Nolio: 2787)
+2026-01-19T13:05:36.0582998Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0583496Z    ❌ Error for Tanguy Tirel: NolioRateLimitError
+2026-01-19T13:05:36.0583829Z 
+2026-01-19T13:05:36.0584077Z 👤 Processing: Thibault Montmeat (Nolio: 207260)
+2026-01-19T13:05:36.0584573Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0585089Z    ❌ Error for Thibault Montmeat: NolioRateLimitError
+2026-01-19T13:05:36.0585432Z 
+2026-01-19T13:05:36.0585688Z 👤 Processing: Thierry Legagnoux (Nolio: 26004)
+2026-01-19T13:05:36.0586664Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0587190Z    ❌ Error for Thierry Legagnoux: NolioRateLimitError
+2026-01-19T13:05:36.0587534Z 
+2026-01-19T13:05:36.0587776Z 👤 Processing: Thomas Clatot (Nolio: 186558)
+2026-01-19T13:05:36.0588536Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0589047Z    ❌ Error for Thomas Clatot: NolioRateLimitError
+2026-01-19T13:05:36.0589358Z 
+2026-01-19T13:05:36.0589569Z 👤 Processing: Tom Vaelen (Nolio: 778921)
+2026-01-19T13:05:36.0590039Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0590513Z    ❌ Error for Tom Vaelen: NolioRateLimitError
+2026-01-19T13:05:36.0590816Z 
+2026-01-19T13:05:36.0591074Z 👤 Processing: Valentin Francavilla (Nolio: 32676)
+2026-01-19T13:05:36.0591597Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0592130Z    ❌ Error for Valentin Francavilla: NolioRateLimitError
+2026-01-19T13:05:36.0592492Z 
+2026-01-19T13:05:36.0592738Z 👤 Processing: Victor Alexandre (Nolio: 778922)
+2026-01-19T13:05:36.0593254Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0593773Z    ❌ Error for Victor Alexandre: NolioRateLimitError
+2026-01-19T13:05:36.0594105Z 
+2026-01-19T13:05:36.0594320Z 👤 Processing: Victor Soler (Nolio: 17540)
+2026-01-19T13:05:36.0594812Z ⚠️ Nolio Rate Limit hit. Aborting.
+2026-01-19T13:05:36.0595294Z    ❌ Error for Victor Soler: NolioRateLimitError
+2026-01-19T13:05:36.0595611Z 
+2026-01-19T13:05:36.0595774Z 🏁 Ingestion Complete.
+2026-01-19T13:05:36.0595993Z 
+2026-01-19T13:05:36.0596179Z ✅ Ingestion Sequence Complete.

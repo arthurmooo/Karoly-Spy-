@@ -39,7 +39,7 @@ class ReprocessingEngine:
         print(f"Starting Reprocessing Engine...")
         
         # 1. Select Athletes
-        query = self.db.client.table("athletes").select("id, first_name, last_name")
+        query = self.db.client.table("athletes").select("id, first_name, last_name, nolio_id")
         if athlete_name_filter:
             query = query.ilike("first_name", f"%{athlete_name_filter}%")
         
@@ -51,6 +51,7 @@ class ReprocessingEngine:
 
     def process_athlete(self, athlete, force):
         athlete_id = athlete['id']
+        athlete_nolio_id = athlete.get('nolio_id')
         full_name = f"{athlete['first_name']} {athlete['last_name']}"
         print(f"\nProcessing: {full_name}")
 
@@ -70,11 +71,11 @@ class ReprocessingEngine:
 
         for act in tqdm(acts, desc=f"   Reprocessing {athlete['first_name']}", leave=False):
             try:
-                self.recalculate_activity(athlete_id, act)
+                self.recalculate_activity(athlete_id, act, athlete_nolio_id=athlete_nolio_id)
             except Exception as e:
                 print(f"   ❌ Error on {act.get('nolio_id')}: {e}")
 
-    def recalculate_activity(self, athlete_id, act_record):
+    def recalculate_activity(self, athlete_id, act_record, athlete_nolio_id=None):
         # 3. Download FIT
         path = act_record.get('fit_file_path')
         if not path:
@@ -103,7 +104,7 @@ class ReprocessingEngine:
             activity_title = ""
             
             if nolio_id:
-                details = self.nolio.get_activity_details(int(nolio_id))
+                details = self.nolio.get_activity_details(int(nolio_id), athlete_id=athlete_nolio_id)
                 if details:
                     # Stage 1: Try Title Parsing
                     activity_title = details.get('planned_name') or details.get('name') or ""
@@ -111,7 +112,7 @@ class ReprocessingEngine:
                     
                     # Stage 2: Deep JSON Parsing (if title parsing failed)
                     if not plan and details.get('planned_id'):
-                        planned_details = self.nolio.get_planned_workout(int(details['planned_id']))
+                        planned_details = self.nolio.get_planned_workout(int(details['planned_id']), athlete_id=athlete_nolio_id)
                         plan = NolioPlanParser.parse_json_structure(planned_details)
                         if plan:
                             print(f"      [bold green]💎 Deep Plan Found:[/bold green] {plan['reps']}x{plan['duration']}s detected from JSON.")

@@ -221,9 +221,9 @@ class IngestionRobot:
                 # Fetch full activity details from Nolio API
                 print(f"      📥 Processing Webhook Workout: {workout_id} for Athlete {nolio_user_id}")
                 try:
-                    nolio_act = self.nolio.get_activity_details(workout_id)
+                    nolio_act = self.nolio.get_activity_details(workout_id, athlete_id=nolio_user_id)
                     if nolio_act:
-                        self.process_activity(athlete_uuid, nolio_act)
+                        self.process_activity(athlete_uuid, nolio_act, athlete_nolio_id=nolio_user_id)
                     
                     # Mark as processed
                     self.db.client.table("webhook_events").update({"processed": True}).eq("id", event_id).execute()
@@ -251,13 +251,13 @@ class IngestionRobot:
             
             pbar = tqdm(activities, desc=f"   Ingesting {athlete['first_name']}", leave=False)
             for act in pbar:
-                self.process_activity(athlete_uuid, act)
+                self.process_activity(athlete_uuid, act, athlete_nolio_id=nolio_id)
             pbar.close() # Ensure bar finishes and cleans up display
                 
         except Exception as e:
             print(f"   ❌ Error for {full_name}: {e}")
 
-    def process_activity(self, athlete_id: str, nolio_act: Dict[str, Any]):
+    def process_activity(self, athlete_id: str, nolio_act: Dict[str, Any], athlete_nolio_id: Optional[int] = None):
         act_id = str(nolio_act.get("nolio_id", nolio_act.get("id")))
         if not act_id:
             return
@@ -275,7 +275,7 @@ class IngestionRobot:
         planned_session = None
         
         if planned_id:
-            planned_session = self.nolio.get_planned_workout_by_id(planned_id)
+            planned_session = self.nolio.get_planned_workout_by_id(planned_id, athlete_id=athlete_nolio_id)
         
         # Fallback: Search in same week if no direct link
         if not planned_session:
@@ -286,7 +286,28 @@ class IngestionRobot:
 
         # 2. Extract Basic Metadata from Nolio (Safe Defaults)
         nolio_sport = nolio_act.get("sport", "Other")
-        internal_sport = "Bike" if nolio_sport in ["Bike", "Road cycling", "Virtual ride", "Mountain cycling"] else "Run"
+        
+        # Robust Mapping for Nolio Sports (French & English)
+        # Order matters here for priority
+        sport_map = {
+            "Bike": ["Vélo", "Cyclisme", "VTT", "Cycling", "Biking", "Road cycling", "Virtual ride", "Mountain cycling", "Gravel"],
+            "Swim": ["Natation", "Swimming", "Nage"],
+            "Strength": ["Renforcement musculaire", "Musculation", "PPG", "Strength", "Marche", "Gainage"],
+            "Run": ["Course à pied", "Running", "Trail", "Jogging", "Ski de randonnée", "Ski de fond", "Randonnée", "Rando"]
+        }
+        
+        internal_sport = "Other"
+        nolio_sport_lower = nolio_sport.lower()
+        
+        # Priority check: Bike/Strength first, then Swim, then Run
+        found_category = None
+        for category in ["Bike", "Strength", "Swim", "Run"]:
+            keywords = sport_map[category]
+            if any(kw.lower() in nolio_sport_lower for kw in keywords):
+                found_category = category
+                break
+        
+        internal_sport = found_category or "Other"
         
         try:
             start_date_raw = nolio_act.get("date_start", "").replace('Z', '+00:00')
@@ -300,6 +321,7 @@ class IngestionRobot:
         
         meta = ActivityMetadata(
             activity_type=internal_sport,
+            source_sport=nolio_sport,
             start_time=start_date,
             duration_sec=max(1.0, duration_sec), # Pydantic gt=0
             distance_m=distance_m,

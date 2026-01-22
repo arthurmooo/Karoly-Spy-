@@ -99,12 +99,14 @@ class NolioClient:
             print(f"⚠️ Failed to fetch structure for {activity_id}: {e}")
             return None
 
-    def get_activity_details(self, activity_id: int) -> Optional[Dict[str, Any]]:
+    def get_activity_details(self, activity_id: int, athlete_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Fetches full details of a single activity (realized).
         """
         url = f"{self.BASE_URL}/get/training/"
         params = {"id": activity_id}
+        if athlete_id:
+            params["athlete_id"] = athlete_id
         try:
             response = requests.get(url, headers=self._get_headers(), params=params)
             response.raise_for_status()
@@ -114,12 +116,14 @@ class NolioClient:
             print(f"⚠️ Failed to fetch details for {activity_id}: {e}")
             return None
 
-    def get_planned_workout(self, planned_id: int) -> Optional[Dict[str, Any]]:
+    def get_planned_workout(self, planned_id: int, athlete_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Fetches the detailed structure of a PLANNED workout.
         """
         url = f"{self.BASE_URL}/get/planned/training/"
         params = {"id": planned_id}
+        if athlete_id:
+            params["athlete_id"] = athlete_id
         try:
             response = requests.get(url, headers=self._get_headers(), params=params)
             response.raise_for_status()
@@ -129,9 +133,9 @@ class NolioClient:
             print(f"⚠️ Failed to fetch planned workout {planned_id}: {e}")
             return None
 
-    def get_planned_workout_by_id(self, planned_id: int) -> Optional[Dict[str, Any]]:
+    def get_planned_workout_by_id(self, planned_id: int, athlete_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Alias for get_planned_workout for clarity."""
-        return self.get_planned_workout(planned_id)
+        return self.get_planned_workout(planned_id, athlete_id=athlete_id)
 
     def find_planned_workout(self, athlete_id: int, date: Any, title_filter: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
@@ -172,20 +176,36 @@ class NolioClient:
             if not planned_sessions:
                 return None
                 
-            # If title filter is provided, try to find a match
+            # If title filter is provided, try to find the best match
             if title_filter:
-                # Normalize titles
                 t_norm = title_filter.lower().strip()
+                best_match = None
+                best_score = 0
+                
                 for s in planned_sessions:
                     s_name = s.get("name", "").lower().strip()
-                    # Simple inclusion check or fuzzy logic
+                    # Calculate a simple similarity score
+                    score = 0
                     if t_norm in s_name or s_name in t_norm:
-                        return s
+                        score = 50 # Base match
+                    if t_norm == s_name:
+                        score = 100 # Perfect match
+                    
+                    # Bonus if it's on the exact same day
+                    if s.get("date_start") == date_obj.strftime("%Y-%m-%d"):
+                        score += 20
+                        
+                    if score > best_score:
+                        best_score = score
+                        best_match = s
+                
+                if best_score >= 50:
+                    return best_match
             
-            # If no title match, maybe pick the one on the same day?
-            for s in planned_sessions:
-                if s.get("date_start") == date_obj.strftime("%Y-%m-%d"):
-                    return s
+            # If no title match, pick the one on the exact day if unique
+            same_day_plans = [s for s in planned_sessions if s.get("date_start") == date_obj.strftime("%Y-%m-%d")]
+            if len(same_day_plans) == 1:
+                return same_day_plans[0]
 
             return None
 

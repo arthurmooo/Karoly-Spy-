@@ -45,6 +45,7 @@ class ActivityWriter:
             "nolio_id": nolio_id,
             "session_date": meta.start_time.isoformat(),
             "sport_type": meta.activity_type,
+            "source_sport": meta.source_sport,
             "rpe": int(meta.rpe) if meta.rpe is not None else None,
             "missing_rpe_flag": meta.rpe is None,
             "work_type": meta.work_type,
