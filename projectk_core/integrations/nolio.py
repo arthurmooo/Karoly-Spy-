@@ -79,6 +79,60 @@ class NolioClient:
         response.raise_for_status()
         return response.json()
 
+    def get_athlete_health_metrics(self, athlete_id: int, days: int = 7) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetches daily health metrics (RMSSD, HRrest, Sleep) for an athlete.
+        Returns a dict indexed by date: { "YYYY-MM-DD": { "rmssd": float, ... } }
+        """
+        url = f"{self.BASE_URL}/get/user/meta/"
+        # We use a larger limit to ensure we get enough history for the requested days
+        params = {
+            "athlete_id": athlete_id,
+            "limit": max(days * 2, 30) 
+        }
+        
+        response = requests.get(url, headers=self._get_headers(), params=params)
+        response.raise_for_status()
+        raw_data = response.json()
+        
+        # Mapping between Nolio keys and our internal names
+        # sleep is in seconds, resting_hr is 'hrrest'
+        mapping = {
+            "rmssd": "rmssd",
+            "hrrest": "resting_hr",
+            "sleep": "sleep_duration",
+            "sleep_score": "sleep_score"
+        }
+        
+        # Structure the results by date
+        daily_data = {}
+        
+        for nolio_key, internal_key in mapping.items():
+            if nolio_key in raw_data:
+                metrics_list = raw_data[nolio_key].get("data", [])
+                for entry in metrics_list:
+                    d = entry.get("date")
+                    val = entry.get("value")
+                    
+                    if not d or val is None:
+                        continue
+                        
+                    if d not in daily_data:
+                        daily_data[d] = {
+                            "rmssd": None,
+                            "resting_hr": None,
+                            "sleep_duration": None,
+                            "sleep_score": None
+                        }
+                    
+                    # Special handling for sleep (seconds to hours)
+                    if nolio_key == "sleep":
+                        val = round(val / 3600.0, 2)
+                        
+                    daily_data[d][internal_key] = val
+                    
+        return daily_data
+
     def get_activity_structure(self, activity_id: int) -> Optional[Dict[str, Any]]:
         """
         Fetches the detailed structure (planned workout) of an activity.
