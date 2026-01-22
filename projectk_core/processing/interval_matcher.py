@@ -505,10 +505,27 @@ class IntervalMatcher:
             start_idx = best_segment['start']
             end_idx = best_segment['end']
             
-            # Handle too long segments (if grouped by detector)
-            if best_segment['duration'] > duration_s * 1.5:
+            # 1. Handle too long segments (if grouped by detector)
+            if best_segment['duration'] > duration_s * 1.2:
                  # Trim to expected duration centered around max intensity
                  start_idx, end_idx = self._find_best_window(signal, start_idx, end_idx, duration_s)
+            
+            # 2. Handle too short segments (Target Duration Alignment)
+            # If the segment is shorter than target, try to expand it symmetrically
+            # to match the planned duration, which is often what manual laps do.
+            elif best_segment['duration'] < duration_s:
+                diff = duration_s - best_segment['duration']
+                # Expand by half the difference on each side
+                new_start = max(0, start_idx - diff // 2)
+                new_end = min(len(signal), end_idx + (diff - diff // 2))
+                
+                # Check if expansion is reasonable (not falling into a complete stop)
+                # We calculate the mean of the expanded part
+                if new_start < start_idx or new_end > end_idx:
+                    expanded_mean = np.mean(signal[new_start:new_end])
+                    # If expanded mean is still > 85% of original segment mean, we keep it
+                    if expanded_mean > 0.85 * best_segment['mean']:
+                        start_idx, end_idx = new_start, new_end
 
             plateau_metrics = self._calculate_plateau_metrics(
                 df, signal_col, start_idx, end_idx, duration_s
