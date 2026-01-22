@@ -7,7 +7,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Nolio Ingestion Extension
-- [ ] Task: Update `NolioClient` in `projectk_core/integrations/nolio.py` to fetch daily health metadata.
+- [x] Task: Update `NolioClient` in `projectk_core/integrations/nolio.py` to fetch daily health metadata. d7075ec
     - [ ] Implement `get_athlete_health_metrics(athlete_id, days)`.
 - [ ] Task: Enhance `IngestionRobot` in `scripts/run_ingest.py` to include a health sync step.
     - [ ] Add logic to specifically trigger health sync during the afternoon run.
