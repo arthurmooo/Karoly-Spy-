@@ -83,7 +83,9 @@ class IntervalMatcher:
     
     def __init__(self, config: Optional[MatchConfig] = None):
         self.config = config or MatchConfig()
-        self.detector = StepDetector(window_size=20, threshold_factor=1.5)
+        # Increased sensitivity: lower threshold_factor (1.5 -> 1.0)
+        # Reduced window size (20 -> 15) to catch shorter transitions
+        self.detector = StepDetector(window_size=15, threshold_factor=1.0)
     
     def match(
         self, 
@@ -183,10 +185,13 @@ class IntervalMatcher:
                 )
                 detected_intervals.append(result)
                 
+                # Advance pointer based on result
                 if result['status'] == MatchStatus.MATCHED.value:
                     current_ptr = result['end_index'] + 5
                 else:
-                    current_ptr = min(current_ptr + duration_s // 2, len(signal) - 1)
+                    # Smart Skip: Move forward by duration + typical recovery (e.g. 60s)
+                    # to align the window for the next target
+                    current_ptr += duration_s + 30
         
         return detected_intervals
     
@@ -460,8 +465,12 @@ class IntervalMatcher:
             # Score this segment
             # 1. Duration score (how close to expected duration)
             dur_ratio = seg['duration'] / duration_s
-            if 0.5 <= dur_ratio <= 2.0:
+            # Allow shorter segments (down to 70% duration) because detector cuts transitions aggressively
+            if 0.7 <= dur_ratio <= 1.5:
                 dur_score = 1 - abs(1 - dur_ratio)
+            elif 0.5 <= dur_ratio < 0.7:
+                # Partial credit for short segments (e.g. 60s for 120s target)
+                dur_score = 0.5
             else:
                 dur_score = 0
                 
