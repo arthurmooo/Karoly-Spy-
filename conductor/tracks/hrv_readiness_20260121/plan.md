@@ -11,12 +11,10 @@
 - [x] Task: Enhance `IngestionRobot` in `scripts/run_ingest.py` to include a health sync step. 850f0be
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
-## Phase 3: Readiness Logic & Baselines
+## Phase 3: Readiness Logic & Baselines [checkpoint: 79d75b5]
 - [x] Task: Implement `ReadinessCalculator` in `projectk_core/processing/readiness.py`. c3c7ffc
-    - [ ] Logic: Fetch last 30 entries for an athlete and compute means.
-    - [ ] Handle missing days gracefully (interpolation or gap).
 - [x] Task: Write unit tests for baseline calculations with mock data. 6313243
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Validation
 - [ ] Task: Wire the calculator into the ingestion robot's post-sync process.
