@@ -16,7 +16,7 @@
 - [x] Task: Write unit tests for baseline calculations with mock data. 6313243
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
 
-## Phase 4: Integration & Validation
+## Phase 4: Integration & Validation [checkpoint: 556524a]
 - [x] Task: Wire the calculator into the ingestion robot's post-sync process. 94a0b3e
 - [x] Task: Run a real-world test for an athlete known to have HRV data (e.g., Estelle-Marie Kieffer). 10b0bb1
 - [x] Task: Conductor - User Manual Verification 'Phase 4' (Protocol in workflow.md)
