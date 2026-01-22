@@ -3,7 +3,7 @@
 ## Phase 1: Database & Model Preparation
 - [x] Task: Create a DB migration to establish the `daily_readiness` table. d39b117
     - [ ] Columns: `athlete_id`, `date` (primary key composite), `rmssd`, `resting_hr`, `sleep_duration`, `sleep_score`, `rmssd_30d_avg`, `resting_hr_30d_avg`.
-- [ ] Task: Create a Pydantic model `DailyReadiness` in `projectk_core/logic/models.py`.
+- [x] Task: Create a Pydantic model `DailyReadiness` in `projectk_core/logic/models.py`. b0f97da
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Nolio Ingestion Extension
