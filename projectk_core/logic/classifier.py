@@ -60,8 +60,16 @@ class ActivityClassifier:
             mean_val = signal.mean()
             if mean_val > 0:
                 cv = signal.std() / mean_val
-                # Threshold: > 20% variability usually indicates intervals/specific work
-                if cv > 0.20:
+                
+                # If we have keywords, we already returned 'intervals'.
+                # Here we are in the 'blind' detection.
+                # Threshold: > 30% variability (increased from 20%)
+                # And we are more conservative if it's a 'nature' sport.
+                threshold = 0.30
+                if any(k in combined_text for k in ["ski", "trail", "rando"]):
+                    threshold = 0.45 # Very high threshold for mountain sports
+                
+                if cv > threshold:
                     return "intervals"
         
         return "endurance"
