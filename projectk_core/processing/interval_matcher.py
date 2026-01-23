@@ -340,7 +340,12 @@ class IntervalMatcher:
         
         target_duration = float(target_duration)
         duration_ratio = lap['duration'] / target_duration if target_duration > 0 else 0
-        if 1 - cfg.lap_duration_tolerance <= duration_ratio <= 1 + cfg.lap_duration_tolerance:
+        
+        # Duration Score with 10s absolute tolerance or Config tolerance
+        abs_diff = abs(lap['duration'] - target_duration)
+        if abs_diff <= 10:
+            duration_score = 1.0
+        elif 1 - cfg.lap_duration_tolerance <= duration_ratio <= 1 + cfg.lap_duration_tolerance:
             duration_score = 1 - abs(1 - duration_ratio) / cfg.lap_duration_tolerance
         else:
             duration_score = 0

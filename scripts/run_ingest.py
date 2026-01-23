@@ -255,7 +255,7 @@ class IngestionRobot:
         # 3. Fetch Athletes from DB who have a nolio_id
         query = self.db.client.table("athletes").select("id, first_name, last_name, nolio_id").eq("is_active", True).not_.is_("nolio_id", "null")
         if specific_athlete_name:
-            query = query.ilike("first_name", f"%{specific_athlete_name}%")
+            query = query.or_(f"first_name.ilike.%{specific_athlete_name}%,last_name.ilike.%{specific_athlete_name}%")
         
         res = query.execute()
         athletes = res.data
@@ -414,7 +414,8 @@ class IngestionRobot:
             "Bike": ["Vélo", "Cyclisme", "VTT", "Cycling", "Biking", "Road cycling", "Virtual ride", "Mountain cycling", "Gravel"],
             "Swim": ["Natation", "Swimming", "Nage"],
             "Strength": ["Renforcement musculaire", "Musculation", "PPG", "Strength", "Marche", "Gainage"],
-            "Run": ["Course à pied", "Running", "Trail", "Jogging", "Ski de randonnée", "Ski de fond", "Randonnée", "Rando"]
+            "Ski": ["Ski de randonnée", "Ski de fond"],
+            "Run": ["Course à pied", "Running", "Trail", "Jogging", "Randonnée", "Rando"]
         }
         
         internal_sport = "Other"

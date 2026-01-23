@@ -10,36 +10,46 @@ class ActivityClassifier:
     
     COMPETITION_KEYWORDS = [
         r"marathon", r"semi", r"\b10k\b", r"race", r"compétition", 
-        r"\b90\b", r"\b180\b", r"ironman", r"triathlon", r"championnat"
+        r"ironman", r"triathlon", r"championnat"
     ]
     
     INTERVAL_KEYWORDS = [
-        r"\d+\s*[*x]", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint", r"tempo", r"pma", r"vameval"
+        r"\d+\s*[*x]\s*\d+", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint",
+        r"\d+%\b", r"à\s*\d+\s*%", r"\d+\s*[*x]\s*\(", r"\b30[-/]30\b", r"test\s+\d+",
+        r"\d+'/\d+''", r"\d+''/\d+''", r"piste"
     ]
 
     def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
         """
         Classifies activity as 'endurance', 'intervals', or 'competition'.
         """
-        # 1. Check for competition first
-        if self.is_competition(title, nolio_type, is_competition_nolio):
+        # 1. LIT Priority (Low Intensity Training is always endurance, overrides everything)
+        combined_text = title.lower()
+        if re.search(r"\blit\b", combined_text):
+            return "endurance"
+
+        # 2. Explicit Competition (Nolio Flag or Type)
+        if is_competition_nolio or (nolio_type and nolio_type.lower() in ["compétition", "race", "competition"]):
             return "competition"
 
-        # 2. Strategy A: Plan-Driven (Target Grid)
+        # 3. Intervals (Strategy A: Plan-Driven)
         if target_grid and len(target_grid) > 0:
             return "intervals"
 
-        # 3. Strategy B: Blind Fallback
-        
-        # 3.1 Title Keywords
+        # 3. Intervals (Strategy B: Keywords)
         combined_text = title.lower()
         for kw in self.INTERVAL_KEYWORDS:
             if re.search(kw, combined_text):
                 return "intervals"
 
-        # 3.2 Signal Variability
+        # 4. Competition (Strategy C: Keywords in Title)
+        for kw in self.COMPETITION_KEYWORDS:
+            if re.search(kw, combined_text):
+                return "competition"
+
+        # 5. Signal Variability
         signal = None
-        if not df.empty:
+        if df is not None and not df.empty:
             if 'power' in df.columns and df['power'].mean() > 0:
                 signal = df['power']
             elif 'speed' in df.columns and df['speed'].mean() > 0:
@@ -60,13 +70,18 @@ class ActivityClassifier:
         """
         Detects if an activity is a competition based on Nolio flag, type or keywords in title.
         """
+        combined_text = title.lower()
+        
+        # 1. LIT Priority (Always endurance)
+        if re.search(r"\blit\b", combined_text):
+            return False
+
         if is_competition_nolio:
             return True
 
         if nolio_type and nolio_type.lower() in ["compétition", "race", "competition"]:
             return True
-            
-        combined_text = title.lower()
+
         for kw in self.COMPETITION_KEYWORDS:
             if re.search(kw, combined_text):
                 return True

@@ -40,3 +40,19 @@ def test_determine_segmentation_strategy():
     # Case 3: Training auto
     strategy = classifier.get_strategy("Footing", "Entraînement", "")
     assert strategy == "auto_training"
+
+def test_lit_priority():
+    classifier = ActivityClassifier()
+    # Even if it contains 'Marathon' which is a competition keyword
+    assert classifier.detect_work_type(None, "LIT Marathon", "") == "endurance"
+    assert classifier.is_competition("LIT Marathon", "") == False
+    
+    # LIT must override explicit competition flag
+    assert classifier.detect_work_type(None, "LIT Race", "Compétition", is_competition_nolio=True) == "endurance"
+    assert classifier.is_competition("LIT Race", "Compétition", is_competition_nolio=True) == False
+    
+    # Check case insensitivity
+    assert classifier.detect_work_type(None, "lit session", "") == "endurance"
+    
+    # Check that it doesn't match 'lithium' (though unlikely, it's a test of \b)
+    assert classifier.is_competition("Lithium race", "") == True # 'race' matches
