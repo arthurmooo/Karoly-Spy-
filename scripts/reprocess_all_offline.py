@@ -24,7 +24,8 @@ def reprocess_all_offline():
         "Bike": ["Vélo", "Cyclisme", "VTT", "Cycling", "Biking", "Road cycling", "Virtual ride", "Mountain cycling", "Gravel"],
         "Swim": ["Natation", "Swimming", "Nage"],
         "Strength": ["Renforcement musculaire", "Musculation", "PPG", "Strength", "Marche", "Gainage"],
-        "Run": ["Course à pied", "Running", "Trail", "Jogging", "Ski de randonnée", "Ski de fond", "Randonnée", "Rando"]
+        "Ski": ["Ski de randonnée", "Ski de fond"],
+        "Run": ["Course à pied", "Running", "Trail", "Jogging", "Randonnée", "Rando"]
     }
     
     updates = 0
@@ -48,7 +49,11 @@ def reprocess_all_offline():
         # B. Re-classify Work Type (Endurance / Intervals / Competition)
         # We simulate the detect_work_type but without the signal (df empty)
         # which will rely on title keywords.
-        new_work = classifier.detect_work_type(pd.DataFrame(), activity_name, source_sport)
+        new_work = classifier.detect_work_type(
+            pd.DataFrame(), 
+            activity_name, 
+            source_sport
+        )
         
         # C. Update if changed
         if new_sport != current_sport or new_work != current_work:

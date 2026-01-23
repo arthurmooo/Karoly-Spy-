@@ -74,7 +74,12 @@ class ActivityWriter:
             "interval_respect_score": metrics_dict.get("interval_respect_score"),
             
             # Smart Segmentation (New JSONB column)
-            "segmented_metrics": metrics_dict.get("segmented_metrics"),
+            # Inject new interval efficiency metrics here to avoid DB migration
+            "segmented_metrics": {
+                **(metrics_dict.get("segmented_metrics").model_dump() if hasattr(metrics_dict.get("segmented_metrics"), "model_dump") else (metrics_dict.get("segmented_metrics") or {})),
+                "interval_pahr_mean": metrics_dict.get("interval_pahr_mean"),
+                "interval_pahr_last": metrics_dict.get("interval_pahr_last")
+            },
             
             # Averages
             "avg_power": avg_power,

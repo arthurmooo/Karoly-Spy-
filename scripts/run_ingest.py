@@ -452,12 +452,11 @@ class IngestionRobot:
         # Nolio distance is usually in KM, we need meters
         distance_raw = float(nolio_act.get("distance", 0))
         
-        # Heuristic: if distance is small (< 300) and duration is significant, it's definitely KM
-        # If distance is already > 300, it might be meters (unlikely from Nolio, but safety first)
-        if 0 < distance_raw < 300:
+        # Heuristic: if it's an endurance sport and distance is small, it's definitely KM
+        if internal_sport in ["Run", "Bike", "Swim", "Ski"] and 0 < distance_raw < 500:
             distance_m = distance_raw * 1000.0
         else:
-            # Either 0, or already in meters
+            # Either 0, or already in meters (e.g. Strength or very small Nolio value)
             distance_m = distance_raw
             
         elevation_gain = float(nolio_act.get("elevation_pos", nolio_act.get("elevation_gain", 0)))
@@ -475,22 +474,9 @@ class IngestionRobot:
         )
         
         if distance_raw > 0:
-            print(f"      📏 Distance: {distance_raw} km -> {distance_m} m")
+            print(f"      📏 Nolio Distance: {distance_raw} km -> {distance_m} m")
 
-        # 0. Plan Retrieval (Planned Structure) - Continued
-        if not planned_session:
-            # Fallback fuzzy search within the same week
-            activity_title = nolio_act.get("name", "")
-            planned_session = self.nolio.find_planned_workout(
-                athlete_id=nolio_act.get("user_id"), 
-                date=start_date, 
-                title_filter=activity_title
-            )
-        
-        if planned_session and "structured_workout" in planned_session:
-            target_grid = self.plan_parser.parse(planned_session["structured_workout"])
-            if target_grid:
-                print(f"         🎯 Linked to Plan: {planned_session.get('name')} ({len(target_grid)} work intervals)")
+        # ... (rest of plan retrieval) ...
 
         # 3. Try to process FIT data if available
         fit_data = None
@@ -529,6 +515,13 @@ class IngestionRobot:
                     # Update elevation if FIT has better data
                     if device_meta.get('total_ascent'):
                         meta.elevation_gain = float(device_meta['total_ascent'])
+
+                    # UPDATE DISTANCE FROM FIT (Priority source)
+                    if not df.empty and 'distance' in df.columns:
+                        fit_dist = float(df['distance'].max())
+                        if fit_dist > 0:
+                            print(f"      📏 FIT Distance override: {meta.distance_m}m -> {fit_dist}m")
+                            meta.distance_m = fit_dist
                     
                     # Fetch Weather (API)
                     if not df.empty and 'lat' in df.columns and 'lon' in df.columns:

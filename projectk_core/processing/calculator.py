@@ -146,25 +146,42 @@ class MetricsCalculator:
         dur_index = 1.0
         drift_pahr_pct = 0.0
         
+        # Minimum duration to calculate meaningful drift
         if total_seconds > 60:
-            # Split Halves by TIME (Strictly on active data)
-            mid_idx = int(total_seconds // 2)
+            # Karoly's Logic Update (2026-01-23):
+            # If session > 20min, exclude first 10min (warmup) to avoid artifacts
+            start_idx = 0
+            if total_seconds > 1200: # 20 minutes
+                start_idx = 600 # Skip first 600s
             
-            first_half = active_df.iloc[:mid_idx]
-            second_half = active_df.iloc[mid_idx:]
+            analysis_df = active_df.iloc[start_idx:]
+            analysis_len = len(analysis_df)
             
-            has_speed = 'speed' in active_df.columns
-            p1 = first_half['power'].fillna(0).mean() if has_ref_power else (first_half['speed'].fillna(0).mean() if has_speed else 0.0)
-            p2 = second_half['power'].fillna(0).mean() if has_ref_power else (second_half['speed'].fillna(0).mean() if has_speed else 0.0)
-            
-            h1 = hr_smooth.iloc[:mid_idx].mean()
-            h2 = hr_smooth.iloc[mid_idx:].mean()
-            
-            pahr_1 = p1 / h1 if h1 > 0 else np.nan
-            pahr_2 = p2 / h2 if h2 > 0 else np.nan
-            
-            if not (np.isnan(pahr_1) or np.isnan(pahr_2) or pahr_1 == 0):
-                drift_pahr_pct = (pahr_2 / pahr_1 - 1) * 100
+            if analysis_len > 60:
+                mid_idx = int(analysis_len // 2)
+                
+                first_half = analysis_df.iloc[:mid_idx]
+                second_half = analysis_df.iloc[mid_idx:]
+                
+                # Determine source for decoupling (Power or Speed) based on profile reliability
+                has_speed = 'speed' in active_df.columns
+                
+                # If we have reliable power (CP > 100), use Power. Otherwise Speed.
+                # This filters out unreliable wrist power if the coach hasn't set a Watt-based CP.
+                # KAROLY UPDATE: Run = Vitesse (Always use Speed for Run)
+                use_power_drift = has_ref_power and sport != 'run'
+                
+                val1 = first_half['power'].fillna(0).mean() if use_power_drift else (first_half['speed'].fillna(0).mean() if has_speed else 0.0)
+                val2 = second_half['power'].fillna(0).mean() if use_power_drift else (second_half['speed'].fillna(0).mean() if has_speed else 0.0)
+                
+                h1 = hr_smooth.iloc[start_idx:start_idx+mid_idx].mean()
+                h2 = hr_smooth.iloc[start_idx+mid_idx:].mean()
+                
+                ratio_1 = val1 / h1 if h1 > 0 else np.nan
+                ratio_2 = val2 / h2 if h2 > 0 else np.nan
+                
+                if not (np.isnan(ratio_1) or np.isnan(ratio_2) or ratio_1 == 0):
+                    drift_pahr_pct = (ratio_2 / ratio_1 - 1) * 100
                 
             drift_abs = abs(drift_pahr_pct)
             drift_threshold = self.config.get('drift_threshold_percent', 3.0)
@@ -210,6 +227,15 @@ class MetricsCalculator:
         last_interval_hr = 0.0
         last_interval_pace = None
         global_respect_score = None
+        
+        # New Pa:HR (or Speed:HR) metrics
+        interval_pahr_mean = None
+        interval_pahr_last = None
+        
+        # Determine which signal to use for efficiency ratio (Power or Speed)
+        # KAROLY UPDATE: Run = Vitesse (Always use Speed for Run)
+        # Bike = Power
+        eff_signal_col = 'power' if sport == 'bike' else 'speed'
 
         if meta.work_type == "intervals" and target_grid:
             # SURGICAL MODE
@@ -219,6 +245,18 @@ class MetricsCalculator:
                 valid_s = [d['avg_speed'] for d in detections if d['avg_speed'] is not None]
                 valid_h = [d['avg_hr'] for d in detections if d['avg_hr'] is not None]
                 valid_r = [d['respect_score'] for d in detections if d['respect_score'] is not None]
+                
+                # Efficiency Calculation (Surgical)
+                efficiencies = []
+                for d in detections:
+                    val = d.get(f'avg_{eff_signal_col}')
+                    hr = d.get('avg_hr')
+                    if val and hr and hr > 0:
+                        efficiencies.append(val / hr)
+                
+                if efficiencies:
+                    interval_pahr_mean = sum(efficiencies) / len(efficiencies)
+                    interval_pahr_last = efficiencies[-1]
                 
                 if valid_p:
                     avg_intervals_power = sum(valid_p) / len(valid_p)
@@ -249,22 +287,80 @@ class MetricsCalculator:
                     'effective_duration': recalc['effective_duration']
                 })
 
-            total_lap_time = sum(l.get('effective_duration', 0) for l in clean_laps)
+            # SMART FALLBACK: Filter out Warmup/Cooldown and Recovery
+            # Rule: Keep only laps that have > 100% of global avg intensity
+            # (effectively keeps only the 'work' parts of an interval session)
+            # AND exclude the very first and very last if they look like WU/CD (> 5 min)
+            if clean_laps:
+                global_avg = df[eff_signal_col].mean() if eff_signal_col in df.columns else 0
+                filtered_laps = []
+                for i, l in enumerate(clean_laps):
+                    is_first_last = (i == 0 or i == len(clean_laps) - 1)
+                    dur = l.get('effective_duration', 0)
+                    val = l.get('avg_power') if eff_signal_col == 'power' else l.get('avg_speed')
+                    
+                    # Heuristic for Work Lap
+                    is_work = True
+                    if is_first_last and dur > 300: # Exclude if > 5 min at start/end
+                         is_work = False
+                    
+                    # If it's a running session, we look at speed. 
+                    # If it's bike, we look at power.
+                    # We must be ABOVE average to be a work interval.
+                    if val and global_avg > 0 and val <= global_avg: 
+                         is_work = False
+                    
+                    if is_work:
+                        filtered_laps.append(l)
+                
+                # If we filtered everything, keep everything to avoid 0
+                work_laps = filtered_laps if filtered_laps else clean_laps
+            else:
+                work_laps = []
+
+            total_lap_time = sum(l.get('effective_duration', 0) for l in work_laps)
             
             if total_lap_time > 0:
-                valid_p_laps = [l for l in clean_laps if l.get('avg_power') is not None]
-                valid_hr_laps = [l for l in clean_laps if l.get('avg_heart_rate') is not None]
+                valid_p_laps = [l for l in work_laps if l.get('avg_power') is not None]
+                valid_hr_laps = [l for l in work_laps if l.get('avg_heart_rate') is not None]
+                valid_s_laps = [l for l in work_laps if l.get('avg_speed') is not None]
                 
                 p_time = sum(l.get('effective_duration', 0) for l in valid_p_laps)
                 hr_time = sum(l.get('effective_duration', 0) for l in valid_hr_laps)
+                s_time = sum(l.get('effective_duration', 0) for l in valid_s_laps)
                 
                 avg_intervals_power = sum(l.get('avg_power', 0) * l.get('effective_duration', 0) for l in valid_p_laps) / p_time if p_time > 0 else 0.0
                 avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('effective_duration', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else 0.0
                 
-                if clean_laps:
-                    last_lap = clean_laps[-1]
+                if s_time > 0:
+                    avg_speed = sum(l.get('avg_speed', 0) * l.get('effective_duration', 0) for l in valid_s_laps) / s_time
+                    def s_to_p(s): return 1000.0 / s / 60.0 if s > 0 else 0
+                    avg_intervals_pace = s_to_p(avg_speed)
+                
+                # Efficiency Calculation (Lap-based)
+                efficiencies = []
+                for l in work_laps:
+                    # Get relevant signal average
+                    # Note: Lap objects usually have 'avg_speed' in m/s
+                    val = l.get('avg_power') if eff_signal_col == 'power' else l.get('avg_speed')
+                    hr = l.get('avg_heart_rate')
+                    
+                    if val is not None and hr is not None and hr > 0:
+                        efficiencies.append(val / hr)
+                
+                if efficiencies:
+                    interval_pahr_mean = sum(efficiencies) / len(efficiencies)
+                    interval_pahr_last = efficiencies[-1]
+                
+                if work_laps:
+                    # Use the last WORK lap, not the very last lap of the file
+                    last_lap = work_laps[-1]
                     last_interval_power = last_lap.get('avg_power', 0) or 0
                     last_interval_hr = last_lap.get('avg_heart_rate', 0) or 0
+                    last_speed = last_lap.get('avg_speed', 0) or 0
+                    if last_speed > 0:
+                        def s_to_p(s): return 1000.0 / s / 60.0 if s > 0 else 0
+                        last_interval_pace = s_to_p(last_speed)
 
         # 11. Smart Segmentation (Karoly's Request)
         # Determine strategy - Use activity name (title) for keyword detection
@@ -297,6 +393,8 @@ class MetricsCalculator:
             "interval_pace_last": round(float(last_interval_pace), 2) if last_interval_pace else None,
             "interval_pace_mean": round(float(avg_intervals_pace), 2) if avg_intervals_pace else None,
             "interval_respect_score": round(float(global_respect_score), 1) if global_respect_score else None,
+            "interval_pahr_mean": round(float(interval_pahr_mean), 3) if interval_pahr_mean else None,
+            "interval_pahr_last": round(float(interval_pahr_last), 3) if interval_pahr_last else None,
             "energy_kj": round(energy_kj, 1) if energy_kj is not None else None,
             "intensity_factor": round(if_mean, 3),
             "mec": round(mec, 1) if mec is not None else None,

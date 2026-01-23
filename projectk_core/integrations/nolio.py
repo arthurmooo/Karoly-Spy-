@@ -314,3 +314,23 @@ class NolioClient:
         except Exception as e:
             print(f"⚠️ Failed to update Nolio comment for activity {activity_id}: {e}")
             return False
+
+    def get_notes(self, athlete_id: int, date_from: str, date_to: str) -> List[Dict[str, Any]]:
+        """
+        Fetches notes for a specific athlete within a date range.
+        Used for retrieving physiological profiles stored as notes.
+        """
+        url = f"{self.BASE_URL}/get/note/"
+        params = {
+            "athlete_id": athlete_id,
+            "from": date_from,
+            "to": date_to
+        }
+        
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"⚠️ Failed to fetch notes for athlete {athlete_id}: {e}")
+            return []
