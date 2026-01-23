@@ -16,33 +16,33 @@ class ActivityClassifier:
     INTERVAL_KEYWORDS = [
         r"\d+\s*[*x]\s*\d+", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint",
         r"\d+%\b", r"à\s*\d+\s*%", r"\d+\s*[*x]\s*\(", r"\b30[-/]30\b", r"test\s+\d+",
-        r"\d+'/\d+''", r"\d+''/\d+''", r"piste"
+        r"\d+'/\d+''", r"\d+''/\d+''", r"piste", r"\bhit\b"
     ]
 
     def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
         """
         Classifies activity as 'endurance', 'intervals', or 'competition'.
         """
-        # 1. LIT Priority (Low Intensity Training is always endurance, overrides everything)
         combined_text = title.lower()
-        if re.search(r"\blit\b", combined_text):
-            return "endurance"
 
-        # 2. Explicit Competition (Nolio Flag or Type)
+        # 1. Explicit Competition (Nolio Flag or Type)
         if is_competition_nolio or (nolio_type and nolio_type.lower() in ["compétition", "race", "competition"]):
             return "competition"
 
-        # 3. Intervals (Strategy A: Plan-Driven)
+        # 2. Intervals (Strategy A: Plan-Driven)
         if target_grid and len(target_grid) > 0:
             return "intervals"
 
         # 3. Intervals (Strategy B: Keywords)
-        combined_text = title.lower()
         for kw in self.INTERVAL_KEYWORDS:
             if re.search(kw, combined_text):
                 return "intervals"
 
-        # 4. Competition (Strategy C: Keywords in Title)
+        # 4. LIT Priority (Low Intensity Training is endurance if no intervals detected)
+        if re.search(r"\blit\b", combined_text):
+            return "endurance"
+
+        # 5. Competition (Strategy C: Keywords in Title)
         for kw in self.COMPETITION_KEYWORDS:
             if re.search(kw, combined_text):
                 return "competition"
@@ -72,15 +72,15 @@ class ActivityClassifier:
         """
         combined_text = title.lower()
         
-        # 1. LIT Priority (Always endurance)
-        if re.search(r"\blit\b", combined_text):
-            return False
-
         if is_competition_nolio:
             return True
 
         if nolio_type and nolio_type.lower() in ["compétition", "race", "competition"]:
             return True
+
+        # Check for LIT (if LIT is present and it's not an explicit competition, it's not a competition)
+        if re.search(r"\blit\b", combined_text):
+            return False
 
         for kw in self.COMPETITION_KEYWORDS:
             if re.search(kw, combined_text):
