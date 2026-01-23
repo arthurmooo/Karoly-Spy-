@@ -80,5 +80,4 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [x] **Track: MLS Sport Restriction**
-*Link: [./tracks/mls_sport_restriction_20260123/](./tracks/mls_sport_restriction_20260123/)*
+# 🧠 PHASE 2 : Analyse & Reporting (LOCKED)
