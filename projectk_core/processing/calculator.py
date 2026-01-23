@@ -44,7 +44,7 @@ class MetricsCalculator:
         self.segmenter = SegmentCalculator()
         self.matcher = IntervalMatcher()
 
-    def compute(self, activity: Activity, profile: PhysioProfile, nolio_type: Optional[str] = None, nolio_comment: Optional[str] = None, target_grid: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def compute(self, activity: Activity, profile: Optional[PhysioProfile] = None, nolio_type: Optional[str] = None, nolio_comment: Optional[str] = None, target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> Dict[str, Any]:
         """
         Computes all metrics for a given activity and athlete profile.
         Includes smart segmentation based on activity classification.
@@ -57,94 +57,106 @@ class MetricsCalculator:
         sport = self._get_sport_category(meta.activity_type)
         
         # 1. Basic Pre-calc
-        # Duration: Karoly counts active time (rows with HR and valid dt)
-        # Assuming 1Hz resampling, active seconds = count of rows with HR
-        if 'heart_rate' in df.columns:
-            hr_series = df['heart_rate'].dropna()
-            active_seconds = len(hr_series)
-        else:
-            hr_series = pd.Series()
-            active_seconds = len(df) # Fallback to total rows if no HR
-            
-        total_seconds = active_seconds # Alias for clarity with notebook 'total_time_s'
+        # Karoly counts strictly active time (rows with valid dt > 0)
+        # We must ignore the resampled gaps for duration-based metrics
+        active_df = df[df['heart_rate'].notna()].copy()
+        total_seconds = float(len(active_df))
         
-        if total_seconds == 0 and len(df) == 0:
+        if total_seconds == 0:
             return {}
 
         # 2. Intensity & Power Logic
-        # Determine if we use Power (Bike/Stryd) or Speed (Run fallback)
-        has_power = 'power' in df.columns and df['power'].mean() > 10
-        sport = self._get_sport_category(meta.activity_type)
+        # Magnitude-based source selection (Karoly's Rule):
+        # If CP > 100 -> Assume Watts (Bike or Stryd Run)
+        # If CP < 20  -> Assume m/s (Run Speed)
         
-        if has_power and profile.cp:
-            intensity_series = df['power'] / profile.cp
-            mech_source = df['power']
-            mech_ref = profile.cp
-        elif sport == "run" and 'speed' in df.columns and profile.cp:
-            # CS (Critical Speed) is stored in cp for runners
-            intensity_series = df['speed'] / profile.cp
-            mech_source = df['speed']
-            mech_ref = profile.cp
+        cp_value = profile.cp if profile and profile.cp else 0.0
+        use_power_as_ref = cp_value > 100.0
+        
+        # Check if power stream is actually available and valid
+        has_power_stream = 'power' in df.columns and df['power'].dropna().mean() > 10
+        
+        if use_power_as_ref and has_power_stream:
+            # High CP + Power available -> Use Power
+            intensity_series = active_df['power'] / cp_value
+            mech_source = active_df['power']
+            mech_ref = cp_value
+            has_ref_power = True
+        elif sport == "run" and 'speed' in df.columns and cp_value > 0:
+            # Default for Run or low CP -> Use Speed
+            intensity_series = active_df['speed'] / cp_value
+            mech_source = active_df['speed']
+            mech_ref = cp_value
+            has_ref_power = False
         else:
-             intensity_series = pd.Series(np.zeros(len(df)))
-             mech_source = pd.Series(np.zeros(len(df)))
+             # Fallback
+             intensity_series = pd.Series(np.zeros(len(active_df)))
+             mech_source = pd.Series(np.zeros(len(active_df)))
              mech_ref = 1.0
+             has_ref_power = False
 
         # 3. Energy (kJ) or Mechanical Base
-        # Karoly: Bike uses kJ, Run uses Distance/Ascent/Weight based Energy
         energy_kj = None
-        mec_base = 0.0
+        mec_base = None
         
         if sport == "bike" and 'power' in df.columns:
-            energy_kj = df['power'].fillna(0).sum() * 1.0 / 1000.0
+            # Bike ALWAYS uses mechanical kJ from power if available
+            energy_kj = active_df['power'].fillna(0).sum() / 1000.0
             mec_base = energy_kj
         elif sport == "run":
-            # Updated Formula (WhatsApp 2026-01-20):
-            # Energy (kcal) = Weight (kg) * [Distance (km) + (D+ / 100)]
-            # Energy (kJ) = Energy (kcal) * 4.184
-            weight = profile.weight if profile.weight else 70.0 # Default fallback
-            dist_km = meta.distance_m / 1000.0 if meta.distance_m else 0.0
-            ascent_m = meta.elevation_gain if meta.elevation_gain else 0.0
-            
-            kcal = weight * (dist_km + (ascent_m / 100.0))
-            energy_kj = kcal * 4.184
-            mec_base = energy_kj
-            print(f"DEBUG RUN MEC: Weight={weight}, Dist={dist_km}km, Ascent={ascent_m}m -> kcal={kcal}, kJ={energy_kj}")
+            if has_ref_power:
+                # Stryd users: use kJ from power
+                energy_kj = active_df['power'].fillna(0).sum() / 1000.0
+                mec_base = energy_kj
+            else:
+                # Standard runners: use weight/distance formula (WhatsApp 2026-01-20)
+                weight = profile.weight if profile and profile.weight else 70.0
+                dist_km = meta.distance_m / 1000.0 if meta.distance_m else 0.0
+                ascent_m = meta.elevation_gain if meta.elevation_gain else 0.0
+                kcal = weight * (dist_km + (ascent_m / 100.0))
+                energy_kj = kcal * 4.184
+                mec_base = energy_kj
 
         # 4. IF (Intensity Factor)
-        # Mean of intensity series on active points
         if_mean = intensity_series.mean() if not intensity_series.empty else 0.0
 
         # 5. Mechanical Load (MEC)
         intensity_factor = self._pick_intensity_factor(if_mean)
-        mec = mec_base * intensity_factor
+        mec = (mec_base * intensity_factor) if mec_base is not None else None
 
         # 6. Internal Load (INT)
-        # Based on HR Time in Zone 2 (LT1 <= HR < LT2)
         int_index = 1.0
-        if 'heart_rate' in df.columns and not df['heart_rate'].dropna().empty:
-            hr_smooth = df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean()
-            hr_smooth = hr_smooth.ffill().bfill()
+        if 'heart_rate' in active_df.columns and profile and profile.lt1_hr is not None and profile.lt2_hr is not None:
+            # Re-apply smoothing ONLY on active data to match notebook
+            hr_smooth = active_df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
             
             z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
             p_hr_lt = z2_count / total_seconds if total_seconds > 0 else 0.0
             
             alpha = self.config.get('alpha_load_hr', 0.5)
             int_index = 1.0 + alpha * p_hr_lt
+        elif 'heart_rate' in active_df.columns:
+            # Still need hr_smooth for durability calculation later
+            hr_smooth = active_df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
+        else:
+            hr_smooth = pd.Series(dtype=float)
+
 
         # 7. Durability (DUR) & Decoupling
-        # Split Halves by time
         dur_index = 1.0
         drift_pahr_pct = 0.0
         
-        if len(df) > 60 and not mech_source.dropna().empty and 'heart_rate' in df.columns:
-            mid_idx = len(df) // 2 
+        if total_seconds > 60:
+            # Split Halves by TIME (Strictly on active data)
+            mid_idx = int(total_seconds // 2)
             
-            # Means of first and second half
-            p1 = mech_source.iloc[:mid_idx].fillna(0).mean()
-            p2 = mech_source.iloc[mid_idx:].fillna(0).mean()
+            first_half = active_df.iloc[:mid_idx]
+            second_half = active_df.iloc[mid_idx:]
             
-            hr_smooth = df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
+            has_speed = 'speed' in active_df.columns
+            p1 = first_half['power'].fillna(0).mean() if has_ref_power else (first_half['speed'].fillna(0).mean() if has_speed else 0.0)
+            p2 = second_half['power'].fillna(0).mean() if has_ref_power else (second_half['speed'].fillna(0).mean() if has_speed else 0.0)
+            
             h1 = hr_smooth.iloc[:mid_idx].mean()
             h2 = hr_smooth.iloc[mid_idx:].mean()
             
@@ -160,23 +172,33 @@ class MetricsCalculator:
             dur_index = 1.0 + beta * max(0.0, drift_abs - drift_threshold)
 
         # 8. Final MLS
-        if mec is not None:
+        # Karoly's Rule: No thresholds = No MLS (set to null)
+        # NEW: Restricted to Running and Cycling only.
+        is_eligible_sport = False
+        if sport == "bike":
+            is_eligible_sport = True
+        elif sport == "run":
+            # Exclude non-running activities that might be in the 'run' category (Hiking, Ski, etc.)
+            if not any(x in meta.activity_type.lower() for x in ["hiking", "randonnée", "ski", "rando"]):
+                is_eligible_sport = True
+
+        if is_eligible_sport and mec is not None and profile and profile.lt1_hr is not None and profile.lt2_hr is not None:
             mls_load = mec * int_index * dur_index
         else:
             mls_load = None
 
         # 9. Standard Metrics (NP, TSS)
-        if has_power:
+        if has_power_stream:
             p_30s = df['power'].rolling(window=30, center=False, min_periods=1).mean()
             np_val = np.sqrt(np.sqrt( (p_30s ** 4).mean() ))
-            if_tss = np_val / profile.cp if profile.cp else 0
-            tss = (total_seconds * np_val * if_tss) / (profile.cp * 3600) * 100 if profile.cp else 0
+            if_tss = np_val / profile.cp if profile and profile.cp else 0
+            tss = (total_seconds * np_val * if_tss) / (profile.cp * 3600) * 100 if profile and profile.cp else 0
         else:
             np_val = 0.0
             tss = 0.0
 
         # 4. Detect Work Type
-        meta.work_type = self.classifier.detect_work_type(df, nolio_type or "", nolio_type or "", target_grid=target_grid)
+        meta.work_type = self.classifier.detect_work_type(df, meta.activity_name or "", nolio_type or "", target_grid=target_grid, is_competition_nolio=is_competition_nolio)
 
         # 10. Interval Metrics (Requested by Karoly)
         # We now have two modes: LAP-based (legacy) and MATCHER-based (surgical)
@@ -245,8 +267,8 @@ class MetricsCalculator:
                     last_interval_hr = last_lap.get('avg_heart_rate', 0) or 0
 
         # 11. Smart Segmentation (Karoly's Request)
-        # Determine strategy
-        strategy = self.classifier.get_strategy(meta.activity_type, nolio_type or "", nolio_comment or "")
+        # Determine strategy - Use activity name (title) for keyword detection
+        strategy = self.classifier.get_strategy(meta.activity_name or "", nolio_type or "", nolio_comment or "", is_competition_nolio=is_competition_nolio)
         sport_cat = self._get_sport_category(meta.activity_type)
         
         seg_output = SegmentationOutput(segmentation_type=strategy)
@@ -261,8 +283,10 @@ class MetricsCalculator:
             seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport_cat)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
         else: # auto_training
-            # Systematic 2 phases for continuous training
+            # Systematic 2 phases AND 4 phases for continuous training
+            # (4 phases stored for future dashboard, 2 phases used for primary KPI)
             seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport_cat)
+            seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport_cat)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
 
         return {
