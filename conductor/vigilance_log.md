@@ -138,7 +138,22 @@
 
 - **Audit de lissage :** Vérifier si le lissage 30s de la HR (`ffill().bfill()`) n'étouffe pas trop les variations sur les sprints courts.
 
+---
 
+## [Task: Live Flux UI Enhancement]
+**Date:** 23 Janvier 2026
+**Statut:** ✅ Code à jour / 🟠 Déploiement Manuel Requis
+
+### 🟢 Points de Succès
+1.  **Réponse au besoin métier:** Ajout de la colonne `bpm_moyen` (`avg_hr`) dans la vue `view_live_flux` pour un suivi plus fin de l'intensité en un coup d'œil.
+2.  **Centralisation:** Mise à jour du fichier source des vues `006_create_coach_views.sql` pour maintenir la cohérence de la configuration DB.
+
+### 🟠 Points Bancales (Risques)
+1.  **Déploiement SQL:** Le script `scripts/apply_views.py` est actuellement un placeholder (pas d'exécuteur DDL robuste). 
+    *   *Action:* La vue doit être appliquée manuellement via l'éditeur SQL de Supabase ou via une commande `psql` externe.
+
+### 🔭 Watchlist
+- **Performance des vues:** Avec l'ajout de colonnes calculées ou extraites du JSON (`segmented_metrics`), surveiller le temps de réponse du dashboard si le volume d'activités dépasse les 10 000 entrées.
 
 ---
 

@@ -2,6 +2,7 @@
 -- Description: Creates SQL views for Karoly's coaching dashboard.
 
 -- 1. Le Flux Live (Tour de contrôle)
+DROP VIEW IF EXISTS view_live_flux;
 CREATE OR REPLACE VIEW view_live_flux AS
 SELECT 
     a.session_date AT TIME ZONE 'UTC' AS date_heure,
@@ -13,12 +14,13 @@ SELECT
         WHEN a.work_type = 'competition' THEN 'Compétition'
         ELSE INITCAP(a.work_type)
     END AS type_seance,
-    a.sport_type AS sport,
+    COALESCE(a.source_sport, a.sport_type) AS sport,
     a.load_index AS mls,
     a.rpe,
     ROUND(((a.segmented_metrics->'splits_2'->'phase_2'->>'ratio')::float / (a.segmented_metrics->'splits_2'->'phase_1'->>'ratio')::float)::numeric, 2) AS decouplage,
     ROUND((a.duration_sec / 60.0)::numeric, 1) AS duree_min,
     ROUND((a.distance_m / 1000.0)::numeric, 2) AS km,
+    a.avg_hr AS bpm_moyen,
     a.temp_avg AS temp,
     a.humidity_avg AS hum
 FROM activities a
@@ -30,6 +32,7 @@ CREATE OR REPLACE VIEW view_athlete_history AS
 SELECT 
     a.session_date::date AS date,
     ath.first_name || ' ' || ath.last_name AS athlete,
+    COALESCE(a.source_sport, a.sport_type) AS sport,
     ROUND((a.duration_sec / 60.0)::numeric, 1) AS duree_min,
     ROUND((a.distance_m / 1000.0)::numeric, 2) AS km,
     a.interval_power_mean AS pmoy_w,
@@ -62,6 +65,7 @@ WITH decoupling_calc AS (
 SELECT 
     a.session_date::date AS date,
     ath.first_name || ' ' || ath.last_name AS athlete,
+    COALESCE(a.source_sport, a.sport_type) AS sport,
     COALESCE(a.activity_name, 'Session ' || a.nolio_id) AS course_name,
     ROUND((a.duration_sec / 60.0)::numeric, 1) AS temps_min,
     ROUND((a.distance_m / 1000.0)::numeric, 2) AS dist_totale_km,

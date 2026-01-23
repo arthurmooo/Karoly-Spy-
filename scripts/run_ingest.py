@@ -611,13 +611,9 @@ class IngestionRobot:
 
         else:
             # Mode B: Degraded Mode (Metadata only)
-            # Karoly 2026-01-22: Only Run/Bike should have a load fallback.
-            # Leave others (Swim, Strength, etc.) empty.
-            load = None
-            if internal_sport in ["Run", "Bike"] and rpe and duration_sec:
-                load = float(rpe) * (duration_sec / 60.0)
-            
-            activity.metrics = ActivityMetrics(mls_load=load)
+            # Karoly 2026-01-23: No data = No MLS.
+            # We do not fallback to RPE to avoid "fake" data in the dashboard.
+            activity.metrics = ActivityMetrics(mls_load=None)
 
         # 7. Storage Upload
         if fit_data:

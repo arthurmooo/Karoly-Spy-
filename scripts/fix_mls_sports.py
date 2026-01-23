@@ -1,6 +1,11 @@
 import os
 import sys
 from tqdm import tqdm
+from dotenv import load_dotenv
+
+load_dotenv()
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from projectk_core.db.connector import DBConnector
 
 def fix_mls_sports():
