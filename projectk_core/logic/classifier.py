@@ -9,20 +9,20 @@ class ActivityClassifier:
     """
     
     COMPETITION_KEYWORDS = [
-        r"marathon", r"semi", r"10k", r"course", r"race", r"compétition", 
-        r"90", r"180", r"ironman", r"triathlon"
+        r"marathon", r"semi", r"\b10k\b", r"race", r"compétition", 
+        r"\b90\b", r"\b180\b", r"ironman", r"triathlon", r"championnat"
     ]
     
     INTERVAL_KEYWORDS = [
-        r"\d+[*x]\d+", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint"
+        r"\d+\s*[*x]", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint", r"tempo", r"pma", r"vameval"
     ]
 
-    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, target_grid: Optional[List[Dict[str, Any]]] = None) -> str:
+    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
         """
         Classifies activity as 'endurance', 'intervals', or 'competition'.
         """
         # 1. Check for competition first
-        if self.is_competition(title, nolio_type):
+        if self.is_competition(title, nolio_type, is_competition_nolio):
             return "competition"
 
         # 2. Strategy A: Plan-Driven (Target Grid)
@@ -56,10 +56,13 @@ class ActivityClassifier:
         
         return "endurance"
 
-    def is_competition(self, title: str, nolio_type: str) -> bool:
+    def is_competition(self, title: str, nolio_type: str, is_competition_nolio: bool = False) -> bool:
         """
-        Detects if an activity is a competition based on Nolio type or keywords in title.
+        Detects if an activity is a competition based on Nolio flag, type or keywords in title.
         """
+        if is_competition_nolio:
+            return True
+
         if nolio_type and nolio_type.lower() in ["compétition", "race", "competition"]:
             return True
             
@@ -120,14 +123,14 @@ class ActivityClassifier:
             return parts[0] * 60 + parts[1]
         return 0
 
-    def get_strategy(self, title: str, nolio_type: str, comment: str) -> str:
+    def get_strategy(self, title: str, nolio_type: str, comment: str, is_competition_nolio: bool = False) -> str:
         """
         Determines the segmentation strategy to use.
         """
         if self.parse_splits(comment):
             return "manual"
             
-        if self.is_competition(title, nolio_type):
+        if self.is_competition(title, nolio_type, is_competition_nolio):
             return "auto_competition"
             
         return "auto_training"

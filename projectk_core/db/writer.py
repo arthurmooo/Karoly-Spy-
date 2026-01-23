@@ -90,7 +90,9 @@ class ActivityWriter:
             print(f"      [cyan]🚀 DB PREP: Sending weather -> {record['temp_avg']} / {record['humidity_avg']} source: {record['weather_source']}[/cyan]")
         
         # Sanitize NaNs recursively to None for JSON/SQL compatibility
-        return ActivityWriter._sanitize_recursive(record)
+        record = ActivityWriter._sanitize_recursive(record)
+        print(f"      📝 DEBUG: Saving Nolio:{nolio_id} Sport:{record['sport_type']} Source:{record['source_sport']}")
+        return record
 
     @staticmethod
     def _sanitize_recursive(data: Any) -> Any:

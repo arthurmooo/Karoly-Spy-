@@ -17,18 +17,20 @@ def test_update(activity_id, athlete_id):
     }
     url = "https://www.nolio.io/api/update/training/"
     
-    # Tentative A: description + id + athlete_id
+    # Tentative A: description + id + athlete_id + id_partner
     payload_a = {
         "id": activity_id,
         "description": "📊 [Test Project K] Test description A",
-        "athlete_id": athlete_id
+        "athlete_id": athlete_id,
+        "id_partner": activity_id
     }
     
-    # Tentative B: comment + id + athlete_id
+    # Tentative B: comment + id + athlete_id + id_partner
     payload_b = {
         "id": activity_id,
         "comment": "📊 [Test Project K] Test comment B",
-        "athlete_id": athlete_id
+        "athlete_id": athlete_id,
+        "id_partner": activity_id
     }
 
     for name, payload in [("A (description)", payload_a), ("B (comment)", payload_b)]:

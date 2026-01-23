@@ -30,6 +30,13 @@ class TestWorkoutClassifier(unittest.TestCase):
         """Should classify as 'intervals' if title contains keywords like '10x30'."""
         res = self.classifier.detect_work_type(pd.DataFrame(), "10x30/30 Seuil", "Training")
         self.assertEqual(res, "intervals")
+        
+        # Test observed failing cases
+        res = self.classifier.detect_work_type(pd.DataFrame(), "5*(40'' Z3 + 1'20'' Z2)", "Entraînement")
+        self.assertEqual(res, "intervals", "Should detect 5*( as intervals")
+
+        res = self.classifier.detect_work_type(pd.DataFrame(), "4Km : 2Km Tempo + 500m Z2", "Entraînement")
+        self.assertEqual(res, "intervals", "Should detect 'Tempo' as intervals")
 
     def test_classify_endurance_baseline(self):
         """Should classify as 'endurance' for steady signal."""

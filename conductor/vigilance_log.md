@@ -85,7 +85,27 @@
     *   *Action:* Implanter une logique `Detect by Distance` native dans le futur.
 
 ---
-- [DANGER] 2026-01-13: Injected DUMMY LT1/LT2 (135/165) for Adrien Claeyssen to test Nolio Ingestion. MUST BE REPLACED.
+
+## [Track: Interval Classification Maintenance]
+**Date:** 23 Janvier 2026
+**Statut:** ✅ Correction Déployée
+
+### 🟢 Points de Succès
+1.  **Réactivité:** Identification immédiate des séances "Tempo" et des séries avec parenthèses `5*(` qui échappaient au moteur.
+2.  **Robustesse Regex:** Le `ActivityClassifier` est désormais plus permissif (`\d+\s*[*x]`) et couvre les variations de saisie du coach.
+3.  **Richesse Sémantique:** Ajout de mots-clés spécifiques aux disciplines (PMA pour le vélo, Vameval pour le test, Tempo pour le travail spécifique).
+4.  **Reprocessing Rétroactif:** Les 8 séances mal classées en base ont été corrigées et leurs métriques d'intervalles recalculées (validé sur Victor Alexandre et Lorena Rondi).
+
+### 🟠 Points Bancales (Risques)
+1.  **Faux Positifs "Tempo" :**
+    *   *Risque :* Une sortie d'endurance intitulée "Footing Tempo Z2" pourrait être classée en intervalles. 
+    *   *Mitigation :* Le score de variabilité (CV) et la présence d'une grille Nolio restent les juges de paix pour les calculs chirurgicaux.
+2.  **Segmentation Natation :**
+    *   *Risque :* La détection automatique des phases sur la natation (Victor Alexandre) reste moins précise que sur le vélo/run faute de GPS/Power constant.
+    *   *Action :* Privilégier le marquage des Laps manuel sur la montre pour la natation.
+
+### 🔭 Watchlist
+- **Variations de titres :** Surveiller si Karoly utilise d'autres termes (ex: "Séries", "Répétitions") qui ne sont pas encore dans la liste.
 
 ---
 
@@ -169,19 +189,3 @@
 - **Natation :** Les structures de natation Nolio sont souvent fragmentées (nombreux petits blocs). À tester spécifiquement.
 
 ---
-
-## [Track 1.6] HRV Investigation & Context Update
-**Date:** 20 Janvier 2026
-**Statut:** ✅ Terminé (Recherche API)
-
-### 🟢 Points de Succès
-1.  **Validation API :** Confirmation que Nolio expose bien la donnée `rmssd` via `/get/user/meta/`.
-2.  **Audit de Données Réel :** Scan de 60 athlètes confirmant que ~10% d'entre eux ont déjà des données RMSSD qui remontent (Estelle-Marie Kieffer, Romu Philippot, etc.).
-3.  **Backlog mis à jour :** L'intégration de la HRV est désormais officiellement dans la Phase 2.
-
-### 🟠 Points Bancales (Risques)
-1.  **Qualité de Saisie :** Le RMSSD dépend de la rigueur de l'athlète (mesure matinale au repos). Une donnée irrégulière peut fausser l'analyse de readiness.
-2.  **Unités :** Nolio renvoie du `ms` (standard), mais il faudra s'assurer qu'aucune conversion n'est faite par d'autres apps tierces (ex: HRV4Training -> Nolio) qui pourrait altérer la valeur.
-
-### 🔭 Watchlist
-- **Calcul de Readiness :** Karoly devra définir s'il souhaite utiliser la valeur brute (ex: 60ms) ou une baseline glissante (7-day average) pour son dashboard.

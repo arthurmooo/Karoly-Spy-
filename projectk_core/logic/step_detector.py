@@ -10,7 +10,7 @@ class StepDetector:
     Ideal for finding interval boundaries without relying on fixed thresholds.
     """
 
-    def __init__(self, window_size: int = 30, threshold_factor: float = 1.5, min_delta: float = 5.0):
+    def __init__(self, window_size: int = 30, threshold_factor: float = 1.0, min_delta: float = 5.0):
         """
         Args:
             window_size: Size of the sliding windows to compare (in seconds).
@@ -46,8 +46,18 @@ class StepDetector:
         mean_abs = np.mean(abs_shifts)
         std_abs = np.std(abs_shifts)
         
-        # Threshold: must be higher than statistical noise AND min_delta
-        threshold = max(self.min_delta, mean_abs + self.threshold_factor * std_abs)
+        # Threshold: 
+        # Ideally, we want to detect shifts that are statistically significant OR physically significant
+        # If the session is very interval-heavy, std_abs will be huge, making the threshold too high.
+        # So we should clamp the statistical threshold or use min_delta as a strong alternative.
+        
+        stat_threshold = mean_abs + self.threshold_factor * std_abs
+        
+        # If statistical threshold is crazy high (e.g. > 3*min_delta), ignore it and trust min_delta
+        if stat_threshold > 3 * self.min_delta:
+            threshold = max(self.min_delta, mean_abs) # Fallback to mean
+        else:
+            threshold = max(self.min_delta, stat_threshold)
         
         steps = []
         i = w

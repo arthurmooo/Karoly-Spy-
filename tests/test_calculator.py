@@ -29,7 +29,7 @@ class MockConfig:
 def basic_physio_profile():
     return PhysioProfile(
         lt1_hr=140, lt2_hr=160,
-        cp=300, valid_from=datetime(2024, 1, 1)
+        cp_cs=300, valid_from=datetime(2024, 1, 1)
     )
 
 def test_mls_calculation_steady_state(basic_physio_profile):

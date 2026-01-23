@@ -9,13 +9,15 @@
 - [x] **Dynamic Search Gaps**: Implemented a search window that scales with target duration (max of 900s or 2x duration), solving issues with long intervals (waves).
 - [x] **Pace Disambiguation Heuristic**: Added a "Realistic Speed Check" (1.5 - 6.5 m/s) to differentiate between m/s, min/km, and km/h from Nolio API.
 
-### Logic Improvements (Logged from Track 1.5 - Matcher V3)
+### Logic Improvements (Logged from Track: Interval Classification Fix 2026-01-23)
 
-- [x] **LAP-First Hybrid Matching**: Prioritize LAP data when confidence > 70%, fallback to signal detection otherwise.
-- [x] **Sequential LAP Consumption**: Use first-valid match instead of best-in-window to ensure correct 1:1 mapping.
-- [x] **LAP Confidence Scoring**: Duration (50%) + Intensity (30%) + Type (20%) weighted scoring.
-- [x] **NoneType Handling**: Fixed crashes when LAP data has missing power/speed values.
-- [x] **Mini-LAP Filtering**: Skip LAPs < 20s to prevent sequence corruption.
+- [x] **Permissive Series Regex**: Replaced strict `\d+x\d+` with `\d+\s*[*x]` to catch series followed by brackets (e.g., `5*(40'' Z3...)`) or spaces.
+- [x] **Discipline-Specific Keywords**: Added `tempo`, `pma`, `vameval` to `INTERVAL_KEYWORDS` to align with cycling and athletic testing terminology.
+- [x] **Cross-Check Robustness**: Verified that "Tempo" classification correctly triggers surgical interval metrics (mean Power/HR) during ingestion.
+
+- [x] **Profile-Agnostic Segmentation**: Modified `MetricsCalculator.compute` to allow calculation of `segmented_metrics` even when a physiological profile is missing. This ensures the "decouplage" KPI is populated for all activities with FIT data.
+- [x] **Safe Stream Access**: Added existence checks for the `speed` column in `active_df` to prevent crashes during processing of activities without speed data (e.g., some swimming or indoor sessions).
+- [x] **Resilient Ingestion**: Updated `run_ingest.py` to attempt advanced metric calculation whenever streams are present, regardless of profile availability.
 
 ### Pending Items (Phase 2)
 

@@ -361,24 +361,31 @@ class IngestionRobot:
         if not act_id:
             return
 
-        # 1. Duplicate Check (Nolio ID) - Allow refresh if critical data is missing or looks wrong (KM instead of Meters)
-        exists = self.db.client.table("activities").select("id, duration_sec, distance_m, sport_type").eq("nolio_id", act_id).execute()
+        # 1. Duplicate Check (Nolio ID) - Allow refresh if critical data or FIT file is missing
+        exists = self.db.client.table("activities").select("id, duration_sec, distance_m, sport_type, fit_file_path").eq("nolio_id", act_id).execute()
         if exists.data:
             rec = exists.data[0]
             dist = rec.get("distance_m")
             dur = rec.get("duration_sec")
             sport = rec.get("sport_type")
+            has_fit = rec.get("fit_file_path") is not None
             
             # Condition for refresh:
             # - Missing duration or distance
+            # - Missing FIT file (if it's a sport that should have one)
             # - OR Distance looks like KM (e.g. < 200m for a Run/Bike, which is very unlikely unless it's a test)
             is_missing = (dur is None or dist is None)
+            is_missing_fit = not has_fit and sport in ['Run', 'Bike', 'Swim']
             is_probably_km = (dist is not None and 0 < dist < 300 and sport in ['Run', 'Bike'])
             
-            if not (is_missing or is_probably_km or self.force_refresh):
+            if not (is_missing or is_missing_fit or is_probably_km or self.force_refresh):
                 return
                 
-            reason = "Force refresh" if self.force_refresh else ("Missing data" if is_missing else "Distance unit mismatch (KM?)")
+            reason = "Force refresh" if self.force_refresh else (
+                "Missing data" if is_missing else (
+                    "Missing FIT file" if is_missing_fit else "Distance unit mismatch (KM?)"
+                )
+            )
             print(f"      🔄 Refreshing Activity {act_id}: {reason}")
 
         print(f"      📥 Ingesting Activity: {act_id} ({nolio_act.get('sport', 'Other')})")

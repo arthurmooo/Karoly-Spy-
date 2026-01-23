@@ -1,0 +1,8 @@
+{
+  "track_id": "mls_sport_restriction_20260123",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-23T10:00:00Z",
+  "updated_at": "2026-01-23T10:00:00Z",
+  "description": "Restrict MLS calculation to Run and Bike sports only and clean up existing database records."
+}

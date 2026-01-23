@@ -190,11 +190,11 @@ def audit_session(athlete_name_partial, date_str, local_fit_path):
             print("NOLIO: No lap data found (Raw keys):", list(details.keys()))
 
 if __name__ == "__main__":
-    # Target: Adrien Claeyssen, 2026-01-07
-    # File: ./data/test_cache/Adrien_2026-01-07.fit
+    # Target: Edouard Tiret, 2025-04-03
+    # File: ./data/test_cache/Edouard_2025-04-03.fit
     
     audit_session(
-        "Adrien", 
-        "2026-01-07", 
-        "./data/test_cache/Adrien_2026-01-07.fit"
+        "Edouard", 
+        "2025-04-03", 
+        "./data/test_cache/Edouard_2025-04-03.fit"
     )

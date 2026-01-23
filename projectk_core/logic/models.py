@@ -22,8 +22,8 @@ class PhysioProfile(BaseModel):
     Represents an athlete's physiological thresholds at a specific point in time.
     """
     valid_from: datetime
-    lt1_hr: float = Field(gt=0, description="Heart Rate at Lactate Threshold 1")
-    lt2_hr: float = Field(gt=0, description="Heart Rate at Lactate Threshold 2")
+    lt1_hr: Optional[float] = Field(None, gt=0, description="Heart Rate at Lactate Threshold 1")
+    lt2_hr: Optional[float] = Field(None, gt=0, description="Heart Rate at Lactate Threshold 2")
     lt1_power_pace: Optional[float] = Field(None, gt=0, description="Power/Pace at LT1")
     lt2_power_pace: Optional[float] = Field(None, gt=0, description="Power/Pace at LT2")
     cp_cs: Optional[float] = Field(None, gt=0, description="Critical Power / Critical Speed")
@@ -36,9 +36,9 @@ class PhysioProfile(BaseModel):
 
     @field_validator('lt2_hr')
     @classmethod
-    def lt2_greater_than_lt1(cls, v: float, info: ValidationInfo) -> float:
+    def lt2_greater_than_lt1(cls, v: Optional[float], info: ValidationInfo) -> Optional[float]:
         values = info.data
-        if 'lt1_hr' in values and v <= values['lt1_hr']:
+        if v is not None and values.get('lt1_hr') is not None and v <= values['lt1_hr']:
             raise ValueError('LT2 HR must be greater than LT1 HR')
         return v
 
