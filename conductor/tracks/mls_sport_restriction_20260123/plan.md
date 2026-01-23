@@ -3,17 +3,13 @@
 Restrict the Mixed Load Score (MLS) calculation to Running and Cycling sports and clean up existing database records.
 
 ## Phase 1: Core Logic Restriction
-- [x] Task: Create unit tests in `tests/test_calculator.py` to verify that `mls_load` is calculated for "run" and "bike" but remains `None` for "swim", "strength", and "other".
+- [x] Task: Create unit tests in `tests/test_calculator.py` to verify that `mls_load` is calculated for "run" and "bike" but remains `None` for "swim", "strength", and "other". 3a7399a
 - [x] Task: Modify `projectk_core/processing/calculator.py` to implement the sport restriction in the `compute` method. 3a7399a
 - [x] Task: Verify that all tests pass and coverage for the change is >80%. 3a7399a
-- [ ] Task: Conductor - User Manual Verification 'Core Logic Restriction' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Core Logic Restriction' (Protocol in workflow.md) 29e785b
 
 ## Phase 2: Database Cleanup
-
 - [x] Task: Create a migration or a one-time script `scripts/fix_mls_sports.py` to set `load_index = NULL` for activities where the sport is not "Run" or "Bike". fe1d1ff
-
 - [x] Task: Execute the cleanup script and verify the number of affected rows. fe1d1ff
-
 - [x] Task: Perform a manual spot check in the database to ensure data integrity. fe1d1ff
-
-- [ ] Task: Conductor - User Manual Verification 'Database Cleanup' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Database Cleanup' (Protocol in workflow.md) 29e785b

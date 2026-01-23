@@ -80,5 +80,5 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [~] **Track: MLS Sport Restriction**
+- [x] **Track: MLS Sport Restriction**
 *Link: [./tracks/mls_sport_restriction_20260123/](./tracks/mls_sport_restriction_20260123/)*
