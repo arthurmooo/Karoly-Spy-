@@ -9,7 +9,11 @@ Restrict the Mixed Load Score (MLS) calculation to Running and Cycling sports an
 - [ ] Task: Conductor - User Manual Verification 'Core Logic Restriction' (Protocol in workflow.md)
 
 ## Phase 2: Database Cleanup
-- [ ] Task: Create a migration or a one-time script `scripts/fix_mls_sports.py` to set `load_index = NULL` for activities where the sport is not "Run" or "Bike".
-- [ ] Task: Execute the cleanup script and verify the number of affected rows.
-- [ ] Task: Perform a manual spot check in the database to ensure data integrity.
+
+- [x] Task: Create a migration or a one-time script `scripts/fix_mls_sports.py` to set `load_index = NULL` for activities where the sport is not "Run" or "Bike". fe1d1ff
+
+- [x] Task: Execute the cleanup script and verify the number of affected rows. fe1d1ff
+
+- [x] Task: Perform a manual spot check in the database to ensure data integrity. fe1d1ff
+
 - [ ] Task: Conductor - User Manual Verification 'Database Cleanup' (Protocol in workflow.md)
