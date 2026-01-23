@@ -34,13 +34,14 @@ def calculate_file_hash(content: bytes) -> str:
     return hashlib.md5(content).hexdigest()
 
 class IngestionRobot:
-    def __init__(self, history_days: int = 14, enable_writeback: bool = False):
+    def __init__(self, history_days: int = 14, enable_writeback: bool = False, force_refresh: bool = False):
         self.db = DBConnector()
         self.nolio = NolioClient()
         self.storage = StorageManager()
         self.weather = WeatherClient()
         self.history_days = history_days
         self.enable_writeback = enable_writeback
+        self.force_refresh = force_refresh
         self.config = AthleteConfig() # Global Karoly coefficients
         self.calculator = MetricsCalculator(self.config)
         self.profile_manager = ProfileManager(self.db)
@@ -129,33 +130,16 @@ class IngestionRobot:
                         cs_run = 1000.0 / float(cs_run_raw) if float(cs_run_raw) > 0 else None
 
                     # Champs personnalisés Karoly (à créer par lui dans Nolio)
+                    # Plus de valeurs par défaut (130/160) -> On veut du Null si pas renseigné
                     lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
                     lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr")
 
-                    # Mise à jour des profils en base (Upsert)
-                    # Profil VELO
-                    if cp_bike or weight or lt1_hr or lt2_hr:
-                        self.db.client.table("physio_profiles").upsert({
-                            "athlete_id": athlete_uuid,
-                            "sport": "Bike",
-                            "cp_cs": cp_bike,
-                            "weight": weight,
-                            "lt1_hr": lt1_hr if lt1_hr else 130, # Default if missing
-                            "lt2_hr": lt2_hr if lt2_hr else 160,
-                            "valid_from": datetime.now(timezone.utc).isoformat()
-                        }, on_conflict="athlete_id, sport").execute()
-
-                    # Profil RUN
-                    if cs_run or weight or lt1_hr or lt2_hr:
-                        self.db.client.table("physio_profiles").upsert({
-                            "athlete_id": athlete_uuid,
-                            "sport": "Run",
-                            "cp_cs": cs_run,
-                            "weight": weight,
-                            "lt1_hr": lt1_hr if lt1_hr else 130,
-                            "lt2_hr": lt2_hr if lt2_hr else 160,
-                            "valid_from": datetime.now(timezone.utc).isoformat()
-                        }, on_conflict="athlete_id, sport").execute()
+                    # 2.2 Mise à jour HISTORISÉE des profils (SCD Type 2)
+                    if lt1_hr and lt2_hr:
+                        self._sync_physio_profile(athlete_uuid, "Bike", cp_bike, weight, lt1_hr, lt2_hr)
+                        self._sync_physio_profile(athlete_uuid, "Run", cs_run, weight, lt1_hr, lt2_hr)
+                    else:
+                        print(f"      ⚠️ Missing LT1/LT2 for {na.get('name')}. Skipping profile sync (Metrics will be NULL).")
                     
                     cs_display = f"{cs_run:.2f}" if cs_run else "None"
                     print(f"      ✅ Metrics synced: CP={cp_bike}W, CS={cs_display}m/s, Weight={weight}kg")
@@ -196,6 +180,69 @@ class IngestionRobot:
             print(f"⚠️ Error during athlete discovery: {e}")
             log.exception("Discovery error detail")
         
+    def _sync_physio_profile(self, athlete_id: str, sport: str, cp_cs: Optional[float], weight: Optional[float], lt1_hr: float, lt2_hr: float):
+        """
+        Implements SCD Type 2 for physiological profiles.
+        If any threshold changes, it closes the current profile and creates a new one.
+        """
+        if cp_cs is None and weight is None:
+            return # Skip if no data
+            
+        # 1. Fetch current active profile
+        res = self.db.client.table("physio_profiles")\
+            .select("*")\
+            .eq("athlete_id", athlete_id)\
+            .eq("sport", sport)\
+            .is_("valid_to", "null")\
+            .order("valid_from", desc=True)\
+            .limit(1)\
+            .execute()
+        
+        current = res.data[0] if res.data else None
+        
+        def is_diff(v1, v2, tol=0.1):
+            if v1 is None and v2 is None: return False
+            if v1 is None or v2 is None: return True
+            return abs(float(v1) - float(v2)) > tol
+
+        # 2. Compare
+        has_changed = False
+        if current:
+            has_changed = (
+                is_diff(current.get('cp_cs'), cp_cs) or
+                is_diff(current.get('weight'), weight) or
+                is_diff(current.get('lt1_hr'), lt1_hr) or
+                is_diff(current.get('lt2_hr'), lt2_hr)
+            )
+        else:
+            has_changed = True # First time entry
+
+        if has_changed:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            
+            # 3. Close old profile if it exists
+            if current:
+                print(f"         📉 Thresholds changed for {sport}. Archiving old profile.")
+                self.db.client.table("physio_profiles")\
+                    .update({"valid_to": now_iso})\
+                    .eq("id", current['id'])\
+                    .execute()
+            
+            # 4. Create new profile
+            # If it's the first one, we use the 2000-01-01 date to cover history
+            valid_from = "2000-01-01T00:00:00Z" if not current else now_iso
+            
+            self.db.client.table("physio_profiles").insert({
+                "athlete_id": athlete_id,
+                "sport": sport,
+                "cp_cs": cp_cs,
+                "weight": weight,
+                "lt1_hr": lt1_hr,
+                "lt2_hr": lt2_hr,
+                "valid_from": valid_from
+            }).execute()
+            print(f"         ✨ New {sport} profile created (valid from {valid_from[:10]})")
+
     def run(self, specific_athlete_name: Optional[str] = None, force_metrics: bool = False):
         print(f"🚀 Starting Ingestion Robot (Window: {self.history_days} days)")
         
@@ -285,7 +332,11 @@ class IngestionRobot:
     def process_athlete(self, athlete: Dict[str, Any], date_from: str, date_to: str):
         full_name = f"{athlete['first_name']} {athlete['last_name']}"
         athlete_uuid = athlete['id']
-        nolio_id = athlete['nolio_id']
+        try:
+            nolio_id = int(athlete['nolio_id'])
+        except (ValueError, TypeError):
+            print(f"   ⚠️ Invalid Nolio ID for {full_name}: {athlete.get('nolio_id')}")
+            return
         
         print(f"\n👤 Processing: {full_name} (Nolio: {nolio_id})")
         
@@ -310,10 +361,25 @@ class IngestionRobot:
         if not act_id:
             return
 
-        # 1. Duplicate Check (Nolio ID)
-        exists = self.db.client.table("activities").select("id").eq("nolio_id", act_id).execute()
+        # 1. Duplicate Check (Nolio ID) - Allow refresh if critical data is missing or looks wrong (KM instead of Meters)
+        exists = self.db.client.table("activities").select("id, duration_sec, distance_m, sport_type").eq("nolio_id", act_id).execute()
         if exists.data:
-            return
+            rec = exists.data[0]
+            dist = rec.get("distance_m")
+            dur = rec.get("duration_sec")
+            sport = rec.get("sport_type")
+            
+            # Condition for refresh:
+            # - Missing duration or distance
+            # - OR Distance looks like KM (e.g. < 200m for a Run/Bike, which is very unlikely unless it's a test)
+            is_missing = (dur is None or dist is None)
+            is_probably_km = (dist is not None and 0 < dist < 300 and sport in ['Run', 'Bike'])
+            
+            if not (is_missing or is_probably_km or self.force_refresh):
+                return
+                
+            reason = "Force refresh" if self.force_refresh else ("Missing data" if is_missing else "Distance unit mismatch (KM?)")
+            print(f"      🔄 Refreshing Activity {act_id}: {reason}")
 
         print(f"      📥 Ingesting Activity: {act_id} ({nolio_act.get('sport', 'Other')})")
 
@@ -351,11 +417,21 @@ class IngestionRobot:
         found_category = None
         for category in ["Bike", "Strength", "Swim", "Run"]:
             keywords = sport_map[category]
-            if any(kw.lower() in nolio_sport_lower for kw in keywords):
-                found_category = category
+            for kw in keywords:
+                if kw.lower() in nolio_sport_lower:
+                    found_category = category
+                    # print(f"         🔍 Sport Match: '{nolio_sport}' -> {category} (via '{kw}')")
+                    break
+            if found_category:
                 break
         
         internal_sport = found_category or "Other"
+        
+        # VERBOSE DEBUG FOR LUCAS OR OTHERS
+        if act_id == "89867151" or internal_sport == "Other" or nolio_sport == "Other":
+            print(f"      🕵️ DEBUG act_id:{act_id} | nolio_sport: '{nolio_sport}' | internal: {internal_sport}")
+            if act_id == "89867151":
+                 print(f"      🕵️ FULL DATA for 89867151: {nolio_act}")
         
         try:
             start_date_raw = nolio_act.get("date_start", "").replace('Z', '+00:00')
@@ -364,7 +440,18 @@ class IngestionRobot:
             start_date = datetime.now(timezone.utc)
 
         duration_sec = float(nolio_act.get("duration_total", nolio_act.get("duration", 0)))
-        distance_m = float(nolio_act.get("distance", 0))
+        
+        # Nolio distance is usually in KM, we need meters
+        distance_raw = float(nolio_act.get("distance", 0))
+        
+        # Heuristic: if distance is small (< 300) and duration is significant, it's definitely KM
+        # If distance is already > 300, it might be meters (unlikely from Nolio, but safety first)
+        if 0 < distance_raw < 300:
+            distance_m = distance_raw * 1000.0
+        else:
+            # Either 0, or already in meters
+            distance_m = distance_raw
+            
         elevation_gain = float(nolio_act.get("elevation_pos", nolio_act.get("elevation_gain", 0)))
         rpe = nolio_act.get("rpe")
         
@@ -374,10 +461,13 @@ class IngestionRobot:
             source_sport=nolio_sport,
             start_time=start_date,
             duration_sec=max(1.0, duration_sec), # Pydantic gt=0
-            distance_m=distance_m,
+            distance_m=float(distance_m),
             elevation_gain=elevation_gain,
             rpe=rpe
         )
+        
+        if distance_raw > 0:
+            print(f"      📏 Distance: {distance_raw} km -> {distance_m} m")
 
         # 0. Plan Retrieval (Planned Structure) - Continued
         if not planned_session:
@@ -409,7 +499,7 @@ class IngestionRobot:
                 
                 # Check for hash duplicate
                 hash_exists = self.db.client.table("activities").select("id").eq("fit_file_hash", file_hash).execute()
-                if hash_exists.data:
+                if hash_exists.data and not self.force_refresh:
                     return
 
                 # Parse FIT
@@ -461,23 +551,25 @@ class IngestionRobot:
 
         # 4. Detect Work Type
         activity_title = nolio_act.get("name", "")
-        meta.work_type = self.classifier.detect_work_type(df, activity_title, nolio_sport)
+        is_comp = nolio_act.get("is_competition", False)
+        meta.work_type = self.classifier.detect_work_type(df, activity_title, nolio_sport, is_competition_nolio=is_comp)
 
         # 5. Create Activity Object
         activity = Activity(metadata=meta, streams=df, laps=laps)
         
         # 6. Calculate Metrics
-        # Mode A: Advanced Calculation (if we have a profile and streams)
+        # Mode A: Advanced Calculation (if we have streams, even without profile)
         profile = self.profile_manager.get_profile_for_date(athlete_id, internal_sport, start_date)
         
-        if profile and not df.empty:
+        if not df.empty:
             # We pass nolio metadata for smart segmentation
             metrics_dict = self.calculator.compute(
                 activity, 
                 profile, 
                 nolio_type=nolio_act.get("type"), 
                 nolio_comment=nolio_act.get("comment"),
-                target_grid=target_grid
+                target_grid=target_grid,
+                is_competition_nolio=is_comp
             )
             
             # Security: Ensure interval metrics are ONLY present for intervals work_type
@@ -518,9 +610,10 @@ class IngestionRobot:
 
         else:
             # Mode B: Degraded Mode (Metadata only)
-            # Basic Load = RPE * (Duration in minutes) if RPE exists
+            # Karoly 2026-01-22: Only Run/Bike should have a load fallback.
+            # Leave others (Swim, Strength, etc.) empty.
             load = None
-            if rpe and duration_sec:
+            if internal_sport in ["Run", "Bike"] and rpe and duration_sec:
                 load = float(rpe) * (duration_sec / 60.0)
             
             activity.metrics = ActivityMetrics(mls_load=load)
@@ -557,8 +650,9 @@ if __name__ == "__main__":
     parser.add_argument("--athlete", type=str, help="Filter by athlete first name")
     parser.add_argument("--writeback", action="store_true", help="Enable writing scores back to Nolio comments")
     parser.add_argument("--force", action="store_true", help="Force metrics and health sync regardless of hour")
+    parser.add_argument("--force-refresh", action="store_true", help="Force re-processing of existing activities")
     
     args = parser.parse_args()
     
-    robot = IngestionRobot(history_days=args.days, enable_writeback=args.writeback)
+    robot = IngestionRobot(history_days=args.days, enable_writeback=args.writeback, force_refresh=args.force_refresh)
     robot.run(specific_athlete_name=args.athlete, force_metrics=args.force)
