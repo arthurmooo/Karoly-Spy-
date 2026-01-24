@@ -1,4 +1,6 @@
 from typing import List, Optional, Dict, Any
+import pandas as pd
+import numpy as np
 from projectk_core.logic.models import PlannedStructure, IntervalBlock, DetectionSource
 
 class IntervalEngine:
@@ -136,3 +138,99 @@ class LapAnalyzer:
             "active": "active"
         }
         return mapping.get(raw_type.lower(), "active")
+
+class AlgoDetector:
+    """
+    Detects intervals using signal processing (Power/Speed).
+    """
+    def __init__(self, df: pd.DataFrame):
+        self.df = df
+
+    def detect(self) -> List[IntervalBlock]:
+        """
+        Detect jumps in power/speed to identify blocks.
+        """
+        if self.df.empty:
+            return []
+            
+        # Prioritize Power, then Speed
+        signal_col = "power" if "power" in self.df.columns else "speed"
+        if signal_col not in self.df.columns:
+            # Fallback to single block
+            return [IntervalBlock(
+                start_time=self.df["time"].min(),
+                end_time=self.df["time"].max(),
+                type="active",
+                detection_source=DetectionSource.ALGO
+            )]
+            
+        signal = self.df[signal_col].fillna(0)
+        
+        # Threshold logic: we want to find "work" vs "rest"
+        # If max is high, we can use a relative threshold
+        s_min = signal.min()
+        s_max = signal.max()
+        s_range = s_max - s_min
+        
+        if s_range < 5: # Not enough variation
+             return [IntervalBlock(
+                start_time=self.df["time"].min(),
+                end_time=self.df["time"].max(),
+                type="active",
+                detection_source=DetectionSource.ALGO
+            )]
+            
+        threshold = s_min + (s_range * 0.4) # 40% of the range above min
+        is_active = signal > threshold
+        
+        # Detect state changes
+        diff = is_active.astype(int).diff().fillna(0)
+        starts = self.df.loc[diff == 1, "time"].tolist()
+        ends = self.df.loc[diff == -1, "time"].tolist()
+        
+        # Handle edge cases (starts/ends misalignment)
+        if is_active.iloc[0]:
+            starts.insert(0, self.df["time"].iloc[0])
+        if is_active.iloc[-1]:
+            ends.append(self.df["time"].iloc[-1])
+            
+        blocks = []
+        last_end = self.df["time"].iloc[0]
+        
+        for s, e in zip(starts, ends):
+            # Recovery before active
+            if s > last_end + 1:
+                blocks.append(IntervalBlock(
+                    start_time=last_end,
+                    end_time=s,
+                    type="rest",
+                    detection_source=DetectionSource.ALGO
+                ))
+            
+            # Active block
+            blocks.append(IntervalBlock(
+                start_time=s,
+                end_time=e,
+                type="active",
+                detection_source=DetectionSource.ALGO
+            ))
+            last_end = e
+            
+        # Final recovery if needed
+        if last_end < self.df["time"].max():
+            blocks.append(IntervalBlock(
+                start_time=last_end,
+                end_time=self.df["time"].max(),
+                type="rest",
+                detection_source=DetectionSource.ALGO
+            ))
+            
+        if not blocks:
+             blocks.append(IntervalBlock(
+                start_time=self.df["time"].min(),
+                end_time=self.df["time"].max(),
+                type="active",
+                detection_source=DetectionSource.ALGO
+            ))
+            
+        return blocks
