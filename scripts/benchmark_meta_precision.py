@@ -57,7 +57,7 @@ def benchmark():
         df['time'] = (df.index - start_ts).total_seconds()
         
         classic_seeker = PlanDrivenSeeker(df, primary_signal='power')
-        meta_seeker = MetaSeeker(df, primary_signal='power', resolution_hz=20)
+        meta_seeker = MetaSeeker(df, primary_signal='power', resolution_hz=20, use_lag_compensation=True)
         
         table = Table(title="Benchmark: Classic vs Meta (Spline) vs Laps")
         table.add_column("Lap #", justify="center")

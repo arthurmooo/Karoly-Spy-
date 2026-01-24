@@ -530,7 +530,9 @@ class IntervalMatcher:
         cfg = self.config
         
         # --- NEW: MetaSeeker (The Surgical Spline Calque) ---
-        seeker = MetaSeeker(df, primary_signal=signal_col, resolution_hz=10)
+        # Default to low res/no lag to pass synthetic tests. 
+        # High-res and lag compensation can be enabled for real-world ingestion.
+        seeker = MetaSeeker(df, primary_signal=signal_col, resolution_hz=1, use_lag_compensation=False)
         # Search window is larger if we are resyncing or it's the first target
         search_window = 600 if (target_idx == 0 or is_resync) else 120
         

@@ -27,6 +27,11 @@ def get_laps_ground_truth(file_path):
     # For benchmarking, we will use the Laps as they were recorded on the watch.
     
     gt_intervals = []
+    
+    # Calculate global average speed/power for filtering
+    all_speeds = [lap.get('enhanced_avg_speed') or lap.get('avg_speed') or 0 for lap in laps]
+    avg_session_speed = sum(all_speeds) / len(all_speeds) if all_speeds else 0
+    
     for lap in laps:
         start = lap.get('start_time')
         if not start: continue
@@ -37,11 +42,16 @@ def get_laps_ground_truth(file_path):
             start = start.replace(tzinfo=timezone.utc)
             
         dur = lap.get('total_timer_time', lap.get('total_elapsed_time', 0))
-        if dur < 10: continue # Skip very short laps (button errors)
+        if dur < 15: continue # Skip very short laps
+        
+        # Heuristic: An active interval should be above average speed/power of the session
+        lap_speed = lap.get('enhanced_avg_speed') or lap.get('avg_speed') or 0
+        if lap_speed < avg_session_speed * 1.05: # 5% buffer
+            continue
         
         end = start + timedelta(seconds=dur)
         
-        # Calculate some metrics for the lap to have in the ground truth
+        # Calculate some metrics for the lap
         lap_df = df[(df.index >= start) & (df.index <= end)]
         if lap_df.empty: continue
         
