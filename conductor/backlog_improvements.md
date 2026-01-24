@@ -19,7 +19,12 @@
 - [x] **Safe Stream Access**: Added existence checks for the `speed` column in `active_df` to prevent crashes during processing of activities without speed data (e.g., some swimming or indoor sessions).
 - [x] **Resilient Ingestion**: Updated `run_ingest.py` to attempt advanced metric calculation whenever streams are present, regardless of profile availability.
 
-### Pending Items (Phase 2)
+### Logic Improvements (Logged from Track: Generic Classification Fix 2026-01-24)
+
+- [x] **Generic Title Detection**: Expanded `ActivityClassifier` to include common Nolio sport names (e.g., 'Vélo - Route', 'Trail') as generic endurance titles. This prevents high signal variability (CV > 0.40) from misclassifying stop-and-go endurance rides as intervals.
+- [x] **Title-Type Parity**: Implemented a direct comparison between activity title and Nolio sport type to automatically categorize "empty" titles (where title == sport name) as endurance if no plan is present.
+- [x] **Safe Temporary Parsing**: Fixed a critical bug in `run_ingest.py` where the temporary file path (`tmp_path`) was used before initialization, ensuring robust parsing of FIT/TCX files during ingestion.
+- [x] **Selective Interval Clean-up**: Reinforced the "Security" check in `run_ingest.py` to ensure interval-specific metrics (Plateau HR/Power) are stripped if an activity is re-classified from intervals to endurance.
 
 - [ ] **TCX Support**: The current parser only handles binary .fit files. One of the test files (Baptiste 01/08) is a TCX, causing a crash. Need a TCX/XML parser layer.
 - [ ] **Swimming Fallback**: For swimming activities without speed/power data, implement a fallback using LAP messages or internal device distance calculations.

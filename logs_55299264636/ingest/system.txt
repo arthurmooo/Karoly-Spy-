@@ -1,0 +1,8 @@
+2026-01-24T12:03:18.8380000Z Requested labels: ubuntu-latest
+2026-01-24T12:03:18.8380000Z Job defined at: arthurmooo/Karoly-Spy-/.github/workflows/robot_v8.yml@refs/heads/main
+2026-01-24T12:03:18.8380000Z Waiting for a runner to pick up this job...
+2026-01-24T12:03:18.8400000Z Job is about to start running on the hosted runner: GitHub Actions 1000000187
+2026-01-24T12:03:18.8370000Z Evaluating ingest.if
+2026-01-24T12:03:18.8370000Z Evaluating: success()
+2026-01-24T12:03:18.8370000Z Result: true
+2026-01-24T12:03:18.8390000Z Job is waiting for a hosted runner to come online.

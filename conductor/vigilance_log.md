@@ -201,6 +201,22 @@
 
 - **Consommation Quota Nolio :** L'ajout d'un appel API par séance pour récupérer la structure (`structured_workout`) double quasiment le nombre de requêtes. Surveiller le Rate Limit.
 
-- **Natation :** Les structures de natation Nolio sont souvent fragmentées (nombreux petits blocs). À tester spécifiquement.
+## [Track: Generic Classification & Ingestion Bugfix]
+**Date:** 24 Janvier 2026
+**Statut:** ✅ Terminé & Déployé
+
+### 🟢 Points de Succès
+1.  **Classification "Zéro Titre" :** Les séances intitulées exactement comme le sport Nolio (ex: "Vélo - Route", "Trail") sont désormais classées en `endurance` par défaut (si pas de plan). Cela évite les faux positifs d'intervalles causés par une variabilité élevée du signal GPS/Power en ville (CV > 0.40).
+2.  **Robustesse de l'Ingestion :** Correction d'un bug bloquant dans `run_ingest.py` lié à l'initialisation de `tmp_path`. Le robot peut désormais re-traiter les fichiers FIT/TCX sans encombre.
+3.  **Nettoyage Automatique :** Le système supprime désormais les métriques d'intervalles (Plateau HR/Power) si une séance est rétrogradée d'intervalles vers endurance, garantissant la pureté des données du dashboard.
+4.  **Reprocessing Validé :** Correction confirmée en base pour les séances de Séraphin Barbot (IDs 90031728, 90031748).
+
+### 🟠 Points Bancales (Risques)
+1.  **Dictionnaire de Sports Manuel :** La liste des titres génériques (`generic_titles`) est codée en dur. Si Karoly ajoute une nouvelle discipline exotique dans Nolio (ex: "Ski-Roue"), elle pourrait être mal classée au début.
+    *   *Mitigation :* L'ajout de la comparaison `clean_title == clean_nolio_type` couvre 90% des cas sans maintenance manuelle.
+
+### 🔭 Watchlist
+- **Variabilité en Montagne :** Vérifier si le seuil de 0.60 pour le Trail/Ski-Rando n'est pas trop permissif (risque de rater des séances de "Blocs en montée" sans titre spécifique).
+- **Quota API :** Le forçage du refresh pour corriger les erreurs consomme des crédits. À utiliser avec parcimonie.
 
 ---

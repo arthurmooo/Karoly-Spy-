@@ -33,9 +33,11 @@ class ActivityClassifier:
         Classifies activity as 'endurance', 'intervals', or 'competition'.
         """
         combined_text = title.lower()
+        clean_title = title.strip().lower()
+        clean_nolio_type = nolio_type.strip().lower() if nolio_type else ""
 
         # 1. Explicit Competition (Nolio Flag or Type)
-        if is_competition_nolio or (nolio_type and nolio_type.lower() in ["compétition", "race", "competition"]):
+        if is_competition_nolio or (clean_nolio_type in ["compétition", "race", "competition"]):
             return "competition"
 
         # 2. Intervals (Strategy A: Plan-Driven)
@@ -44,13 +46,21 @@ class ActivityClassifier:
 
         # 3. Check for Generic Title (e.g. Title contains only the sport name)
         # If the title is just the sport and there's no plan, it's very likely generic endurance
-        if sport_name:
-            clean_title = title.strip().lower()
-            clean_sport = sport_name.strip().lower()
-            # If title is exactly sport name OR title is a subset of common generic sport names
-            if clean_title == clean_sport or clean_title in ["course à pied", "vélo", "ski de fond", "natation", "ski de randonnée"]:
-                 if not target_grid:
-                     return "endurance"
+        generic_titles = [
+            "course à pied", "vélo", "ski de fond", "natation", "ski de randonnée",
+            "vélo - route", "vélo - home trainer", "trail", "course à pied - tapis",
+            "renforcement musculaire", "musculation", "ppg", "gainage", "randonnée", 
+            "vtt", "marche", "natation en eau libre", "ski de rando", "cyclisme"
+        ]
+        
+        # If title is exactly sport name (from internal mapping or Nolio type)
+        is_generic = (clean_title == sport_name.lower()) or \
+                     (clean_title == clean_nolio_type) or \
+                     (clean_title in generic_titles)
+
+        if is_generic:
+            if not target_grid:
+                return "endurance"
 
         # 4. Intervals (Strategy B: Keywords)
         is_interval_by_kw = False

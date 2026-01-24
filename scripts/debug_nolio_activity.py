@@ -19,8 +19,11 @@ def debug_nolio_activity(nolio_id, athlete_id=None):
         print(f"  elevation_pos: {activity.get('elevation_pos')}")
         print(f"  elevation_gain: {activity.get('elevation_gain')}")
         print(f"  file_url: {activity.get('file_url')}")
-        # print full keys for discovery
         print(f"  All keys: {list(activity.keys())}")
+        print("\n--- HR Related Fields ---")
+        for k, v in activity.items():
+            if 'hr' in k.lower() or 'heart' in k.lower():
+                print(f"  {k}: {v}")
     else:
         print(f"Activity {nolio_id} (Athlete {athlete_id}) not found.")
 

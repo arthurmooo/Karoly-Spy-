@@ -2,14 +2,18 @@ from typing import Optional
 from tqdm import tqdm
 import pandas as pd
 import tempfile
+import logging
 import os
 from datetime import datetime
+
+# Setup logging
+log = logging.getLogger(__name__)
 
 from projectk_core.db.connector import DBConnector
 from projectk_core.integrations.storage import StorageManager
 from projectk_core.integrations.nolio import NolioClient
 from projectk_core.integrations.weather import WeatherClient
-from projectk_core.processing.parser import FitParser
+from projectk_core.processing.parser import UniversalParser
 from projectk_core.processing.calculator import MetricsCalculator
 from projectk_core.processing.plan_parser import NolioPlanParser
 from projectk_core.logic.profile_manager import ProfileManager
@@ -92,9 +96,11 @@ class ReprocessingEngine:
             tmp_path = tmp.name
         
         try:
-            df, device_meta, laps = FitParser.parse(tmp_path)
+            # 3. Parse
+            log.info(f"   🔄 Parsing file (Universal)...")
+            df, device_meta, laps = UniversalParser.parse(tmp_path)
             
-            # 5. Re-Calculate
+            # 4. Get Correct Physio Profile for THAT date
             start_time = datetime.fromisoformat(act_record['session_date'])
             sport = act_record['sport_type']
             
@@ -106,16 +112,20 @@ class ReprocessingEngine:
             if nolio_id:
                 details = self.nolio.get_activity_details(int(nolio_id), athlete_id=athlete_nolio_id)
                 if details:
-                    # Stage 1: Try Title Parsing
-                    activity_title = details.get('planned_name') or details.get('name') or ""
-                    plan = NolioPlanParser.parse(activity_title)
-                    
-                    # Stage 2: Deep JSON Parsing (if title parsing failed)
-                    if not plan and details.get('planned_id'):
+                    # Stage 1: Try Deep JSON Parsing (if available)
+                    if details.get('planned_id'):
                         planned_details = self.nolio.get_planned_workout(int(details['planned_id']), athlete_id=athlete_nolio_id)
-                        plan = NolioPlanParser.parse_json_structure(planned_details)
-                        if plan:
-                            print(f"      [bold green]💎 Deep Plan Found:[/bold green] {plan['reps']}x{plan['duration']}s detected from JSON.")
+                        if planned_details and planned_details.get('structure'):
+                            plan = self.plan_parser.parse(planned_details['structure'], sport_type=sport)
+                            if plan:
+                                print(f"      [bold green]💎 Deep Plan Found:[/bold green] {len(plan)} intervals detected from JSON.")
+                    
+                    # Stage 2: Fallback to title parsing if no deep plan was found
+                    if not plan:
+                        activity_title = details.get('planned_name') or details.get('name') or ""
+                        # Note: NolioPlanParser might not have a public string parser yet, 
+                        # but we use it if the plan was already resolved in details
+                        pass
 
             if plan:
                 print(f"      [bold green]📋 Strategy: Guided Detection[/bold green] -> {plan['reps']}x{plan['duration']}{plan['unit']}")

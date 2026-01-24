@@ -20,7 +20,7 @@ from projectk_core.db.connector import DBConnector
 from projectk_core.integrations.nolio import NolioClient
 from projectk_core.integrations.storage import StorageManager
 from projectk_core.integrations.weather import WeatherClient
-from projectk_core.processing.parser import FitParser
+from projectk_core.processing.parser import UniversalParser
 from projectk_core.processing.calculator import MetricsCalculator
 from projectk_core.processing.plan_parser import NolioPlanParser
 from projectk_core.processing.readiness import ReadinessCalculator
@@ -571,56 +571,66 @@ class IngestionRobot:
                     else:
                         print(f"      📍 Found existing activity by hash but missing storage path. Updating...")
 
-                # Parse FIT
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".fit") as tmp:
-                    tmp.write(fit_data)
-                    tmp_path = tmp.name
-                
+                # 5. Parse FIT/TCX
+                import tempfile
+                tmp_path = ""
                 try:
-                    df, device_meta, laps = FitParser.parse(tmp_path)
+                    # Determine extension from filename if possible, otherwise .fit
+                    ext = ".fit"
+                    if nolio_act.get("file_name") and "." in nolio_act["file_name"]:
+                        ext = "." + nolio_act["file_name"].split(".")[-1]
                     
-                    # Update start_time with high precision from FIT if available
-                    if device_meta.get('start_time'):
-                        start_date = device_meta['start_time']
-                        # Ensure timezone awareness (FIT is UTC)
-                        if start_date.tzinfo is None:
-                            start_date = start_date.replace(tzinfo=timezone.utc)
-                        meta.start_time = start_date
-                    
-                    # Update elevation if FIT has better data
-                    if device_meta.get('total_ascent'):
-                        meta.elevation_gain = float(device_meta['total_ascent'])
+                    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                        tmp.write(fit_data)
+                        tmp_path = tmp.name
 
-                    # UPDATE DISTANCE FROM FIT (Priority source)
-                    if not df.empty and 'distance' in df.columns:
-                        fit_dist = float(df['distance'].max())
-                        if fit_dist > 0:
-                            print(f"      📏 FIT Distance override: {meta.distance_m}m -> {fit_dist}m")
-                            meta.distance_m = fit_dist
+                    log.info(f"   🔄 Parsing file (Universal)...")
+                    df, device_meta, laps = UniversalParser.parse(tmp_path)
                     
-                    # Fetch Weather (API)
-                    if not df.empty and 'lat' in df.columns and 'lon' in df.columns:
-                        valid_coords = df[['lat', 'lon']].dropna().iloc[:1]
-                        if not valid_coords.empty:
-                            lat, lon = float(valid_coords['lat'].iloc[0]), float(valid_coords['lon'].iloc[0])
-                            w = self.weather.get_weather_at_timestamp(lat, lon, start_date)
-                            if w:
-                                meta.temp_avg = w.get("temp")
-                                meta.humidity_avg = w.get("humidity")
-                                meta.weather_source = "openweathermap"
+                    # Check for empty data
+                    if not df.empty:
+                        # Update start_time with high precision from FIT if available
+                        if device_meta.get('start_time'):
+                            start_date = device_meta['start_time']
+                            # Ensure timezone awareness (FIT is UTC)
+                            if start_date.tzinfo is None:
+                                start_date = start_date.replace(tzinfo=timezone.utc)
+                            meta.start_time = start_date
+                        
+                        # Update elevation if FIT has better data
+                        if device_meta.get('total_ascent'):
+                            meta.elevation_gain = float(device_meta['total_ascent'])
 
-                    # Device Mapping
-                    if device_meta.get('serial_number'):
-                        sn = str(device_meta['serial_number'])
-                        name = f"{device_meta.get('manufacturer', '')} {device_meta.get('product', '')}".strip()
-                        self.db.client.table("athlete_devices").upsert({
-                            "athlete_id": athlete_id,
-                            "serial_number": sn,
-                            "device_name": name or "Unknown Device"
-                        }, on_conflict="serial_number").execute()
+                        # UPDATE DISTANCE FROM FIT (Priority source)
+                        if 'distance' in df.columns:
+                            fit_dist = float(df['distance'].max())
+                            if fit_dist > 0:
+                                print(f"      📏 FIT Distance override: {meta.distance_m}m -> {fit_dist}m")
+                                meta.distance_m = fit_dist
+                        
+                        # Fetch Weather (API)
+                        if 'lat' in df.columns and 'lon' in df.columns:
+                            valid_coords = df[['lat', 'lon']].dropna().iloc[:1]
+                            if not valid_coords.empty:
+                                lat, lon = float(valid_coords['lat'].iloc[0]), float(valid_coords['lon'].iloc[0])
+                                w = self.weather.get_weather_at_timestamp(lat, lon, meta.start_time)
+                                if w:
+                                    meta.temp_avg = w.get("temp")
+                                    meta.humidity_avg = w.get("humidity")
+                                    meta.weather_source = "openweathermap"
+
+                        # Device Mapping
+                        if device_meta.get('serial_number'):
+                            sn = str(device_meta['serial_number'])
+                            name = f"{device_meta.get('manufacturer', '')} {device_meta.get('product', '')}".strip()
+                            self.db.client.table("athlete_devices").upsert({
+                                "athlete_id": athlete_id,
+                                "serial_number": sn,
+                                "device_name": name or "Unknown Device"
+                            }, on_conflict="serial_number").execute()
                         
                 except Exception as e:
-                    print(f"      ⚠️ FIT Parsing failed for {act_id} (using metadata only): {e}")
+                    print(f"      ⚠️ Parsing failed for {act_id} (using metadata only): {e}")
                 finally:
                     if os.path.exists(tmp_path):
                         os.remove(tmp_path)
