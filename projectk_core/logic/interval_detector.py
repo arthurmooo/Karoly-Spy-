@@ -30,8 +30,39 @@ class IntervalDetector:
             return {} 
 
         # --- STRATEGY 1: GUIDED (Plan Provided) ---
-        if plan and plan.get('duration'):
-            return IntervalDetector._detect_fixed(df, signal_col, plan['duration'], plan.get('reps', 1))
+        if plan:
+            # Check feasibility
+            if plan.get('duration', 0) > len(df):
+                return {}
+
+            # Normalize sport
+            sport = "run"
+            raw_sport = getattr(activity.metadata, 'sport_type', 'run').lower() if activity.metadata else 'run'
+            if 'bike' in raw_sport or 'cycl' in raw_sport: sport = 'bike'
+            elif 'swim' in raw_sport or 'nat' in raw_sport: sport = 'swim'
+
+            # Prepare Plan with Estimated Intensity
+            target_grid = plan
+            if isinstance(plan, dict) and 'duration' in plan:
+                # Heuristic: Set target_min to 75% of Session Max (stricter)
+                t_min = 0
+                if signal_col == 'power':
+                    max_val = df['power'].quantile(0.95)
+                    t_min = max_val * 0.75
+                elif signal_col == 'speed':
+                    max_val = df['speed'].quantile(0.95)
+                    t_min = max_val * 0.75
+                    
+                target_grid = [{"duration": plan['duration'], "type": "active", "target_min": t_min}] * plan.get('reps', 1)
+            
+            # Use Matcher V3
+            from projectk_core.processing.interval_matcher import IntervalMatcher
+            matcher = IntervalMatcher()
+            
+            laps = activity.laps if hasattr(activity, 'laps') else None
+            
+            results = matcher.match(df, target_grid, sport=sport, laps=laps)
+            return IntervalDetector._adapt_output(results)
 
         # --- STRATEGY 2: BLIND AUTOSTRUCT ---
         # Test common interval durations to find the best fit
@@ -136,6 +167,55 @@ class IntervalDetector:
             "interval_power_mean": round(float(sum_p / len(details)), 1),
             "interval_hr_mean": round(float(sum_hr / len(details)), 1),
             "blocks": details
+        }
+
+    @staticmethod
+    def _adapt_output(matched_intervals: List[Dict]) -> Dict:
+        if not matched_intervals:
+            return {}
+            
+        blocks = []
+        sum_p = 0
+        sum_hr = 0
+        count_p = 0
+        count_hr = 0
+        
+        for m in matched_intervals:
+            if m['status'] != 'matched':
+                continue
+                
+            p = m.get('plateau_avg_power') or m.get('avg_power') or 0
+            hr = m.get('avg_hr') or 0
+            
+            blocks.append({
+                "index": m['start_index'],
+                "duration_sec": m['duration_sec'],
+                "avg_power": round(float(p), 1),
+                "avg_hr": round(float(hr), 1),
+                "timestamp": str(m.get('start_index')),
+                "source": m.get('source')
+            })
+            
+            if p > 0: 
+                sum_p += p
+                count_p += 1
+            if hr > 0:
+                sum_hr += hr
+                count_hr += 1
+            
+        if not blocks:
+            return {}
+            
+        avg_p = sum_p / count_p if count_p > 0 else 0
+        avg_hr = sum_hr / count_hr if count_hr > 0 else 0
+        
+        return {
+            "interval_power_mean": round(avg_p, 1),
+            "interval_hr_mean": round(avg_hr, 1),
+            "interval_power_last": round(blocks[-1]['avg_power'], 1),
+            "interval_hr_last": round(blocks[-1]['avg_hr'], 1),
+            "blocks": blocks,
+            "detailed_matches": matched_intervals
         }
 
     @staticmethod
