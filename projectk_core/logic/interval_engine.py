@@ -12,8 +12,21 @@ class IntervalEngine:
     2. Lap Analysis (Priority 2)
     3. Algorithmic Detection (Priority 3)
     """
-    def __init__(self):
-        pass
+    def __init__(self, plan: Optional[PlannedStructure] = None, raw_laps: Optional[List[Dict[str, Any]]] = None, streams: Optional[pd.DataFrame] = None):
+        self.plan = plan
+        self.raw_laps = raw_laps
+        self.streams = streams
+
+    def process(self) -> List[IntervalBlock]:
+        """
+        Execute the full fusion pipeline.
+        """
+        plan_blocks = PlanProjector(self.plan).project() if self.plan else []
+        lap_blocks = LapAnalyzer(self.raw_laps).to_blocks() if self.raw_laps else []
+        algo_blocks = AlgoDetector(self.streams).detect() if self.streams is not None else []
+        
+        voter = EnsembleVoter(plan_blocks, lap_blocks, algo_blocks)
+        return voter.fuse()
 
 class PlanProjector:
     """
@@ -30,8 +43,6 @@ class PlanProjector:
         current_time = 0.0
         
         for p_interval in self.plan.intervals:
-            # If duration is missing but distance is present, we use a dummy duration (1s)
-            # to avoid validation errors, until we have speed data.
             duration = p_interval.duration or (1.0 if p_interval.distance_m else 0.0)
             
             block = IntervalBlock(
@@ -53,43 +64,27 @@ class ElasticMatcher:
         self.blocks = [b.model_copy() for b in blocks]
 
     def apply_shift(self, seconds: float) -> List[IntervalBlock]:
-        """
-        Apply a constant time shift to all blocks.
-        """
         for block in self.blocks:
             block.start_time += seconds
             block.end_time += seconds
         return self.blocks
 
     def scale_block(self, index: int, new_duration: float) -> List[IntervalBlock]:
-        """
-        Adjust the duration of a specific block and shift subsequent blocks.
-        """
         if index < 0 or index >= len(self.blocks):
             return self.blocks
-            
-        old_duration = self.blocks[index].duration
-        diff = new_duration - old_duration
-        
+        diff = new_duration - self.blocks[index].duration
         self.blocks[index].end_time += diff
-        
-        # Shift all subsequent blocks
         for i in range(index + 1, len(self.blocks)):
             self.blocks[i].start_time += diff
             self.blocks[i].end_time += diff
-            
         return self.blocks
 
     def remove_blocks(self, indices: List[int]) -> List[IntervalBlock]:
-        """
-        Remove specified blocks and shift remaining blocks to close gaps.
-        """
         indices = sorted(indices, reverse=True)
         for idx in indices:
             if 0 <= idx < len(self.blocks):
                 removed_block = self.blocks.pop(idx)
                 duration = removed_block.duration
-                # Shift subsequent blocks backwards
                 for i in range(idx, len(self.blocks)):
                     self.blocks[i].start_time -= duration
                     self.blocks[i].end_time -= duration
@@ -104,39 +99,23 @@ class LapAnalyzer:
         self.min_duration = min_duration
 
     def to_blocks(self) -> List[IntervalBlock]:
-        """
-        Convert raw laps to IntervalBlocks, filtering out parasites.
-        """
         blocks = []
         for lap in self.raw_laps:
             duration = lap.get("total_elapsed_time", 0)
             if duration < self.min_duration:
                 continue
-                
             start_time = lap.get("start_time", 0)
-            
-            # Map intensity to standard types
-            raw_type = lap.get("intensity", "active")
-            block_type = self._map_type(raw_type)
-            
-            block = IntervalBlock(
+            block_type = self._map_type(lap.get("intensity", "active"))
+            blocks.append(IntervalBlock(
                 start_time=start_time,
                 end_time=start_time + duration,
                 type=block_type,
                 detection_source=DetectionSource.LAP
-            )
-            blocks.append(block)
-            
+            ))
         return blocks
 
     def _map_type(self, raw_type: str) -> str:
-        mapping = {
-            "warmup": "warmup",
-            "cooldown": "cooldown",
-            "rest": "rest",
-            "recovery": "rest",
-            "active": "active"
-        }
+        mapping = {"warmup": "warmup", "cooldown": "cooldown", "rest": "rest", "recovery": "rest", "active": "active"}
         return mapping.get(raw_type.lower(), "active")
 
 class AlgoDetector:
@@ -147,90 +126,87 @@ class AlgoDetector:
         self.df = df
 
     def detect(self) -> List[IntervalBlock]:
-        """
-        Detect jumps in power/speed to identify blocks.
-        """
-        if self.df.empty:
-            return []
-            
-        # Prioritize Power, then Speed
+        if self.df.empty: return []
         signal_col = "power" if "power" in self.df.columns else "speed"
         if signal_col not in self.df.columns:
-            # Fallback to single block
-            return [IntervalBlock(
-                start_time=self.df["time"].min(),
-                end_time=self.df["time"].max(),
-                type="active",
-                detection_source=DetectionSource.ALGO
-            )]
+            return [IntervalBlock(start_time=self.df["time"].min(), end_time=self.df["time"].max(), type="active", detection_source=DetectionSource.ALGO)]
             
         signal = self.df[signal_col].fillna(0)
-        
-        # Threshold logic: we want to find "work" vs "rest"
-        # If max is high, we can use a relative threshold
-        s_min = signal.min()
-        s_max = signal.max()
+        s_min, s_max = signal.min(), signal.max()
         s_range = s_max - s_min
-        
-        if s_range < 5: # Not enough variation
-             return [IntervalBlock(
-                start_time=self.df["time"].min(),
-                end_time=self.df["time"].max(),
-                type="active",
-                detection_source=DetectionSource.ALGO
-            )]
+        if s_range < 5:
+             return [IntervalBlock(start_time=self.df["time"].min(), end_time=self.df["time"].max(), type="active", detection_source=DetectionSource.ALGO)]
             
-        threshold = s_min + (s_range * 0.4) # 40% of the range above min
+        threshold = s_min + (s_range * 0.4)
         is_active = signal > threshold
-        
-        # Detect state changes
         diff = is_active.astype(int).diff().fillna(0)
         starts = self.df.loc[diff == 1, "time"].tolist()
         ends = self.df.loc[diff == -1, "time"].tolist()
-        
-        # Handle edge cases (starts/ends misalignment)
-        if is_active.iloc[0]:
-            starts.insert(0, self.df["time"].iloc[0])
-        if is_active.iloc[-1]:
-            ends.append(self.df["time"].iloc[-1])
+        if is_active.iloc[0]: starts.insert(0, self.df["time"].iloc[0])
+        if is_active.iloc[-1]: ends.append(self.df["time"].iloc[-1])
             
-        blocks = []
-        last_end = self.df["time"].iloc[0]
-        
+        blocks, last_end = [], self.df["time"].iloc[0]
         for s, e in zip(starts, ends):
-            # Recovery before active
             if s > last_end + 1:
-                blocks.append(IntervalBlock(
-                    start_time=last_end,
-                    end_time=s,
-                    type="rest",
-                    detection_source=DetectionSource.ALGO
-                ))
-            
-            # Active block
-            blocks.append(IntervalBlock(
-                start_time=s,
-                end_time=e,
-                type="active",
-                detection_source=DetectionSource.ALGO
-            ))
+                blocks.append(IntervalBlock(start_time=last_end, end_time=s, type="rest", detection_source=DetectionSource.ALGO))
+            blocks.append(IntervalBlock(start_time=s, end_time=e, type="active", detection_source=DetectionSource.ALGO))
             last_end = e
-            
-        # Final recovery if needed
         if last_end < self.df["time"].max():
-            blocks.append(IntervalBlock(
-                start_time=last_end,
-                end_time=self.df["time"].max(),
-                type="rest",
-                detection_source=DetectionSource.ALGO
-            ))
-            
-        if not blocks:
-             blocks.append(IntervalBlock(
-                start_time=self.df["time"].min(),
-                end_time=self.df["time"].max(),
-                type="active",
-                detection_source=DetectionSource.ALGO
-            ))
-            
+            blocks.append(IntervalBlock(start_time=last_end, end_time=self.df["time"].max(), type="rest", detection_source=DetectionSource.ALGO))
         return blocks
+
+class EnsembleVoter:
+    """
+    Fuses Plan, Laps, and Algo data into a single truth.
+    """
+    def __init__(self, plan_blocks: List[IntervalBlock], lap_blocks: List[IntervalBlock], algo_blocks: List[IntervalBlock]):
+        self.plan_blocks = plan_blocks
+        self.lap_blocks = lap_blocks
+        self.algo_blocks = algo_blocks
+
+    def fuse(self) -> List[IntervalBlock]:
+        """
+        Strategy: 
+        - Use Plan for structure (how many blocks, types).
+        - Use Laps or Algo to adjust timestamps.
+        - Priority: Laps > Algo > Plan.
+        """
+        if not self.plan_blocks:
+            # Fallback to Laps if no plan
+            if self.lap_blocks: return self.lap_blocks
+            return self.algo_blocks
+            
+        # Aligner le plan sur le premier lap significatif ou le premier bloc algo
+        shift = 0.0
+        if self.lap_blocks:
+            shift = self.lap_blocks[0].start_time - self.plan_blocks[0].start_time
+        elif self.algo_blocks:
+            shift = self.algo_blocks[0].start_time - self.plan_blocks[0].start_time
+            
+        matcher = ElasticMatcher(self.plan_blocks)
+        matcher.apply_shift(shift)
+        
+        # Pour chaque bloc du plan, essayer d'ajuster avec un lap ou un bloc algo proche
+        fused_blocks = matcher.blocks
+        for i, block in enumerate(fused_blocks):
+            # Trouver un lap correspondant (même type, temps proche)
+            matching_lap = self._find_matching(block, self.lap_blocks)
+            if matching_lap:
+                block.start_time = matching_lap.start_time
+                block.end_time = matching_lap.end_time
+                continue
+                
+            # Sinon, essayer algo
+            matching_algo = self._find_matching(block, self.algo_blocks)
+            if matching_algo:
+                block.start_time = matching_algo.start_time
+                block.end_time = matching_algo.end_time
+                
+        return fused_blocks
+
+    def _find_matching(self, target: IntervalBlock, candidates: List[IntervalBlock], tolerance: float = 30.0) -> Optional[IntervalBlock]:
+        for c in candidates:
+            # Tolérance temporelle sur le début
+            if abs(c.start_time - target.start_time) < tolerance:
+                return c
+        return None
