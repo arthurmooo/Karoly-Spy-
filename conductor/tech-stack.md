@@ -6,6 +6,7 @@
     - `pandas`: For vectorized data manipulation (Strictly no `for` loops on DataFrames).
     - `numpy`: For high-performance numerical operations.
     - `scipy.signal`: For signal processing and noise filtering (HR/Power smoothing).
+    - **Surgical Alignment:** Custom cross-correlation (sliding window) and multi-signal gradient refinement for sub-second interval precision.
 - **File Parsing:**
     - `fitdecode`: For robust extraction of raw data from modern .FIT files (Garmin, Wahoo, Coros).
     - `xml.etree.ElementTree`: For parsing .TCX files (Standard Library).
