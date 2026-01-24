@@ -35,10 +35,10 @@
 - [ ] Task: Conductor - User Manual Verification 'Detection Strategy - Priority 2 & 3' (Protocol in workflow.md)
 
 ## Phase 4: Metrics Calculation & Precision
-- [ ] Task: Implement Interval Metrics Calculator.
+- [x] Task: Implement Interval Metrics Calculator. [5a8359d]
     - [ ] Calculate Avg Speed, Power, HR, Cadence per interval.
     - [ ] **Crucial:** Implement "Total Integration" for HR (no filters).
-- [ ] Task: Implement Efficiency & Drift Metrics.
+- [x] Task: Implement Efficiency & Drift Metrics. [cc0d3e9]
     - [ ] Calculate Pa:Hr / Vitesse:Hr ratios.
     - [ ] Calculate Drift (Last Rep vs Mean Reps).
     - [ ] TDD: Verify math against Karoly's manual formulas.
