@@ -104,8 +104,27 @@ class LapAnalyzer:
 
     def to_blocks(self) -> List[IntervalBlock]:
         blocks = []
+        
+        # Pre-calculate stats for auto-classification
+        speeds = []
         for lap in self.raw_laps:
-            # Use timer_time (active) if available, else elapsed
+             s = lap.get("avg_speed", 0)
+             if s: speeds.append(s)
+        
+        threshold_speed = 0
+        if speeds:
+            # Simple heuristic: (Max + Min) / 2 often works for interval/rest separation
+            # Or weighted towards max. Let's try average of top 50% vs bottom 50%
+            # Actually, (Min + Max) / 2 is risky if outliers.
+            # Let's use K-Means logic simplified: 
+            # 1. Sort speeds.
+            # 2. Find biggest jump in sorted speeds? 
+            # 3. Or just Mean?
+            # In the Adrian example: Active ~5.2, Rest ~3.0. Mean is ~4.1. Works perfectly.
+            # Let's use Mean of non-zero speeds.
+            threshold_speed = sum(speeds) / len(speeds)
+
+        for lap in self.raw_laps:
             duration = lap.get("total_timer_time")
             if duration is None or duration == 0:
                 duration = lap.get("total_elapsed_time", 0)
@@ -115,14 +134,28 @@ class LapAnalyzer:
             
             start_time = lap.get("start_time", 0)
             
-            # Normalize to relative seconds if start_time is datetime and we have a reference
             if isinstance(start_time, datetime) and self.reference_start_time:
                 start_time = (start_time - self.reference_start_time).total_seconds()
             
             if not isinstance(start_time, (int, float)):
                  continue 
 
-            block_type = self._map_type(lap.get("intensity", "active"))
+            raw_type = lap.get("intensity")
+            block_type = "active"
+            
+            if raw_type:
+                block_type = self._map_type(raw_type)
+            else:
+                # Auto-classify
+                lap_speed = lap.get("avg_speed", 0)
+                # If speed is significantly below threshold, assume rest.
+                # We apply a slight buffer (e.g. 0.9 of threshold) to be safe?
+                # Actually, if we use Mean as splitter:
+                if lap_speed < threshold_speed:
+                    block_type = "rest"
+                else:
+                    block_type = "active"
+
             blocks.append(IntervalBlock(
                 start_time=start_time,
                 end_time=start_time + duration,
@@ -150,23 +183,40 @@ class AlgoDetector:
             
         signal = self.df[signal_col].fillna(0)
         
-        # Smooth signal to remove noise spikes
-        signal_smooth = signal.rolling(window=5, center=True).mean().fillna(signal)
+        # Smooth signal (10s)
+        signal_smooth = signal.rolling(window=10, center=True).mean().fillna(signal)
         
         s_min, s_max = signal_smooth.min(), signal_smooth.max()
         s_range = s_max - s_min
         if s_range < 5:
              return [IntervalBlock(start_time=self.df["time"].min(), end_time=self.df["time"].max(), type="active", detection_source=DetectionSource.ALGO)]
             
-        # Use Quantile for threshold: 
-        # For an interval session, "Active" time is usually less than 50% of total time?
-        # Let's try 60th percentile as a dynamic separator.
-        # If the athlete pushes hard, intervals are clearly above the median.
-        threshold = signal_smooth.quantile(0.6)
+        # K-Means (3 Clusters) Logic for robust thresholding
+        values = signal_smooth.values
+        v_min = values.min()
+        v_max = values.max()
+        v_med = np.median(values)
         
-        # Safety: Ensure threshold is not too close to min (e.g. constant effort)
-        if threshold < s_min + (s_range * 0.1):
-             threshold = s_min + (s_range * 0.3)
+        c_low = v_min
+        c_med = v_med
+        c_high = v_max
+        
+        for _ in range(5):
+            d_low = abs(values - c_low)
+            d_med = abs(values - c_med)
+            d_high = abs(values - c_high)
+            
+            # Assign to nearest
+            labels = np.argmin(np.vstack((d_low, d_med, d_high)), axis=0)
+            
+            # Update
+            if (labels==0).any(): c_low = values[labels==0].mean()
+            if (labels==1).any(): c_med = values[labels==1].mean()
+            if (labels==2).any(): c_high = values[labels==2].mean()
+        
+        # Threshold between Med and High (Rest vs Active)
+        # Note: In this session, Med is "Active Rest" and High is "Interval Work".
+        threshold = (c_med + c_high) / 2
              
         is_active = signal_smooth > threshold
         diff = is_active.astype(int).diff().fillna(0)
@@ -175,23 +225,36 @@ class AlgoDetector:
         if is_active.iloc[0]: starts.insert(0, self.df["time"].iloc[0])
         if is_active.iloc[-1]: ends.append(self.df["time"].iloc[-1])
             
-        blocks, last_end = [], self.df["time"].iloc[0]
+        # Collect raw intervals
+        raw_intervals = []
+        for s, e in zip(starts, ends):
+            raw_intervals.append((s, e))
+            
+        # Merge close intervals (gap < 10s)
+        if not raw_intervals:
+            return []
+            
+        merged_intervals = []
+        current_s, current_e = raw_intervals[0]
         
-        # Filter short blocks (parasites)
-        min_duration = 10 # seconds
+        for next_s, next_e in raw_intervals[1:]:
+            if next_s - current_e < 20: # Increased merge gap to 20s to bridge intra-interval drops
+                current_e = next_e
+            else:
+                merged_intervals.append((current_s, current_e))
+                current_s, current_e = next_s, next_e
+        merged_intervals.append((current_s, current_e))
         
-        valid_intervals = []
-        # First pass: collect all raw intervals
-        current_starts = sorted(starts)
-        current_ends = sorted(ends)
+        # Filter short blocks (noise < 15s)
+        final_intervals = []
+        for s, e in merged_intervals:
+            if e - s >= 15:
+                final_intervals.append((s, e))
         
-        # Safe zip
-        for s, e in zip(current_starts, current_ends):
-            if e - s >= min_duration:
-                valid_intervals.append((s, e))
-                
-        # Build blocks
-        for s, e in valid_intervals:
+        blocks = []
+        last_end = self.df["time"].iloc[0]
+        
+        for s, e in final_intervals:
             if s > last_end + 1:
                  blocks.append(IntervalBlock(start_time=last_end, end_time=s, type="rest", detection_source=DetectionSource.ALGO))
             blocks.append(IntervalBlock(start_time=s, end_time=e, type="active", detection_source=DetectionSource.ALGO))
