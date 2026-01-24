@@ -1,9 +1,8 @@
 from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
-from projectk_core.logic.models import PlannedStructure, IntervalBlock, DetectionSource
-
 from datetime import datetime
+from projectk_core.logic.models import PlannedStructure, IntervalBlock, DetectionSource
 
 class IntervalEngine:
     """
@@ -29,7 +28,14 @@ class IntervalEngine:
         algo_blocks = AlgoDetector(self.streams).detect() if self.streams is not None else []
         
         voter = EnsembleVoter(plan_blocks, lap_blocks, algo_blocks)
-        return voter.fuse()
+        fused_blocks = voter.fuse()
+        
+        # Calculate metrics for fused blocks
+        if self.streams is not None:
+            calculator = IntervalMetricsCalculator(self.streams)
+            fused_blocks = [calculator.calculate(b) for b in fused_blocks]
+            
+        return fused_blocks
 
 class PlanProjector:
     """
@@ -113,18 +119,10 @@ class LapAnalyzer:
         
         threshold_speed = 0
         if speeds:
-            # Simple heuristic: (Max + Min) / 2 often works for interval/rest separation
-            # Or weighted towards max. Let's try average of top 50% vs bottom 50%
-            # Actually, (Min + Max) / 2 is risky if outliers.
-            # Let's use K-Means logic simplified: 
-            # 1. Sort speeds.
-            # 2. Find biggest jump in sorted speeds? 
-            # 3. Or just Mean?
-            # In the Adrian example: Active ~5.2, Rest ~3.0. Mean is ~4.1. Works perfectly.
-            # Let's use Mean of non-zero speeds.
             threshold_speed = sum(speeds) / len(speeds)
 
         for lap in self.raw_laps:
+            # Use timer_time (active) if available, else elapsed
             duration = lap.get("total_timer_time")
             if duration is None or duration == 0:
                 duration = lap.get("total_elapsed_time", 0)
@@ -146,11 +144,7 @@ class LapAnalyzer:
             if raw_type:
                 block_type = self._map_type(raw_type)
             else:
-                # Auto-classify
                 lap_speed = lap.get("avg_speed", 0)
-                # If speed is significantly below threshold, assume rest.
-                # We apply a slight buffer (e.g. 0.9 of threshold) to be safe?
-                # Actually, if we use Mean as splitter:
                 if lap_speed < threshold_speed:
                     block_type = "rest"
                 else:
@@ -215,7 +209,6 @@ class AlgoDetector:
             if (labels==2).any(): c_high = values[labels==2].mean()
         
         # Threshold between Med and High (Rest vs Active)
-        # Note: In this session, Med is "Active Rest" and High is "Interval Work".
         threshold = (c_med + c_high) / 2
              
         is_active = signal_smooth > threshold
@@ -230,7 +223,7 @@ class AlgoDetector:
         for s, e in zip(starts, ends):
             raw_intervals.append((s, e))
             
-        # Merge close intervals (gap < 10s)
+        # Merge close intervals (gap < 20s)
         if not raw_intervals:
             return []
             
@@ -238,7 +231,7 @@ class AlgoDetector:
         current_s, current_e = raw_intervals[0]
         
         for next_s, next_e in raw_intervals[1:]:
-            if next_s - current_e < 20: # Increased merge gap to 20s to bridge intra-interval drops
+            if next_s - current_e < 20: 
                 current_e = next_e
             else:
                 merged_intervals.append((current_s, current_e))
@@ -275,14 +268,7 @@ class EnsembleVoter:
         self.algo_blocks = algo_blocks
 
     def fuse(self) -> List[IntervalBlock]:
-        """
-        Strategy: 
-        - Use Plan for structure (how many blocks, types).
-        - Use Laps or Algo to adjust timestamps.
-        - Priority: Laps > Algo > Plan.
-        """
         if not self.plan_blocks:
-            # Fallback to Laps if no plan
             if self.lap_blocks: return self.lap_blocks
             return self.algo_blocks
             
@@ -296,17 +282,14 @@ class EnsembleVoter:
         matcher = ElasticMatcher(self.plan_blocks)
         matcher.apply_shift(shift)
         
-        # Pour chaque bloc du plan, essayer d'ajuster avec un lap ou un bloc algo proche
         fused_blocks = matcher.blocks
         for i, block in enumerate(fused_blocks):
-            # Trouver un lap correspondant (même type, temps proche)
             matching_lap = self._find_matching(block, self.lap_blocks)
             if matching_lap:
                 block.start_time = matching_lap.start_time
                 block.end_time = matching_lap.end_time
                 continue
                 
-            # Sinon, essayer algo
             matching_algo = self._find_matching(block, self.algo_blocks)
             if matching_algo:
                 block.start_time = matching_algo.start_time
@@ -316,7 +299,43 @@ class EnsembleVoter:
 
     def _find_matching(self, target: IntervalBlock, candidates: List[IntervalBlock], tolerance: float = 30.0) -> Optional[IntervalBlock]:
         for c in candidates:
-            # Tolérance temporelle sur le début
             if abs(c.start_time - target.start_time) < tolerance:
                 return c
         return None
+
+class IntervalMetricsCalculator:
+    """
+    Calculates physiological metrics for a given interval block.
+    """
+    def __init__(self, streams: pd.DataFrame):
+        self.streams = streams
+        # Ensure time column exists for slicing
+        if "time" not in self.streams.columns:
+             start_time = self.streams.index[0] if isinstance(self.streams.index, pd.DatetimeIndex) else 0
+             if isinstance(start_time, pd.Timestamp):
+                 self.streams["time"] = (self.streams.index - start_time).total_seconds()
+             else:
+                 self.streams["time"] = self.streams.index
+
+    def calculate(self, block: IntervalBlock) -> IntervalBlock:
+        """
+        Computes Avg Power, HR, Speed, Cadence for the block duration.
+        """
+        # Slice streams
+        mask = (self.streams["time"] >= block.start_time) & (self.streams["time"] <= block.end_time)
+        segment = self.streams.loc[mask]
+        
+        if segment.empty:
+            return block
+            
+        # Calculate averages (ignoring NaNs)
+        if "power" in segment.columns:
+            block.avg_power = float(segment["power"].mean())
+        if "heart_rate" in segment.columns:
+            block.avg_hr = float(segment["heart_rate"].mean())
+        if "speed" in segment.columns:
+            block.avg_speed = float(segment["speed"].mean())
+        if "cadence" in segment.columns:
+            block.avg_cadence = float(segment["cadence"].mean())
+            
+        return block
