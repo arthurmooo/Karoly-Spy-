@@ -26,6 +26,13 @@
 - [x] **Safe Temporary Parsing**: Fixed a critical bug in `run_ingest.py` where the temporary file path (`tmp_path`) was used before initialization, ensuring robust parsing of FIT/TCX files during ingestion.
 - [x] **Selective Interval Clean-up**: Reinforced the "Security" check in `run_ingest.py` to ensure interval-specific metrics (Plateau HR/Power) are stripped if an activity is re-classified from intervals to endurance.
 
+### Logic Improvements (Logged from Track: Gravel & Generic Classification Fix 2026-01-24)
+
+- [x] **Gravel Support**: Added 'Vélo - Gravel' and 'Gravel' to `generic_titles` in `ActivityClassifier`.
+- [x] **Title Normalization**: Improved dash handling in activity titles (En-dash/Em-dash to Hyphen) to ensure reliable matching against generic title lists.
+- [x] **Retroactive Correction**: Fixed misclassification for Estelle-Marie Kieffer (Gravel) and others in the database via SQL update.
+- [x] **Plan Logic Restoration**: Re-implemented the missing logic in `run_ingest.py` to fetch and parse Nolio planned workouts (target_grid). This restores the "Strategy A" (Plan-Driven) classification, ensuring that sessions explicitly planned as intervals are detected even if the signal is messy.
+
 - [ ] **TCX Support**: The current parser only handles binary .fit files. One of the test files (Baptiste 01/08) is a TCX, causing a crash. Need a TCX/XML parser layer.
 - [ ] **Swimming Fallback**: For swimming activities without speed/power data, implement a fallback using LAP messages or internal device distance calculations.
 - [ ] **Confidence Scoring**: Refine the `respect_score` to also include a "Signal Quality" metric (e.g., standard deviation of signal during plateau).

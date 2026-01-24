@@ -547,7 +547,33 @@ class IngestionRobot:
         if distance_raw > 0:
             print(f"      📏 Nolio Distance: {distance_raw} km -> {distance_m} m")
 
-        # ... (rest of plan retrieval) ...
+        # --- RESURRECTED LOGIC: Plan Retrieval & Parsing ---
+        # 1. Fallback Search if no direct link (Plan B)
+        if not planned_session and athlete_nolio_id:
+            try:
+                # Use start_date (parsed above) to find matching workout in the week
+                planned_session = self.nolio.find_planned_workout(
+                    athlete_id=athlete_nolio_id,
+                    date=start_date,
+                    title_filter=nolio_act.get("name")
+                )
+                if planned_session:
+                    print(f"      🔗 Linked via fuzzy search: {planned_session.get('name')} (ID: {planned_session.get('id')})")
+            except Exception as e:
+                print(f"      ⚠️ Plan search failed: {e}")
+
+        # 2. Parse Structure into Target Grid
+        if planned_session:
+            try:
+                # Structure can be under 'structure' or 'structured_workout' depending on endpoint
+                struct = planned_session.get("structure") or planned_session.get("structured_workout")
+                if struct:
+                    target_grid = self.plan_parser.parse(struct, sport_type=internal_sport)
+                    if target_grid:
+                        print(f"      🎯 Plan parsed: {len(target_grid)} interval steps found.")
+            except Exception as e:
+                print(f"      ⚠️ Plan parsing error: {e}")
+        # ---------------------------------------------------
 
         # 3. Try to process FIT data if available
         fit_data = None

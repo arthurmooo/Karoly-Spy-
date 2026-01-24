@@ -26,6 +26,15 @@ class TestWorkoutClassifier(unittest.TestCase):
         res = self.classifier.detect_work_type(df, "Unknown Session", "Training")
         self.assertEqual(res, "intervals")
 
+    def test_classify_gravel_generic(self):
+        """Should classify as 'endurance' even with high variability if title is generic Gravel."""
+        # Create a signal with high variability (CV > 0.40)
+        df = pd.DataFrame({
+            'power': [100, 300, 0, 400, 100, 0, 200] * 10
+        })
+        res = self.classifier.detect_work_type(df, "Vélo - Gravel", "Training", sport_name="Gravel")
+        self.assertEqual(res, "endurance")
+
     def test_classify_by_title_keyword(self):
         """Should classify as 'intervals' if title contains keywords like '10x30'."""
         res = self.classifier.detect_work_type(pd.DataFrame(), "10x30/30 Seuil", "Training")

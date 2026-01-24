@@ -50,7 +50,8 @@ class ActivityClassifier:
             "course à pied", "vélo", "ski de fond", "natation", "ski de randonnée",
             "vélo - route", "vélo - home trainer", "trail", "course à pied - tapis",
             "renforcement musculaire", "musculation", "ppg", "gainage", "randonnée", 
-            "vtt", "marche", "natation en eau libre", "ski de rando", "cyclisme"
+            "vtt", "marche", "natation en eau libre", "ski de rando", "cyclisme",
+            "vélo - gravel", "gravel"
         ]
         
         # If title is exactly sport name (from internal mapping or Nolio type)

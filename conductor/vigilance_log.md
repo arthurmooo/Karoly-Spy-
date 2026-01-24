@@ -209,7 +209,7 @@
 1.  **Classification "Zéro Titre" :** Les séances intitulées exactement comme le sport Nolio (ex: "Vélo - Route", "Trail") sont désormais classées en `endurance` par défaut (si pas de plan). Cela évite les faux positifs d'intervalles causés par une variabilité élevée du signal GPS/Power en ville (CV > 0.40).
 2.  **Robustesse de l'Ingestion :** Correction d'un bug bloquant dans `run_ingest.py` lié à l'initialisation de `tmp_path`. Le robot peut désormais re-traiter les fichiers FIT/TCX sans encombre.
 3.  **Nettoyage Automatique :** Le système supprime désormais les métriques d'intervalles (Plateau HR/Power) si une séance est rétrogradée d'intervalles vers endurance, garantissant la pureté des données du dashboard.
-4.  **Reprocessing Validé :** Correction confirmée en base pour les séances de Séraphin Barbot (IDs 90031728, 90031748).
+4.  **Reprocessing Validé :** Correction confirmée en base de données pour les séances de Séraphin Barbot (IDs 90031728, 90031748).
 
 ### 🟠 Points Bancales (Risques)
 1.  **Dictionnaire de Sports Manuel :** La liste des titres génériques (`generic_titles`) est codée en dur. Si Karoly ajoute une nouvelle discipline exotique dans Nolio (ex: "Ski-Roue"), elle pourrait être mal classée au début.
@@ -220,3 +220,18 @@
 - **Quota API :** Le forçage du refresh pour corriger les erreurs consomme des crédits. À utiliser avec parcimonie.
 
 ---
+
+## [Track: Gravel & Generic Classification Fix]
+**Date:** 24 Janvier 2026
+**Statut:** ✅ Terminé & Déployé
+
+### 🟢 Points de Succès
+1.  **Support Gravel:** Ajout de "Vélo - Gravel" et "Gravel" dans la liste des titres génériques, corrigeant la classification d'Estelle-Marie Kieffer.
+2.  **Robustesse du Nettoyage de Titre:** Normalisation agressive des tirets (En-Dash / Em-Dash vers tiret simple) pour éviter les faux négatifs lors de la comparaison avec les listes de titres génériques.
+3.  **Correction Rétroactive:** Mise à jour ciblée en base de données pour remettre les séances mal classées du 24/01 en "endurance" et purger les métriques d'intervalles associées.
+
+### 🟠 Points Bancales (Risques)
+1.  **Mystère du Code Manquant:** Un commentaire `# ... (rest of plan retrieval) ...` a été repéré dans `run_ingest.py`, suggérant qu'une logique de récupération de plan a pu être perdue. Cela n'affecte pas la correction actuelle mais mérite une investigation si la détection par plan échoue à l'avenir.
+
+### 🔭 Watchlist
+- **Ingestion future du Gravel:** Surveiller la prochaine sortie Gravel d'Estelle-Marie pour confirmer que le fix automatique fonctionne sans intervention manuelle.
