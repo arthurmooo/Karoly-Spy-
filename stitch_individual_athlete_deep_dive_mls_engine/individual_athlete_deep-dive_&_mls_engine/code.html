@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Individual Athlete Deep-Dive | MLS Engine</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "primary": "#137fec",
+                "background-light": "#f6f7f8",
+                "background-dark": "#101922",
+              },
+              fontFamily: {
+                "display": ["Inter"]
+              },
+              borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .chart-grid {
+            background-image: radial-gradient(circle, #233648 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-white min-h-screen">
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="w-64 flex-shrink-0 flex flex-col border-r border-[#233648] bg-background-dark">
+<div class="p-6 flex flex-col h-full">
+<div class="flex items-center gap-3 mb-10">
+<div class="bg-primary rounded-lg p-2">
+<span class="material-symbols-outlined text-white">insights</span>
+</div>
+<div>
+<h1 class="text-white text-lg font-bold leading-none">Coach Spy</h1>
+<p class="text-[#92adc9] text-xs font-medium uppercase tracking-wider">Elite Performance</p>
+</div>
+</div>
+<nav class="flex-1 space-y-2">
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#233648] text-[#92adc9] hover:text-white cursor-pointer transition-colors">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 text-primary cursor-pointer border border-primary/30">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">groups</span>
+<p class="text-sm font-medium">Athletes</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#233648] text-[#92adc9] hover:text-white cursor-pointer transition-colors">
+<span class="material-symbols-outlined">calendar_today</span>
+<p class="text-sm font-medium">Training Plans</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#233648] text-[#92adc9] hover:text-white cursor-pointer transition-colors">
+<span class="material-symbols-outlined">analytics</span>
+<p class="text-sm font-medium">MLS Engine</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#233648] text-[#92adc9] hover:text-white cursor-pointer transition-colors">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</div>
+</nav>
+<div class="mt-auto pt-6 border-t border-[#233648]">
+<button class="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white rounded-lg h-11 text-sm font-bold transition-all shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">add</span>
+<span>Add Workout</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="h-16 flex items-center justify-between px-8 border-b border-[#233648] bg-background-dark/50 backdrop-blur-md sticky top-0 z-10">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 text-[#92adc9] text-sm font-medium">
+<span>Athletes</span>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-white">Adrien C.</span>
+</div>
+<div class="h-4 w-px bg-[#233648]"></div>
+<div class="flex items-center gap-2">
+<span class="size-2 bg-green-500 rounded-full animate-pulse"></span>
+<span class="text-xs text-[#92adc9] font-medium uppercase tracking-tighter">Live Session Sync</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined text-[#92adc9] cursor-pointer hover:text-white">notifications</span>
+<span class="absolute -top-1 -right-1 size-3 bg-red-500 rounded-full border-2 border-background-dark"></span>
+</div>
+<div class="flex items-center gap-3 pl-4 border-l border-[#233648]">
+<div class="text-right">
+<p class="text-xs text-white font-bold">Coach Karoly Spy</p>
+<p class="text-[10px] text-[#92adc9] uppercase tracking-wider">Performance Dir.</p>
+</div>
+<div class="size-9 rounded-full bg-cover bg-center border border-[#233648]" data-alt="Coach Karoly profile photo" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDs3Q7DcLHT2Ej7jjpeievSHrDCb7bT-5LawsJLCXI-_MZeIqWChYoNjCDRKPM0HROS6k0BLG0jyin7uLhRF96BqeI1YnQLSBqZX2YBmrBKrpKJ7RXEMy6fe11YqM4l6gISkpsAhdLTtFiYSw5kAeuKHOKISuqFbfHw0lTf2Xo2sl16tfRUbDXMWpzbh9fqspGeLylRpyOAMoVJwcSDZdA8qoRxlc98ancjZ4qKoir_iqVtNcDusDqX5igZ49zWfBvSuzLCGgz0qhA');"></div>
+</div>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<!-- Central Focus: MLS Engine & Data -->
+<section class="flex-1 overflow-y-auto p-8 space-y-8 bg-background-dark">
+<!-- Profile Header Component -->
+<div class="flex flex-col @container">
+<div class="flex w-full flex-col gap-6 @[720px]:flex-row @[720px]:justify-between @[720px]:items-end">
+<div class="flex gap-6 items-center">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-xl size-24 border-2 border-primary/20 shadow-xl shadow-primary/5" data-alt="Athlete Adrien C. profile" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBMZN31BY5A2din4Xb4e1asDBL5MINg1XmmfRHRA1IhkLmhcZA1cYdvEulFRaWo_8kt0Ru3wbJHM-_yPE_DI0-Td2MDRXlq7oK8sRIrMod_PkpKCsy_-AioYBNofIBhl6XXVyVUq-fAd11N6R8tSwOHnvV0bsPyP8zEfIFWHHCnMoOE90Crj198phrjI0aDO-w1o4mBGxElcT3DRo32_5cHHkUQPg5169lm9g0u0g5Ln5KnyvsaQQ2Yh314opMa9wLDoC_Occ2r5_4");'></div>
+<div class="flex flex-col">
+<div class="flex items-center gap-3 mb-1">
+<h2 class="text-white text-3xl font-bold tracking-tight">Adrien C.</h2>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 uppercase tracking-widest">Pro Elite</span>
+</div>
+<p class="text-[#92adc9] text-base font-normal">Active Training Cycle: <span class="text-white font-medium">Taper - World Champs</span></p>
+<div class="flex gap-4 mt-2">
+<div class="flex items-center gap-1 text-xs text-[#92adc9]">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span>Annecy, France</span>
+</div>
+<div class="flex items-center gap-1 text-xs text-[#92adc9]">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span>14.5 hrs / week</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-[#233648] hover:bg-[#2d4359] text-white rounded-lg text-sm font-bold transition-all">
+<span class="material-symbols-outlined text-lg">calendar_month</span>
+<span>Schedule</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold transition-all">
+<span class="material-symbols-outlined text-lg">download</span>
+<span>Export MLS Data</span>
+</button>
+</div>
+</div>
+</div>
+<!-- MLS Engine: Large Multi-line Chart -->
+<div class="bg-[#16212c] rounded-xl border border-[#233648] overflow-hidden">
+<div class="p-6 border-b border-[#233648] flex items-center justify-between">
+<div>
+<h3 class="text-white text-lg font-bold flex items-center gap-2">
+                                    MLS Engine <span class="text-[#92adc9] font-normal text-sm">— Maximum Lactate Steady-state</span>
+</h3>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-0.5 bg-primary"></span>
+<span class="text-[11px] text-[#92adc9] uppercase font-bold tracking-wider">Actual Intensity</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-0.5 bg-white border-t border-dashed border-white"></span>
+<span class="text-[11px] text-[#92adc9] uppercase font-bold tracking-wider">Planned Intensity</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-0.5 bg-red-500"></span>
+<span class="text-[11px] text-[#92adc9] uppercase font-bold tracking-wider">Heart Rate</span>
+</div>
+</div>
+<select class="bg-[#233648] border-none text-white text-xs rounded-lg px-3 py-1 font-bold focus:ring-primary">
+<option>Last 7 Days</option>
+<option>Specific Workout: Interval 5x1km</option>
+<option>Monthly Trend</option>
+</select>
+</div>
+</div>
+<div class="h-[400px] w-full p-8 chart-grid relative overflow-hidden">
+<!-- Visual Chart Mockup using SVGs for crisp data visualization -->
+<svg class="w-full h-full overflow-visible" viewbox="0 0 1000 400">
+<!-- Planned Line (Dashed) -->
+<path d="M0,300 L100,280 L200,280 L250,150 L350,150 L400,280 L500,280 L550,100 L650,100 L700,280 L800,280 L900,120 L1000,120" fill="none" opacity="0.3" stroke="#92adc9" stroke-dasharray="8,4" stroke-width="2"></path>
+<!-- Actual Intensity (Primary Blue) -->
+<path d="M0,310 L100,290 L200,285 L250,140 L350,145 L400,295 L500,275 L550,90 L650,95 L700,290 L800,282 L900,110 L1000,115" fill="none" stroke="#137fec" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"></path>
+<!-- Heart Rate (Red Line) -->
+<path d="M0,350 L100,340 L200,330 L250,220 L350,190 L400,280 L500,260 L550,150 L650,130 L700,250 L800,240 L900,140 L1000,135" fill="none" stroke="#ef4444" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"></path>
+<!-- Threshold Zones Overlays -->
+<rect fill="#137fec" height="40" opacity="0.05" width="1000" x="0" y="80"></rect>
+<text class="uppercase tracking-widest" fill="#137fec" font-size="10" font-weight="bold" x="10" y="100">Target MLS Zone</text>
+</svg>
+<!-- Precision Data Points Labels -->
+<div class="absolute top-1/2 left-1/4 transform -translate-x-1/2 -translate-y-full bg-[#1e2d3d] border border-primary p-2 rounded shadow-2xl">
+<p class="text-[10px] text-[#92adc9] font-bold">INTERVAL 1</p>
+<p class="text-sm font-bold text-white">412W <span class="text-[10px] text-green-400 font-normal">(+2%)</span></p>
+<p class="text-xs font-medium text-red-400">178 BPM</p>
+</div>
+</div>
+</div>
+<!-- Physiological Profile Card -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-[#16212c] p-6 rounded-xl border border-[#233648] relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full transition-all group-hover:bg-primary/10"></div>
+<p class="text-[#92adc9] text-xs font-bold uppercase tracking-widest mb-2">LT1 (Aerobic Threshold)</p>
+<div class="flex items-baseline gap-2">
+<h4 class="text-3xl font-bold text-white">152</h4>
+<span class="text-sm font-medium text-[#92adc9]">BPM</span>
+</div>
+<div class="mt-4 flex items-center gap-1 text-xs text-green-400 font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+3 BPM Improvement</span>
+</div>
+</div>
+<div class="bg-[#16212c] p-6 rounded-xl border border-[#233648] relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full transition-all group-hover:bg-primary/10"></div>
+<p class="text-[#92adc9] text-xs font-bold uppercase tracking-widest mb-2">LT2 (Anaerobic Threshold)</p>
+<div class="flex items-baseline gap-2">
+<h4 class="text-3xl font-bold text-white">174</h4>
+<span class="text-sm font-medium text-[#92adc9]">BPM</span>
+</div>
+<div class="mt-4 flex items-center gap-1 text-xs text-blue-400 font-bold">
+<span class="material-symbols-outlined text-sm">remove</span>
+<span>Stable vs Last Week</span>
+</div>
+</div>
+<div class="bg-[#16212c] p-6 rounded-xl border border-[#233648] relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full transition-all group-hover:bg-primary/10"></div>
+<p class="text-[#92adc9] text-xs font-bold uppercase tracking-widest mb-2">Max Heart Rate</p>
+<div class="flex items-baseline gap-2">
+<h4 class="text-3xl font-bold text-white">192</h4>
+<span class="text-sm font-medium text-[#92adc9]">BPM</span>
+</div>
+<div class="mt-4 flex items-center gap-1 text-xs text-[#92adc9]">
+<span class="material-symbols-outlined text-sm">history</span>
+<span>Tested Sep 22, 2023</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Technical Debrief Panel -->
+<aside class="w-96 flex-shrink-0 flex flex-col border-l border-[#233648] bg-[#111a22]">
+<div class="p-6 border-b border-[#233648]">
+<h3 class="text-white text-base font-bold mb-4">Technical Debrief</h3>
+<!-- Quick Feedback Icons -->
+<div class="grid grid-cols-3 gap-3 mb-6">
+<button class="flex flex-col items-center justify-center p-3 rounded-lg bg-[#233648] hover:bg-primary/20 hover:border-primary/50 border border-transparent transition-all">
+<span class="text-2xl mb-1">🎯</span>
+<span class="text-[10px] text-[#92adc9] font-bold uppercase">Target Hit</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-lg bg-[#233648] hover:bg-primary/20 hover:border-primary/50 border border-transparent transition-all">
+<span class="text-2xl mb-1">🛌</span>
+<span class="text-[10px] text-[#92adc9] font-bold uppercase">Rest OK</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-lg bg-[#233648] hover:bg-primary/20 hover:border-primary/50 border border-transparent transition-all">
+<span class="text-2xl mb-1">⚡</span>
+<span class="text-[10px] text-[#92adc9] font-bold uppercase">High Intensity</span>
+</button>
+</div>
+</div>
+<!-- Chat Interface -->
+<div class="flex-1 overflow-y-auto p-6 space-y-6">
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-bold text-[#92adc9] uppercase tracking-widest">Adrien C. • 08:30 AM</span>
+</div>
+<div class="bg-[#233648] p-4 rounded-xl rounded-tl-none border border-[#2d4359]">
+<p class="text-sm text-white leading-relaxed">The third interval felt harder than expected. My legs were heavy from yesterday's climb, but I managed to stay in the power zone.</p>
+</div>
+</div>
+<div class="flex flex-col gap-2 items-end">
+<div class="flex items-center justify-between w-full">
+<div></div>
+<span class="text-[10px] font-bold text-primary uppercase tracking-widest">Karoly (Coach) • 10:15 AM</span>
+</div>
+<div class="bg-primary/10 p-4 rounded-xl rounded-tr-none border border-primary/30 w-[90%]">
+<p class="text-sm text-white leading-relaxed">I see the HR response lagged on interval 3. Good job holding the power floor. Let's look at the recovery metrics tonight.</p>
+<div class="mt-3 flex items-center gap-2 p-2 bg-background-dark/50 rounded-lg border border-[#233648] cursor-pointer">
+<span class="material-symbols-outlined text-primary text-sm">play_circle</span>
+<span class="text-xs text-[#92adc9]">Voice_Debrief_Sept28.mp3</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-bold text-[#92adc9] uppercase tracking-widest">System • 10:20 AM</span>
+</div>
+<div class="bg-[#233648]/30 p-3 rounded-lg border border-dashed border-[#233648] flex items-center gap-3">
+<div class="size-10 rounded bg-[#16212c] flex items-center justify-center">
+<span class="material-symbols-outlined text-red-500">picture_as_pdf</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs text-white font-bold truncate">Lab_Results_Lactate.pdf</p>
+<p class="text-[10px] text-[#92adc9]">Uploaded by Coach</p>
+</div>
+<span class="material-symbols-outlined text-[#92adc9] text-base cursor-pointer hover:text-white">visibility</span>
+</div>
+</div>
+</div>
+<!-- Input Area -->
+<div class="p-6 border-t border-[#233648] bg-background-dark">
+<div class="relative">
+<textarea class="w-full bg-[#16212c] border border-[#233648] rounded-xl px-4 py-3 text-sm text-white focus:ring-primary focus:border-primary placeholder:text-[#92adc9] resize-none" placeholder="Type coaching note..." rows="2"></textarea>
+<div class="absolute right-3 bottom-3 flex items-center gap-2">
+<button class="text-[#92adc9] hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">mic</span>
+</button>
+<button class="text-[#92adc9] hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">attach_file</span>
+</button>
+<button class="size-8 bg-primary rounded-lg flex items-center justify-center text-white hover:bg-primary/90 transition-all">
+<span class="material-symbols-outlined text-sm">send</span>
+</button>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</main>
+</div>
+</body></html>

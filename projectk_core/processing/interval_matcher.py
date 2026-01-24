@@ -360,6 +360,8 @@ class IntervalMatcher:
                 best_match = {**lap, 'confidence': confidence, 'lap_index': i}
                 best_idx = i + 1
         
+        print(f"DEBUG LAP MATCH: Target {target.get('duration')}s | Best Conf: {best_confidence:.2f}")
+        
         if best_match and best_confidence >= cfg.lap_confidence_threshold:
             return best_match, best_idx
         
@@ -406,17 +408,33 @@ class IntervalMatcher:
             actual = lap.get('avg_speed', 0)
             if actual == 0 and lap.get('avg_power', 0) > 0:
                 # Fallback: use power as proxy
-                # Estimate expected power from target speed using rough formula
-                # Power ~ 100W * (speed in m/s) for running
                 actual = lap.get('avg_power', 0)
-                expected = target_min * 100  # Rough estimate: 5.2 m/s -> 520W
+                expected = target_min * 100  # Rough estimate
         
         if expected > 0 and actual > 0:
+            # If expected is very low (default minimum), treat it as a floor only
+            # e.g. target_min=80W (default bike), actual=274W -> Should be 1.0 score
+            is_generic_floor = (signal_col == 'power' and expected < 150) or \
+                               (signal_col == 'speed' and expected < 2.8) # ~10km/h
+            
             intensity_ratio = actual / expected
-            if 0.70 <= intensity_ratio <= 1.30:  # Wider tolerance for proxy
-                intensity_score = 1 - abs(1 - intensity_ratio) / 0.30
+            
+            if is_generic_floor:
+                # Only penalize if below floor
+                if intensity_ratio >= 1.0:
+                    intensity_score = 1.0
+                else:
+                    intensity_score = max(0, 1 - abs(1 - intensity_ratio) * 2)
             else:
-                intensity_score = max(0, 0.3 - abs(1 - intensity_ratio) / 3)
+                # Standard bracket
+                if 0.70 <= intensity_ratio <= 1.30:  # Wider tolerance for proxy
+                    intensity_score = 1 - abs(1 - intensity_ratio) / 0.30
+                else:
+                    # Allow harder efforts (up to 2x) but penalize weaker efforts
+                    if intensity_ratio > 1.30 and intensity_ratio < 2.0:
+                        intensity_score = 0.8
+                    else:
+                        intensity_score = max(0, 0.3 - abs(1 - intensity_ratio) / 3)
         else:
             intensity_score = 0.2  # No data, small partial credit
         
@@ -521,9 +539,11 @@ class IntervalMatcher:
             # Score this segment
             # 1. Duration score (how close to expected duration)
             dur_ratio = seg['duration'] / duration_s
-            # Allow shorter segments (down to 70%)
-            # CRITICAL FIX: Allow much longer segments (up to 4x) because StepDetector might merge intervals
-            # We will trim them later in the 'if best_segment' block
+            
+            # HARD CONSTRAINT: Disqualify if duration is way off
+            if dur_ratio < 0.5 or dur_ratio > 4.0:
+                continue
+                
             if 0.7 <= dur_ratio <= 1.5:
                 dur_score = 1 - abs(1 - dur_ratio)
             elif 1.5 < dur_ratio <= 4.0:

@@ -155,12 +155,18 @@ class TextPlanParser:
             dist_m = val
             if unit == 'km':
                 dist_m = val * 1000
+            
+            # Estimate Duration (Default Run: 4:00/km = 0.24 s/m)
+            # We don't know sport here easily, so we assume Run or use a generic avg?
+            # Better to be safe and use Run default, or 0 if we want to rely on caller.
+            # But Matcher needs duration.
+            est_duration = dist_m * 0.24 
                 
             for _ in range(count):
                 intervals.append({
                     "type": "active",
                     "distance_m": dist_m,
-                    "duration": 0, 
+                    "duration": est_duration, 
                     "target_type": "distance"
                 })
             return intervals
