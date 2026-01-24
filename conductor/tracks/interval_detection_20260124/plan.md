@@ -21,14 +21,14 @@
     - [x] Define a Pydantic model to represent a planned structure (count, duration/distance, intensity target)
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Planned Structure Integration' (Protocol in workflow.md)
 
-## Phase 3: Structural Matching Logic
-- [ ] Task: Develop "Consistency Score" Algorithm
-    - [ ] Write tests for matching FIT laps against a planned structure
-    - [ ] Implement logic to compare Lap count, total duration, and individual durations
-    - [ ] Handle "Contiguous Blocks" (no rest between different intensities)
-- [ ] Task: Implement Lap Validator
-    - [ ] Create a service that decides if a file's Laps are "Trustworthy" or "Corrupted"
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Structural Matching Logic' (Protocol in workflow.md)
+## Phase 3: Structural Matching Logic [checkpoint: pending]
+- [x] Task: Develop "Consistency Score" Algorithm [27060fb]
+    - [x] Write tests for matching FIT laps against a planned structure
+    - [x] Implement logic to compare Lap count, total duration, and individual durations
+    - [x] Handle "Contiguous Blocks" (no rest between different intensities)
+- [x] Task: Implement Lap Validator [27060fb]
+    - [x] Create a service that decides if a file's Laps are "Trustworthy" or "Corrupted"
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Structural Matching Logic' (Protocol in workflow.md)
 
 ## Phase 4: Hybrid Segmentation Engine
 - [ ] Task: Implement Signal-based Redetection (Fallback Branch)
