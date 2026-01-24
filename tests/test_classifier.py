@@ -56,3 +56,10 @@ def test_lit_priority():
     
     # Check that it doesn't match 'lithium' (though unlikely, it's a test of \b)
     assert classifier.is_competition("Lithium race", "") == True # 'race' matches
+
+def test_lit_hit_combination():
+    classifier = ActivityClassifier()
+    # If LIT and HIT are both present, HIT wins for interval detection
+    assert classifier.detect_work_type(None, "LIT + HIT session", "Training") == "intervals"
+    # But for competition, LIT still downgrades it to false
+    assert classifier.is_competition("LIT + HIT Marathon", "Competition") == False

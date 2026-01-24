@@ -140,6 +140,27 @@
 
 ---
 
+## [Track: Sport-Specific Hard Rules]
+**Date:** 25 Janvier 2026
+**Statut:** ✅ Terminé & Déployé
+
+### 🟢 Points de Succès
+1.  **Exclusion Catégorique :** Implémentation d'une règle "Hard" dans le `ActivityClassifier` pour forcer le mode `endurance` pour les sports de type `Strength` (Musculation, PPG, Marche) et `Other`. Cela élimine les faux positifs d'intervalles sur des titres comme "Musculation 3x10".
+2.  **Correction Priorité LIT :** Correction d'une régression où le tag "LIT" (Low Intensity Training) n'écrasait pas correctement le drapeau "Compétition" de Nolio. Le test `test_lit_priority` est désormais vert.
+3.  **Nettoyage Base de Données :** Script de purge exécuté pour corriger les séances de Musculation/Autre déjà présentes en base (ex: Nolio ID 90065697, 90064254).
+4.  **Tests de Non-Régression :** Ajout de `test_strength_other_always_endurance` dans la suite de tests.
+
+### 🟠 Points Bancales (Risques)
+1.  **Désynchronisation Migrations :** Erreur `PGRST205` lors de la tentative de suppression dans `activity_intervals`. La table est définie dans les fichiers `.sql` du projet mais n'est pas encore présente sur le Supabase distant. 
+    *   *Action :* Les migrations doivent être appliquées globalement lors de la prochaine phase de déploiement infra.
+2.  **Généralisation du sport "Other" :** Si Karoly utilise "Autre" pour un sport d'endurance intense qui mériterait des métriques d'intervalles (ex: Crossfit spécifique), il sera bridé en endurance.
+    *   *Mitigation :* Karoly a lui-même demandé cette règle car ces sports ne sont pas la priorité du modèle MLS actuel.
+
+### 🔭 Watchlist
+- **Migrations Supabase :** Vérifier l'état de synchronisation des tables entre le code local et le backend distant pour éviter de futurs crashs sur des tables "fantômes".
+
+---
+
 ## [Task: Live Flux UI Enhancement]
 **Date:** 23 Janvier 2026
 **Statut:** ✅ Code à jour / 🟠 Déploiement Manuel Requis

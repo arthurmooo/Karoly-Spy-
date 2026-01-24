@@ -36,6 +36,14 @@ class ActivityClassifier:
         clean_title = title.strip().lower()
         clean_nolio_type = nolio_type.strip().lower() if nolio_type else ""
 
+        # 0. Force Endurance for specific sports OR LIT priority
+        # Exception: if HIT is also present, it stays as intervals (user request 2026-01-25)
+        is_lit = re.search(r"\blit\b", combined_text)
+        is_hit = re.search(r"\bhit\b", combined_text)
+        
+        if sport_name in ["Strength", "Other"] or (is_lit and not is_hit):
+            return "endurance"
+
         # 1. Explicit Competition (Nolio Flag or Type)
         if is_competition_nolio or (clean_nolio_type in ["compétition", "race", "competition"]):
             return "competition"
@@ -117,15 +125,15 @@ class ActivityClassifier:
         """
         combined_text = title.lower()
         
+        # 0. LIT Priority (overrides everything)
+        if re.search(r"\blit\b", combined_text):
+            return False
+
         if is_competition_nolio:
             return True
 
         if nolio_type and nolio_type.lower() in ["compétition", "race", "competition"]:
             return True
-
-        # Check for LIT (if LIT is present and it's not an explicit competition, it's not a competition)
-        if re.search(r"\blit\b", combined_text):
-            return False
 
         for kw in self.COMPETITION_KEYWORDS:
             if re.search(kw, combined_text):

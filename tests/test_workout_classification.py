@@ -83,6 +83,18 @@ class TestWorkoutClassifier(unittest.TestCase):
         self.assertEqual(self.classifier.detect_work_type(None, "Corrida de Saint-Jo'", "Training"), "competition")
         self.assertEqual(self.classifier.detect_work_type(None, "Cross Ouest France", "Training"), "competition")
 
+    def test_strength_other_always_endurance(self):
+        """Even with interval-like title or signal, Strength/Other must be endurance."""
+        df_crazy = pd.DataFrame({'power': [0, 1000, 0, 1000], 'speed': [0, 50, 0, 50]})
+        
+        # Strength
+        res = self.classifier.detect_work_type(df_crazy, "Musculation 3x10", "Training", sport_name="Strength")
+        self.assertEqual(res, "endurance")
+        
+        # Other
+        res = self.classifier.detect_work_type(df_crazy, "Autre 30/30", "Training", sport_name="Other")
+        self.assertEqual(res, "endurance")
+
 
 
 if __name__ == '__main__':
