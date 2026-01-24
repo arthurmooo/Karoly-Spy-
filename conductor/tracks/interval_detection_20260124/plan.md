@@ -10,13 +10,13 @@
 - [ ] Task: Conductor - User Manual Verification 'Preparation & Infrastructure' (Protocol in workflow.md)
 
 ## Phase 2: Detection Strategy - Priority 1 (Plan Correlation)
-- [ ] Task: Implement Plan Projection Logic.
+- [x] Task: Implement Plan Projection Logic. [9ee309f]
     - [ ] Create `PlanProjector` class to map Nolio structure onto time series.
     - [ ] TDD: Test mapping of simple 10x400m structure.
-- [ ] Task: Implement "Elastic Matcher" for structural alignment.
+- [x] Task: Implement "Elastic Matcher" for structural alignment. [9e35caa]
     - [ ] Logic to align projected plan with actual duration/distance.
     - [ ] TDD: Test matching when athlete is slightly faster/slower than plan.
-- [ ] Task: Handle Missing Repetitions.
+- [x] Task: Handle Missing Repetitions. [cbd9f59]
     - [ ] Logic to detect if a block is cut short (e.g., 8/10 reps).
     - [ ] TDD: Test case where athlete stops early.
 - [ ] Task: Conductor - User Manual Verification 'Detection Strategy - Priority 1' (Protocol in workflow.md)
