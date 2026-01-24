@@ -11,14 +11,14 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Audit & Diagnostic' (Protocol in workflow.md)
 
 ## Phase 2: Planned Structure Integration
-- [ ] Task: Implement Nolio API Planned Structure Retrieval
-    - [ ] Write tests for retrieving structured blocks/reps from Nolio API
-    - [ ] Implement the retrieval logic in `projectk_core/integrations/nolio_api.py`
-- [ ] Task: Implement Text-based Plan Parser (Fallback)
-    - [ ] Write tests for parsing titles like "10x 30/30" or "3x 2000m"
-    - [ ] Implement regex-based parser for common workout patterns
-- [ ] Task: Create Universal Plan Model
-    - [ ] Define a Pydantic model to represent a planned structure (count, duration/distance, intensity target)
+- [x] Task: Implement Nolio API Planned Structure Retrieval [f7f4dce]
+    - [x] Write tests for retrieving structured blocks/reps from Nolio API
+    - [x] Implement the retrieval logic in `projectk_core/integrations/nolio_api.py`
+- [x] Task: Implement Text-based Plan Parser (Fallback) [3d7b19b]
+    - [x] Write tests for parsing titles like "10x 30/30" or "3x 2000m"
+    - [x] Implement regex-based parser for common workout patterns
+- [x] Task: Create Universal Plan Model [3d7b19b]
+    - [x] Define a Pydantic model to represent a planned structure (count, duration/distance, intensity target)
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Planned Structure Integration' (Protocol in workflow.md)
 
 ## Phase 3: Structural Matching Logic
