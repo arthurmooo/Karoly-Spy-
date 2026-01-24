@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from projectk_core.logic.models import PlannedStructure, IntervalBlock, DetectionSource
 
+from datetime import datetime
+
 class IntervalEngine:
     """
     Core engine for high-precision interval detection.
@@ -12,17 +14,18 @@ class IntervalEngine:
     2. Lap Analysis (Priority 2)
     3. Algorithmic Detection (Priority 3)
     """
-    def __init__(self, plan: Optional[PlannedStructure] = None, raw_laps: Optional[List[Dict[str, Any]]] = None, streams: Optional[pd.DataFrame] = None):
+    def __init__(self, plan: Optional[PlannedStructure] = None, raw_laps: Optional[List[Dict[str, Any]]] = None, streams: Optional[pd.DataFrame] = None, workout_start_time: Optional[datetime] = None):
         self.plan = plan
         self.raw_laps = raw_laps
         self.streams = streams
+        self.workout_start_time = workout_start_time
 
     def process(self) -> List[IntervalBlock]:
         """
         Execute the full fusion pipeline.
         """
         plan_blocks = PlanProjector(self.plan).project() if self.plan else []
-        lap_blocks = LapAnalyzer(self.raw_laps).to_blocks() if self.raw_laps else []
+        lap_blocks = LapAnalyzer(self.raw_laps, reference_start_time=self.workout_start_time).to_blocks() if self.raw_laps else []
         algo_blocks = AlgoDetector(self.streams).detect() if self.streams is not None else []
         
         voter = EnsembleVoter(plan_blocks, lap_blocks, algo_blocks)
@@ -94,17 +97,31 @@ class LapAnalyzer:
     """
     Processes raw laps from activity files.
     """
-    def __init__(self, raw_laps: List[Dict[str, Any]], min_duration: float = 10.0):
+    def __init__(self, raw_laps: List[Dict[str, Any]], min_duration: float = 10.0, reference_start_time: Optional[datetime] = None):
         self.raw_laps = raw_laps
         self.min_duration = min_duration
+        self.reference_start_time = reference_start_time
 
     def to_blocks(self) -> List[IntervalBlock]:
         blocks = []
         for lap in self.raw_laps:
-            duration = lap.get("total_elapsed_time", 0)
+            # Use timer_time (active) if available, else elapsed
+            duration = lap.get("total_timer_time")
+            if duration is None or duration == 0:
+                duration = lap.get("total_elapsed_time", 0)
+                
             if duration < self.min_duration:
                 continue
+            
             start_time = lap.get("start_time", 0)
+            
+            # Normalize to relative seconds if start_time is datetime and we have a reference
+            if isinstance(start_time, datetime) and self.reference_start_time:
+                start_time = (start_time - self.reference_start_time).total_seconds()
+            
+            if not isinstance(start_time, (int, float)):
+                 continue 
+
             block_type = self._map_type(lap.get("intensity", "active"))
             blocks.append(IntervalBlock(
                 start_time=start_time,
