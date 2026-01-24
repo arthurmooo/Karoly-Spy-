@@ -87,6 +87,50 @@ class IntervalMatcher:
         # Reduced window size (20 -> 15) to catch shorter transitions
         self.detector = StepDetector(window_size=15, threshold_factor=1.0)
     
+    def validate_laps(
+        self,
+        laps: List[Dict[str, Any]],
+        target_grid: List[Dict[str, Any]],
+        signal_col: str = "power"
+    ) -> float:
+        """
+        Calculates a Global Consistency Score (0-1) between Laps and Plan.
+        Checks if the sequence of target intervals can be found in the Laps.
+        """
+        if not target_grid:
+            return 1.0 if not laps else 0.0
+            
+        processed_laps = self._preprocess_laps(laps, signal_col)
+        
+        matches = 0
+        lap_idx = 0
+        
+        for target in target_grid:
+            target_dur = target.get('duration', 0)
+            found = False
+            
+            # Look ahead for a lap that matches this target
+            # Allow skipping up to 3 laps (e.g. rest lap, transition, accidental lap)
+            search_limit = min(lap_idx + 4, len(processed_laps))
+            
+            for i in range(lap_idx, search_limit):
+                lap = processed_laps[i]
+                dur_ratio = lap['duration'] / target_dur if target_dur > 0 else 0
+                
+                if 0.7 <= dur_ratio <= 1.3:
+                    # Duration matches!
+                    matches += 1
+                    lap_idx = i + 1 # Move past this lap
+                    found = True
+                    break
+            
+            if not found:
+                # Target not found in Laps
+                pass
+                
+        score = matches / len(target_grid)
+        return score
+
     def match(
         self, 
         df: pd.DataFrame, 
