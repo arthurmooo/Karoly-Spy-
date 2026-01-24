@@ -103,7 +103,7 @@ class LapAnalyzer:
     """
     Processes raw laps from activity files.
     """
-    def __init__(self, raw_laps: List[Dict[str, Any]], min_duration: float = 10.0, reference_start_time: Optional[datetime] = None):
+    def __init__(self, raw_laps: List[Dict[str, Any]], min_duration: float = 5.0, reference_start_time: Optional[datetime] = None):
         self.raw_laps = raw_laps
         self.min_duration = min_duration
         self.reference_start_time = reference_start_time
@@ -150,12 +150,20 @@ class LapAnalyzer:
                 else:
                     block_type = "active"
 
-            blocks.append(IntervalBlock(
+            block = IntervalBlock(
                 start_time=start_time,
                 end_time=start_time + duration,
                 type=block_type,
                 detection_source=DetectionSource.LAP
-            ))
+            )
+            
+            # Map metrics directly from FIT lap summary if available
+            block.avg_speed = lap.get("avg_speed") or lap.get("enhanced_avg_speed")
+            block.avg_power = lap.get("avg_power")
+            block.avg_hr = lap.get("avg_heart_rate")
+            block.avg_cadence = lap.get("avg_cadence")
+            
+            blocks.append(block)
         return blocks
 
     def _map_type(self, raw_type: str) -> str:
@@ -288,12 +296,23 @@ class EnsembleVoter:
             if matching_lap:
                 block.start_time = matching_lap.start_time
                 block.end_time = matching_lap.end_time
+                # Copy metrics from Lap source
+                block.avg_speed = matching_lap.avg_speed
+                block.avg_power = matching_lap.avg_power
+                block.avg_hr = matching_lap.avg_hr
+                block.avg_cadence = matching_lap.avg_cadence
                 continue
                 
             matching_algo = self._find_matching(block, self.algo_blocks)
             if matching_algo:
                 block.start_time = matching_algo.start_time
                 block.end_time = matching_algo.end_time
+                # Algo blocks usually don't have pre-calculated metrics, 
+                # but we copy if present
+                block.avg_speed = matching_algo.avg_speed
+                block.avg_power = matching_algo.avg_power
+                block.avg_hr = matching_algo.avg_hr
+                block.avg_cadence = matching_algo.avg_cadence
                 
         return fused_blocks
 
@@ -320,6 +339,7 @@ class IntervalMetricsCalculator:
     def calculate(self, block: IntervalBlock) -> IntervalBlock:
         """
         Computes Avg Power, HR, Speed, Cadence for the block duration.
+        Only calculates if values are currently None.
         """
         # Slice streams
         mask = (self.streams["time"] >= block.start_time) & (self.streams["time"] <= block.end_time)
@@ -328,14 +348,49 @@ class IntervalMetricsCalculator:
         if segment.empty:
             return block
             
-        # Calculate averages (ignoring NaNs)
-        if "power" in segment.columns:
+        # Calculate averages only if missing
+        if block.avg_power is None and "power" in segment.columns:
             block.avg_power = float(segment["power"].mean())
-        if "heart_rate" in segment.columns:
+        if block.avg_hr is None and "heart_rate" in segment.columns:
             block.avg_hr = float(segment["heart_rate"].mean())
-        if "speed" in segment.columns:
+        if block.avg_speed is None and "speed" in segment.columns:
             block.avg_speed = float(segment["speed"].mean())
-        if "cadence" in segment.columns:
+        if block.avg_cadence is None and "cadence" in segment.columns:
             block.avg_cadence = float(segment["cadence"].mean())
+            
+        # Calculate Efficiency Ratio (Pa:Hr)
+        if block.avg_hr and block.avg_hr > 0:
+            if block.avg_power is not None:
+                block.pa_hr_ratio = block.avg_power / block.avg_hr
+            elif block.avg_speed is not None:
+                # Speed based efficiency
+                block.pa_hr_ratio = block.avg_speed / block.avg_hr
+            
+        # Calculate Decoupling (if duration > 60s)
+        duration = block.end_time - block.start_time
+        if duration > 60 and not segment.empty and "heart_rate" in segment.columns:
+            mid = block.start_time + (duration / 2)
+            first_half = segment[segment["time"] < mid]
+            second_half = segment[segment["time"] >= mid]
+            
+            p1 = first_half["power"].mean() if "power" in first_half.columns else None
+            h1 = first_half["heart_rate"].mean()
+            
+            p2 = second_half["power"].mean() if "power" in second_half.columns else None
+            h2 = second_half["heart_rate"].mean()
+            
+            if h1 and h2 and h1 > 0 and h2 > 0:
+                # Prioritize Power
+                if p1 is not None and p2 is not None:
+                    r1 = p1 / h1
+                    r2 = p2 / h2
+                    block.decoupling = (r1 - r2) / r1 if r1 != 0 else 0
+                elif "speed" in first_half.columns:
+                    # Fallback Speed
+                    s1 = first_half["speed"].mean()
+                    s2 = second_half["speed"].mean()
+                    r1 = s1 / h1
+                    r2 = s2 / h2
+                    block.decoupling = (r1 - r2) / r1 if r1 != 0 else 0
             
         return block
