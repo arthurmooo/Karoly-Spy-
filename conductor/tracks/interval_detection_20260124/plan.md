@@ -21,7 +21,7 @@
     - [ ] TDD: Test case where athlete stops early.
 - [ ] Task: Conductor - User Manual Verification 'Detection Strategy - Priority 1' (Protocol in workflow.md)
 
-## Phase 3: Detection Strategy - Priority 2 & 3 (Laps & Algo) [checkpoint: 6a06cdd]
+## Phase 3: Detection Strategy - Priority 2 & 3 (Laps & Algo) [checkpoint: 0b9f335]
 - [x] Task: Implement Lap Analyzer (Priority 2). [1d30552]
     - [ ] Logic to import laps from FIT file.
     - [ ] Filter logic: Remove "parasite laps" (<10s or inconsistent).
