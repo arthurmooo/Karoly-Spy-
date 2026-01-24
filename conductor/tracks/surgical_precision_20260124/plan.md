@@ -18,16 +18,16 @@
 > **SOIS INGÉNIEUX. SOIS CHIRURGICAL. GAGNE CE MILLIARD.**
 
 ## Phase 1: Le Calque Nolio
-- [x] **Task: Intégration du Plan comme Guide**
+- [x] **Task: Intégration du Plan comme Guide** [0e4a94d]
     - [x] Développer `PlanDrivenSeeker` : utilise la durée prévue dans Nolio pour focaliser la détection de gradient.
     - [x] Gérer les décalages (l'athlète part 10s après le bip).
 
 ## Phase 2: La Séparation des Eaux (Bernard Alexis case)
-- [x] **Task: Discrimination Effort vs Récup Active**
+- [x] **Task: Discrimination Effort vs Récup Active** [0e4a94d]
     - [x] Utiliser le ratio Puissance/Cadence ou Vitesse/Cadence pour isoler le changement de foulée entre effort et récup.
     - [x] Implémenter un filtre de "Micro-Variations" pour couper le bloc de 5' en 1'30+3'30.
 
 ## Phase 3: Validation & Recette Finale
-- [x] **Task: Boucle de Perfectionnement Automatisée**
+- [x] **Task: Boucle de Perfectionnement Automatisée** [0e4a94d]
     - [x] Exécuter le benchmark en boucle jusqu'à ce que `Avg Start Error` < 1s sur TOUS les fichiers.
     - [x] Signer la version "ULTRA MASTER" de `projectk_core`.
