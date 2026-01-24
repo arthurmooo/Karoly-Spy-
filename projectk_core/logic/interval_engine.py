@@ -135,7 +135,14 @@ class LapAnalyzer:
             start_time = lap.get("start_time", 0)
             
             if isinstance(start_time, datetime) and self.reference_start_time:
-                start_time = (start_time - self.reference_start_time).total_seconds()
+                try:
+                    start_time = (start_time - self.reference_start_time).total_seconds()
+                except TypeError:
+                    ref = self.reference_start_time
+                    if start_time.tzinfo != ref.tzinfo:
+                         if ref.tzinfo is None: ref = ref.replace(tzinfo=start_time.tzinfo)
+                         else: start_time = start_time.replace(tzinfo=ref.tzinfo)
+                    start_time = (start_time - ref).total_seconds()
             
             if not isinstance(start_time, (int, float)):
                  continue 
@@ -160,7 +167,16 @@ class LapAnalyzer:
             )
             
             # Map metrics directly from FIT lap summary if available
-            block.avg_speed = lap.get("avg_speed") or lap.get("enhanced_avg_speed")
+            block.distance_m = lap.get("total_distance")
+            
+            # Robust speed extraction: some FIT files have multiple avg_speed fields (one None)
+            avg_speed = lap.get("enhanced_avg_speed") or lap.get("avg_speed")
+            
+            if avg_speed is None and block.distance_m and duration > 0:
+                # Fallback: recalculate speed using timer_time (duration)
+                avg_speed = block.distance_m / duration
+                
+            block.avg_speed = avg_speed
             block.avg_power = lap.get("avg_power")
             block.avg_hr = lap.get("avg_heart_rate")
             block.avg_cadence = lap.get("avg_cadence")
@@ -361,6 +377,8 @@ class IntervalMetricsCalculator:
             return block
             
         # Calculate averages only if missing
+        if block.distance_m is None and "distance" in segment.columns:
+            block.distance_m = float(segment["distance"].iloc[-1] - segment["distance"].iloc[0])
         if block.avg_power is None and "power" in segment.columns:
             block.avg_power = float(segment["power"].mean())
         if block.avg_hr is None and "heart_rate" in segment.columns:

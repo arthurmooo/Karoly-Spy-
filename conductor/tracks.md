@@ -94,3 +94,13 @@ This file tracks the master plan, strictly aligned with the contract phases.
     - **Status:** 🟢 Completed. Robust hybrid engine (Plan/Lap/Algo) with precision metrics (Pa:Hr, Drift). Validated on real data.
     - **Link:** [./archive/interval_detection_20260124/](./archive/interval_detection_20260124/)
 
+---
+
+- [x] **Track: Audit de Précision Chirurgicale - Détection par Laps (1.5.A)**
+*Link: [./tracks/audit_laps_20260124/](./tracks/audit_laps_20260124/)*
+
+
+---
+
+- [~] **Track: Audit de Robustesse - Détection par Signal Pur (1.5.B)**
+*Link: [./tracks/algo_robustness_20260124/](./tracks/algo_robustness_20260124/)*

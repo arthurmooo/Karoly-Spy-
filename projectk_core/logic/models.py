@@ -185,6 +185,7 @@ class IntervalBlock(BaseModel):
     detection_source: DetectionSource
     
     # Metrics (computed later)
+    distance_m: Optional[float] = None
     avg_speed: Optional[float] = None
     avg_power: Optional[float] = None
     avg_hr: Optional[float] = None
