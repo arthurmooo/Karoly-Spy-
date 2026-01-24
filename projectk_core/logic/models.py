@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict
+from enum import Enum
 from datetime import datetime, date
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
 import pandas as pd
@@ -167,3 +168,35 @@ class Activity:
     @property
     def empty(self) -> bool:
         return self.streams.empty
+
+class DetectionSource(str, Enum):
+    PLAN = "plan"
+    LAP = "lap"
+    ALGO = "algo"
+
+class IntervalBlock(BaseModel):
+    """
+    Represents a detected interval block in an activity.
+    """
+    start_time: float = Field(..., description="Start time in seconds")
+    end_time: float = Field(..., description="End time in seconds")
+    type: str = Field(..., description="active, recovery, warmup, cooldown")
+    detection_source: DetectionSource
+    
+    # Metrics (computed later)
+    avg_speed: Optional[float] = None
+    avg_power: Optional[float] = None
+    avg_hr: Optional[float] = None
+    avg_cadence: Optional[float] = None
+    
+    @property
+    def duration(self) -> float:
+        return self.end_time - self.start_time
+    
+    @field_validator('end_time')
+    @classmethod
+    def check_timestamps(cls, v: float, info: ValidationInfo) -> float:
+        values = info.data
+        if 'start_time' in values and v <= values['start_time']:
+            raise ValueError('End time must be greater than start time')
+        return v
