@@ -15,7 +15,7 @@ class PlanDrivenSeeker:
         self.primary_signal = primary_signal
         self.signal = np.nan_to_num(df[primary_signal].values)
         
-    def seek(self, target_duration: int, expected_start: int, search_window: int = 60, min_start: Optional[int] = None) -> Optional[Dict]:
+    def seek(self, target_duration: int, expected_start: int, search_window: int = 60, min_start: Optional[int] = None, strict_duration: bool = False) -> Optional[Dict]:
         """
         Seeks for an interval of target_duration around expected_start.
         """
@@ -49,8 +49,22 @@ class PlanDrivenSeeker:
         abs_end = int(search_start + best_end_rel + 1)
         
         # 3. Refinement using Gradients & Multi-Signal
-        abs_start = self._refine_start(abs_start)
-        abs_end = self._refine_end(abs_end)
+        # In composite blocks (strict_duration=True), we only allow very minor adjustments (+/- 2s)
+        # to avoid edge snapping onto the adjacent high-intensity block.
+        refine_window = 5 if strict_duration else 15
+        
+        refined_start = self._refine_start(abs_start, window=refine_window)
+        refined_end = self._refine_end(abs_end, window=refine_window)
+        
+        if strict_duration:
+            # If strict, we only snap if the gradient is very close to the sliding window result
+            if abs(refined_start - abs_start) <= 3:
+                abs_start = refined_start
+            if abs(refined_end - abs_end) <= 3:
+                abs_end = refined_end
+        else:
+            abs_start = refined_start
+            abs_end = refined_end
 
         # Recalculate metrics
         avg_val = np.mean(self.signal[abs_start:abs_end])

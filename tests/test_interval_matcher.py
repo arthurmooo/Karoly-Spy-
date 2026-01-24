@@ -125,5 +125,51 @@ class TestIntervalMatcher(unittest.TestCase):
         self.assertEqual(results[0]['end_index'], 690)
         self.assertAlmostEqual(results[0]['avg_power'], 400, delta=1)
 
+    def test_bernard_alexis_composite_no_laps(self):
+        """
+        Test separation of 1'30 Effort (400W) + 3'30 Active Recovery (250W)
+        WITHOUT Laps (mode signal pur).
+        Structure: 5x(1'30 Z3 + 3'30 Z2, R=3')
+        """
+        # 1 repetition: 90s @ 400W + 210s @ 250W + 180s @ 150W
+        # Total rep = 480s
+        one_rep = np.concatenate([
+            np.full(90, 400.0),  # Z3
+            np.full(210, 250.0), # Z2
+            np.full(180, 150.0)  # Rest
+        ])
+        
+        # 2 reps
+        power = np.concatenate([np.full(300, 150.0), one_rep, one_rep])
+        timestamps = pd.date_range(start='2026-01-01 10:00:00', periods=len(power), freq='1s')
+        df = pd.DataFrame({'timestamp': timestamps, 'power': power, 'speed': np.zeros(len(power))})
+        
+        target_grid = [
+            {"duration": 90, "target_type": "power", "type": "active", "target_min": 350},
+            {"duration": 210, "target_type": "power", "type": "active", "target_min": 230},
+            # On ne met pas la récup dans le target_grid car on veut que les intervalles "actifs"
+            {"duration": 90, "target_type": "power", "type": "active", "target_min": 350},
+            {"duration": 210, "target_type": "power", "type": "active", "target_min": 230},
+        ]
+        
+        results = self.matcher.match(df, target_grid, sport="bike")
+        
+        self.assertEqual(len(results), 4)
+        
+        # Check first set
+        self.assertEqual(results[0]['duration_sec'], 90)
+        self.assertEqual(results[1]['duration_sec'], 210)
+        
+        # Verify alignment
+        self.assertEqual(results[0]['start_index'], 300)
+        self.assertEqual(results[1]['start_index'], 390) # Starts right after
+        
+        # Check second set (after 180s rest)
+        # First set ends at 300 + 90 + 210 = 600. 
+        # Rest 180s -> Second set starts at 780.
+        self.assertLess(abs(results[2]['start_index'] - 780), 10)
+        self.assertEqual(results[2]['duration_sec'], 90)
+        self.assertEqual(results[3]['duration_sec'], 210)
+
 if __name__ == '__main__':
     unittest.main()

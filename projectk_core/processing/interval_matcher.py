@@ -223,6 +223,8 @@ class IntervalMatcher:
                     segments=signal_segments,
                     start_ptr=current_ptr,
                     target=target,
+                    target_grid=target_grid,
+                    detected_intervals=detected_intervals,
                     target_min=target_min,
                     duration_s=duration_s,
                     sport=sport,
@@ -513,6 +515,8 @@ class IntervalMatcher:
         segments: List[Dict[str, Any]],
         start_ptr: int,
         target: Dict[str, Any],
+        target_grid: List[Dict[str, Any]],
+        detected_intervals: List[Dict[str, Any]],
         target_min: float,
         duration_s: int,
         sport: str,
@@ -530,11 +534,27 @@ class IntervalMatcher:
         # Search window is larger if we are resyncing or it's the first target
         search_window = 600 if (target_idx == 0 or is_resync) else 120
         
+        # Check if next interval starts immediately after this one in the plan
+        is_composite = False
+        if target_idx + 1 < len(target_grid):
+             # This is a bit simplified, but in NolioPlanParser, we don't have 
+             # inter-step gaps explicitly if they aren't steps themselves.
+             # However, if the user didn't plan a 'recovery' between steps, 
+             # they are likely composite.
+             pass
+
+        # For ultra-precision, if the previous interval was matched just before,
+        # we enforce strict duration to avoid overlap.
+        is_adjacent_to_prev = (target_idx > 0 and len(detected_intervals) > 0 and 
+                              detected_intervals[-1]['status'] == MatchStatus.MATCHED.value and
+                              abs(detected_intervals[-1]['end_index'] - start_ptr) < 15)
+
         seek_result = seeker.seek(
             target_duration=duration_s, 
             expected_start=start_ptr, 
             search_window=search_window,
-            min_start=start_ptr - 10 # Allow slight overlap but not much
+            min_start=start_ptr - 5, # Stricter overlap control
+            strict_duration=is_adjacent_to_prev
         )
         
         if seek_result:
