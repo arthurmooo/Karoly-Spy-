@@ -42,10 +42,10 @@
     - [x] Ensure pauses (auto-pause or manual) don't break the interval count
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Hybrid Segmentation Engine' (Protocol in workflow.md)
 
-## Phase 5: Metrics & Integration
-- [ ] Task: Update Metrics Calculation to use Corrected Segments
-    - [ ] Ensure MLS and other physiological indices use the output of the new engine
-    - [ ] Verify "Last Interval" and "Average Interval" calculations
-- [ ] Task: Final End-to-End Verification
-    - [ ] Run `scripts/run_ingest.py` on diverse sessions to confirm stability
-- [ ] Task: Conductor - User Manual Verification 'Phase 5: Metrics & Integration' (Protocol in workflow.md)
+## Phase 5: Metrics & Integration [checkpoint: pending]
+- [x] Task: Update Metrics Calculation to use Corrected Segments [fa9a605]
+    - [x] Ensure MLS and other physiological indices use the output of the new engine
+    - [x] Verify "Last Interval" and "Average Interval" calculations
+- [x] Task: Final End-to-End Verification [fa9a605]
+    - [x] Run `scripts/run_ingest.py` on diverse sessions to confirm stability
+- [x] Task: Conductor - User Manual Verification 'Phase 5: Metrics & Integration' (Protocol in workflow.md)
