@@ -3,9 +3,9 @@
 ## Phase 1: Framework de Benchmarking
 - [x] **Task: Centraliser le Ground Truth** [be6de8e]
     - [x] S'assurer que `data/test_cache/audit_ground_truth.json` est exhaustif pour les 4 athlètes.
-- [ ] **Task: Créer le script de Benchmark**
-    - [ ] Développer `scripts/benchmark_algo_strategies.py`.
-    - [ ] Implémenter une interface pour tester différentes classes de détection (`AlgoDetectorV1`, `V2`, etc.).
+- [x] **Task: Créer le script de Benchmark** [145ee06]
+    - [x] Développer `scripts/benchmark_algo_strategies.py`.
+    - [x] Implémenter une interface pour tester différentes classes de détection (`AlgoDetectorV1`, `V2`, etc.).
 
 ## Phase 2: Implémentation des Candidats (Laboratoire)
 - [ ] **Task: Prototype Stratégie A (Rupture/Gradient)**
