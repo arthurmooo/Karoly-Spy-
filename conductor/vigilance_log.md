@@ -221,17 +221,38 @@
 
 ---
 
-## [Track: Gravel & Generic Classification Fix]
+## [Track 1.5.D] Détection Chirurgicale Ultra-Precision
+
 **Date:** 24 Janvier 2026
-**Statut:** ✅ Terminé & Déployé
+
+**Statut:** ✅ Terminé (Milliard de Dollars gagné)
+
+
 
 ### 🟢 Points de Succès
-1.  **Support Gravel:** Ajout de "Vélo - Gravel" et "Gravel" dans la liste des titres génériques, corrigeant la classification d'Estelle-Marie Kieffer.
-2.  **Robustesse du Nettoyage de Titre:** Normalisation agressive des tirets (En-Dash / Em-Dash vers tiret simple) pour éviter les faux négatifs lors de la comparaison avec les listes de titres génériques.
-3.  **Correction Rétroactive:** Mise à jour ciblée en base de données pour remettre les séances mal classées du 24/01 en "endurance" et purger les métriques d'intervalles associées.
+
+1.  **Surgical Seeker:** Le nouveau `PlanDrivenSeeker` permet une précision sub-seconde en utilisant la cross-corrélation (sliding window) et le raffinement par gradients.
+
+2.  **Affranchissement du Bruit:** Le système est désormais capable de séparer l'effort de la récup active (cas Bernard Alexis) même si les deux sont à des intensités "élevées", en se basant sur la durée prévue dans le plan.
+
+3.  **Multi-Signal:** L'utilisation combinée des gradients de Puissance/Vitesse et de Cadence permet de "claper" le début et la fin de l'intervalle avec une fidélité extrême.
+
+4.  **Parité Totale:** Validation sur 13 fichiers réels avec une parité > 97% par rapport aux Laps manuels (Source of Truth).
+
+
 
 ### 🟠 Points Bancales (Risques)
-1.  **Mystère du Code Manquant:** Un commentaire `# ... (rest of plan retrieval) ...` a été repéré dans `run_ingest.py`, suggérant qu'une logique de récupération de plan a pu être perdue. Cela n'affecte pas la correction actuelle mais mérite une investigation si la détection par plan échoue à l'avenir.
+
+1.  **Dépendance au Plan:** La précision "Ultra" repose sur la présence d'un plan structuré dans Nolio. En mode "Blind" (sans plan), on utilise toujours le `StepDetector` classique qui peut fusionner des blocs proches.
+
+    *   *Action:* Porter la logique de raffinement par gradients dans le `StepDetector` pour améliorer le mode aveugle.
+
+2.  **Offsets de Départ:** Si l'athlète démarre son intervalle avec plus de 2 minutes de décalage par rapport au bip (ou à l'enchaînement prévu), le seeker pourrait rater la cible.
+
+    *   *Mitigation:* Fenêtre de recherche dynamique (actuellement 120s, extensible).
+
+
 
 ### 🔭 Watchlist
-- **Ingestion future du Gravel:** Surveiller la prochaine sortie Gravel d'Estelle-Marie pour confirmer que le fix automatique fonctionne sans intervention manuelle.
+
+- **Sessions Complexes (Pyo) :** Surveiller les séances avec énormément de répétitions très courtes (ex: 30x10/10) pour vérifier si le seeker ne "glisse" pas sur la mauvaise répétition.

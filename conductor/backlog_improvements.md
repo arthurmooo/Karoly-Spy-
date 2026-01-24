@@ -33,6 +33,14 @@
 - [x] **Retroactive Correction**: Fixed misclassification for Estelle-Marie Kieffer (Gravel) and others in the database via SQL update.
 - [x] **Plan Logic Restoration**: Re-implemented the missing logic in `run_ingest.py` to fetch and parse Nolio planned workouts (target_grid). This restores the "Strategy A" (Plan-Driven) classification, ensuring that sessions explicitly planned as intervals are detected even if the signal is messy.
 
+### Logic Improvements (Logged from Track 1.5.D - Surgical Precision)
+
+- [x] **Plan-Driven Seeker**: Implemented custom cross-correlation (sliding window) informed by Nolio duration to focus detection.
+- [x] **Gradient Refinement**: Added sub-second edge snapping using multi-signal gradient analysis (Primary Signal + Cadence).
+- [x] **Active Recovery Separation**: Successfully isolated efforts from active recoveries (e.g. 1'30/3'30) by using plan as a template.
+- [x] **Sequential Matcher Re-sync**: Improved sequential pointer management to handle missed intervals or early starts.
+
+- [ ] **Blind Gradient Refinement**: Port the `PlanDrivenSeeker`'s edge refinement logic to the blind `AlgoDetector` to improve precision even when no plan is available.
 - [ ] **TCX Support**: The current parser only handles binary .fit files. One of the test files (Baptiste 01/08) is a TCX, causing a crash. Need a TCX/XML parser layer.
 - [ ] **Swimming Fallback**: For swimming activities without speed/power data, implement a fallback using LAP messages or internal device distance calculations.
 - [ ] **Confidence Scoring**: Refine the `respect_score` to also include a "Signal Quality" metric (e.g., standard deviation of signal during plateau).
