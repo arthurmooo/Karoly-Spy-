@@ -105,3 +105,18 @@ SELECT
 FROM latest_health lh
 JOIN athletes ath ON lh.athlete_id = ath.id
 ORDER BY lh.date DESC;
+
+-- 5. Les Profils Actuels (Paramètres physiologiques)
+CREATE OR REPLACE VIEW view_athlete_profiles_active AS
+SELECT 
+    ath.first_name || ' ' || ath.last_name AS athlete,
+    pp.sport,
+    pp.lt1_hr,
+    pp.lt2_hr,
+    pp.cp_cs,
+    pp.weight,
+    pp.valid_from AT TIME ZONE 'UTC' AS actif_depuis
+FROM physio_profiles pp
+JOIN athletes ath ON pp.athlete_id = ath.id
+WHERE pp.valid_to IS NULL
+ORDER BY athlete, pp.sport;

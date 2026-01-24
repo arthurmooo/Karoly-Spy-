@@ -49,6 +49,41 @@ class IngestionRobot:
         self.plan_parser = NolioPlanParser()
         self.readiness_calc = ReadinessCalculator(self.db)
 
+    def _fetch_gsheet_physio(self) -> Dict[str, Any]:
+        """
+        Fetches the physiological thresholds from the published Google Sheet CSV.
+        """
+        import requests
+        import io
+        import csv
+        
+        url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSK_qxf8jFG20-lZIxqBrgmxQ35iuCd1VFzvXL23nAakKpLCuoXf9tXJBX3mWCIQCYGvPYWrdLG2Nr/pub?output=csv"
+        registry = {}
+        
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            
+            # Use CSV DictReader to parse
+            f = io.StringIO(response.text)
+            reader = csv.DictReader(f)
+            for row in reader:
+                uuid = row.get("UUID")
+                if uuid:
+                    try:
+                        registry[uuid] = {
+                            "lt1_bike": int(float(row["LT1_BIKE"])) if row.get("LT1_BIKE") else None,
+                            "lt2_bike": int(float(row["LT2_BIKE"])) if row.get("LT2_BIKE") else None,
+                            "lt1_run": int(float(row["LT1_RUN"])) if row.get("LT1_RUN") else None,
+                            "lt2_run": int(float(row["LT2_RUN"])) if row.get("LT2_RUN") else None
+                        }
+                    except (ValueError, TypeError):
+                        pass
+            return registry
+        except Exception as e:
+            print(f"⚠️ Failed to fetch thresholds from Google Sheet: {e}")
+            return {}
+
     def sync_athletes_roster(self, force_metrics: bool = False, specific_athlete_name: Optional[str] = None):
         """
         Fetches athletes from Nolio and ensures they exist in DB.
@@ -56,15 +91,21 @@ class IngestionRobot:
         """
         import json
 
-        # Load Local Registry
-        local_registry = {}
+        # Load Local Registry from Google Sheet (Priority)
+        local_registry = self._fetch_gsheet_physio()
+        
+        # Fallback/Merge with local file if it exists
         registry_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'physio_registry.json')
         if os.path.exists(registry_path):
             try:
                 with open(registry_path, 'r') as f:
-                    local_registry = json.load(f).get("athletes", {})
+                    file_data = json.load(f).get("athletes", {})
+                    # We merge, but GSheet (already in local_registry) takes priority
+                    for k, v in file_data.items():
+                        if k not in local_registry:
+                            local_registry[k] = v
             except Exception as e:
-                print(f"⚠️ Failed to load physio_registry.json: {e}")
+                print(f"⚠️ Failed to load local physio_registry.json: {e}")
 
         current_hour = datetime.now(timezone.utc).hour
         # On définit la fenêtre de synchro profonde (ex: 2h du matin UTC)
@@ -141,34 +182,38 @@ class IngestionRobot:
                         # Si Adrien est à 206s/km -> 1000 / 206 = 4.85 m/s
                         cs_run = 1000.0 / float(cs_run_raw) if float(cs_run_raw) > 0 else None
 
-                    # Champs personnalisés Karoly (à créer par lui dans Nolio)
-                    # Plus de valeurs par défaut (130/160) -> On veut du Null si pas renseigné
-                    lt1_hr = None
-                    lt2_hr = None
-
-                    # A. Check Local Registry First (Priority Override)
-                    if athlete_uuid in local_registry:
-                        local_data = local_registry[athlete_uuid]
-                        lt1_hr = local_data.get("lt1_hr")
-                        lt2_hr = local_data.get("lt2_hr")
-                        if lt1_hr or lt2_hr:
-                            print(f"      📂 Using LOCAL Registry for LT1/LT2: LT1={lt1_hr}, LT2={lt2_hr}")
-
-                    # B. Fallback to Nolio API
-                    if not lt1_hr:
-                        lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
-                    if not lt2_hr:
-                        lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr") or get_latest("lacticthreshold")
-
                     # 2.2 Mise à jour HISTORISÉE des profils (SCD Type 2)
-                    if lt1_hr and lt2_hr:
-                        self._sync_physio_profile(athlete_uuid, "Bike", cp_bike, weight, lt1_hr, lt2_hr)
-                        self._sync_physio_profile(athlete_uuid, "Run", cs_run, weight, lt1_hr, lt2_hr)
-                    else:
-                        print(f"      ⚠️ Missing LT1/LT2 for {na.get('name')}. Skipping profile sync (Metrics will be NULL).")
+                    # On boucle sur les sports gérés (Bike / Run)
+                    for sport_type in ["Bike", "Run"]:
+                        lt1_hr = None
+                        lt2_hr = None
+                        current_cp_cs = cp_bike if sport_type == "Bike" else cs_run
+
+                        # A. Check Local Registry First (Priority Override)
+                        if athlete_uuid in local_registry:
+                            local_data = local_registry[athlete_uuid]
+                            if sport_type == "Bike":
+                                lt1_hr = local_data.get("lt1_bike")
+                                lt2_hr = local_data.get("lt2_bike")
+                            else:
+                                lt1_hr = local_data.get("lt1_run")
+                                lt2_hr = local_data.get("lt2_run")
+                            
+                            if lt1_hr or lt2_hr:
+                                print(f"      📂 Using GSheet Registry for {sport_type}: LT1={lt1_hr}, LT2={lt2_hr}")
+
+                        # B. Fallback to Nolio API
+                        if not lt1_hr:
+                            lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
+                        if not lt2_hr:
+                            lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr") or get_latest("lacticthreshold")
+
+                        if lt1_hr and lt2_hr:
+                            self._sync_physio_profile(athlete_uuid, sport_type, current_cp_cs, weight, lt1_hr, lt2_hr)
+                        else:
+                            print(f"      ⚠️ Missing LT1/LT2 for {na.get('name')} in {sport_type}. Profile sync skipped.")
                     
-                    cs_display = f"{cs_run:.2f}" if cs_run else "None"
-                    print(f"      ✅ Metrics synced: CP={cp_bike}W, CS={cs_display}m/s, Weight={weight}kg")
+                    print(f"      ✅ Metrics synced for {na.get('name')}.")
 
                     # 3. Sync Daily Health Readiness (RMSSD, Sleep, RHR)
                     print(f"      ❤️ Syncing health readiness for {na.get('name')}...")
