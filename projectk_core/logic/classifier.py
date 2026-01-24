@@ -10,7 +10,7 @@ class ActivityClassifier:
     
     COMPETITION_KEYWORDS = [
         r"marathon", r"semi", r"\b10k\b", r"race", r"compétition", 
-        r"ironman", r"triathlon", r"championnat"
+        r"ironman", r"triathlon", r"championnat", r"corrida", r"cross\b", r"cyclosportive"
     ]
     
     INTERVAL_KEYWORDS = [

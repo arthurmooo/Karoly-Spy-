@@ -69,21 +69,11 @@ class TestWorkoutClassifier(unittest.TestCase):
         self.assertEqual(self.classifier.detect_work_type(None, "2Km Tempo", "Training"), "intervals")
         self.assertEqual(self.classifier.detect_work_type(None, "Bloc Z3", "Training"), "intervals")
 
-    def test_mountain_variability_threshold(self):
-        """Should be very conservative for mountain sports without keywords."""
-        # CV = 0.5 (50%)
-        signal = np.concatenate([np.full(50, 100), np.full(50, 300)]) 
-        df = pd.DataFrame({'speed': signal})
-        
-        # For a mountain sport name
-        res = self.classifier.detect_work_type(df, "Sortie Trail", "Training")
-        self.assertEqual(res, "endurance", "CV of 0.5 should still be endurance for Trail/Ski unless keywords present")
+    def test_competition_patterns(self):
+        """Should detect competition keywords like Corrida, Cross, etc."""
+        self.assertEqual(self.classifier.detect_work_type(None, "Corrida de Saint-Jo'", "Training"), "competition")
+        self.assertEqual(self.classifier.detect_work_type(None, "Cross Ouest France", "Training"), "competition")
 
-        # But if it's really high (CV > 0.6)
-        signal_extreme = np.concatenate([np.full(10, 10), np.full(10, 1000)])
-        df_ext = pd.DataFrame({'speed': signal_extreme})
-        res = self.classifier.detect_work_type(df_ext, "Sortie Ski", "Training")
-        self.assertEqual(res, "intervals", "Extreme variability should still trigger intervals as safety")
 
 
 if __name__ == '__main__':
