@@ -34,7 +34,7 @@
     - [ ] TDD: Test with conflicting inputs (e.g., Lap pressed late).
 - [ ] Task: Conductor - User Manual Verification 'Detection Strategy - Priority 2 & 3' (Protocol in workflow.md)
 
-## Phase 4: Metrics Calculation & Precision
+## Phase 4: Metrics Calculation & Precision [checkpoint: a579c99]
 - [x] Task: Implement Interval Metrics Calculator. [5a8359d]
     - [ ] Calculate Avg Speed, Power, HR, Cadence per interval.
     - [ ] **Crucial:** Implement "Total Integration" for HR (no filters).
@@ -45,11 +45,11 @@
 - [ ] Task: Conductor - User Manual Verification 'Metrics Calculation & Precision' (Protocol in workflow.md)
 
 ## Phase 5: Persistence & Output
-- [ ] Task: Create SQL Schema for `activity_intervals`.
+- [x] Task: Create SQL Schema for `activity_intervals`. [008_sql]
     - [ ] Migration file for new table.
-- [ ] Task: Implement Storage Logic.
+- [x] Task: Implement Storage Logic. [writer_py]
     - [ ] Save detected intervals to Supabase.
-- [ ] Task: Generate Audit Log & JSON Export.
+- [x] Task: Generate Audit Log & JSON Export. [engine_audit]
     - [ ] Create `IntervalAudit` class to log decision logic.
     - [ ] Format JSON output for frontend.
 - [ ] Task: Conductor - User Manual Verification 'Persistence & Output' (Protocol in workflow.md)

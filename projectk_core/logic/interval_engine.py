@@ -18,6 +18,7 @@ class IntervalEngine:
         self.raw_laps = raw_laps
         self.streams = streams
         self.workout_start_time = workout_start_time
+        self.audit_log = []
 
     def process(self) -> List[IntervalBlock]:
         """
@@ -29,6 +30,7 @@ class IntervalEngine:
         
         voter = EnsembleVoter(plan_blocks, lap_blocks, algo_blocks)
         fused_blocks = voter.fuse()
+        self.audit_log = voter.audit_log
         
         # Calculate metrics for fused blocks
         if self.streams is not None:
@@ -274,18 +276,24 @@ class EnsembleVoter:
         self.plan_blocks = plan_blocks
         self.lap_blocks = lap_blocks
         self.algo_blocks = algo_blocks
+        self.audit_log = []
 
     def fuse(self) -> List[IntervalBlock]:
         if not self.plan_blocks:
-            if self.lap_blocks: return self.lap_blocks
+            if self.lap_blocks: 
+                self.audit_log.append("No plan. Using Laps as primary source.")
+                return self.lap_blocks
+            self.audit_log.append("No plan or laps. Using Algo as fallback.")
             return self.algo_blocks
             
         # Aligner le plan sur le premier lap significatif ou le premier bloc algo
         shift = 0.0
         if self.lap_blocks:
             shift = self.lap_blocks[0].start_time - self.plan_blocks[0].start_time
+            self.audit_log.append(f"Aligning plan with first Lap (Shift: {shift:.1f}s)")
         elif self.algo_blocks:
             shift = self.algo_blocks[0].start_time - self.plan_blocks[0].start_time
+            self.audit_log.append(f"Aligning plan with first Algo block (Shift: {shift:.1f}s)")
             
         matcher = ElasticMatcher(self.plan_blocks)
         matcher.apply_shift(shift)
@@ -301,6 +309,7 @@ class EnsembleVoter:
                 block.avg_power = matching_lap.avg_power
                 block.avg_hr = matching_lap.avg_hr
                 block.avg_cadence = matching_lap.avg_cadence
+                self.audit_log.append(f"Block {i+1} ({block.type}): Adjusted via LAP")
                 continue
                 
             matching_algo = self._find_matching(block, self.algo_blocks)
@@ -313,6 +322,9 @@ class EnsembleVoter:
                 block.avg_power = matching_algo.avg_power
                 block.avg_hr = matching_algo.avg_hr
                 block.avg_cadence = matching_algo.avg_cadence
+                self.audit_log.append(f"Block {i+1} ({block.type}): Adjusted via ALGO")
+            else:
+                self.audit_log.append(f"Block {i+1} ({block.type}): Kept theoretical PLAN")
                 
         return fused_blocks
 

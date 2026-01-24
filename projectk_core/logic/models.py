@@ -164,6 +164,7 @@ class Activity:
         self.laps = laps or []
         self.metrics: ActivityMetrics = ActivityMetrics()
         self.planned_structure: Optional[PlannedStructure] = None
+        self.intervals: List[IntervalBlock] = []
     
     @property
     def empty(self) -> bool:
@@ -188,6 +189,10 @@ class IntervalBlock(BaseModel):
     avg_power: Optional[float] = None
     avg_hr: Optional[float] = None
     avg_cadence: Optional[float] = None
+    
+    # Efficiency & Drift
+    pa_hr_ratio: Optional[float] = Field(None, description="Power/HR or Speed/HR ratio")
+    decoupling: Optional[float] = Field(None, description="Aerobic Decoupling within interval")
     
     @property
     def duration(self) -> float:

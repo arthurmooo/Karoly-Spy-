@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import pandas as pd
 import numpy as np
 from pydantic import BaseModel
@@ -119,7 +119,46 @@ class ActivityWriter:
         Directly saves/upserts to Supabase.
         """
         data = ActivityWriter.serialize(activity, athlete_id, **kwargs)
-        return db_connector.client.table('activities').upsert(data, on_conflict='nolio_id').execute()
+        result = db_connector.client.table('activities').upsert(data, on_conflict='nolio_id').execute()
+        
+        # Save intervals if any
+        if hasattr(activity, 'intervals') and activity.intervals:
+            # We need the activity_id (primary key) from the upsert result
+            if result.data:
+                db_activity_id = result.data[0]['id']
+                ActivityWriter.save_intervals(activity.intervals, db_activity_id, db_connector)
+        
+        return result
+
+    @staticmethod
+    def save_intervals(intervals: List[Any], activity_id: str, db_connector):
+        """
+        Saves a list of detected intervals to activity_intervals table.
+        """
+        if not intervals:
+            return
+            
+        data_to_save = []
+        for block in intervals:
+            # block is an IntervalBlock (Pydantic)
+            row = {
+                "activity_id": activity_id,
+                "start_time": block.start_time,
+                "end_time": block.end_time,
+                "duration": block.duration,
+                "type": block.type,
+                "detection_source": block.detection_source.value,
+                "avg_speed": block.avg_speed,
+                "avg_power": block.avg_power,
+                "avg_hr": block.avg_hr,
+                "avg_cadence": block.avg_cadence,
+                "pa_hr_ratio": block.pa_hr_ratio,
+                "decoupling": block.decoupling
+            }
+            data_to_save.append(ActivityWriter._sanitize_recursive(row))
+            
+        if data_to_save:
+            return db_connector.client.table('activity_intervals').insert(data_to_save).execute()
 
     @staticmethod
     def update_by_id(db_id: str, activity: Activity, db_connector, athlete_id: str, **kwargs):
