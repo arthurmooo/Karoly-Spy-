@@ -1,0 +1,51 @@
+# Implementation Plan - Interval Detection 2.0 (Infaillible)
+
+## Phase 1: Audit & Diagnostic
+- [x] Task: Create detailed audit script `scripts/audit_interval_precision.py` [e3e236b]
+    - [x] Implement data extraction for current interval detection
+    - [x] Add sport-specific metrics (Speed for Run, Power for Bike) + HR in logs
+    - [x] Support targeted audit for specific athletes/dates (e.g., Adrien Claeyssen)
+- [x] Task: Execute Audit on known problematic sessions [e3e236b]
+    - [x] Run audit on Jan 7 session (Adrien) - *Substituted with Jan 14 due to missing data*
+    - [x] Log results to identify specific failure modes (e.g., missed laps, bad recovery detection)
+- [ ] Task: Conductor - User Manual Verification 'Phase 1: Audit & Diagnostic' (Protocol in workflow.md)
+
+## Phase 2: Planned Structure Integration
+- [ ] Task: Implement Nolio API Planned Structure Retrieval
+    - [ ] Write tests for retrieving structured blocks/reps from Nolio API
+    - [ ] Implement the retrieval logic in `projectk_core/integrations/nolio_api.py`
+- [ ] Task: Implement Text-based Plan Parser (Fallback)
+    - [ ] Write tests for parsing titles like "10x 30/30" or "3x 2000m"
+    - [ ] Implement regex-based parser for common workout patterns
+- [ ] Task: Create Universal Plan Model
+    - [ ] Define a Pydantic model to represent a planned structure (count, duration/distance, intensity target)
+- [ ] Task: Conductor - User Manual Verification 'Phase 2: Planned Structure Integration' (Protocol in workflow.md)
+
+## Phase 3: Structural Matching Logic
+- [ ] Task: Develop "Consistency Score" Algorithm
+    - [ ] Write tests for matching FIT laps against a planned structure
+    - [ ] Implement logic to compare Lap count, total duration, and individual durations
+    - [ ] Handle "Contiguous Blocks" (no rest between different intensities)
+- [ ] Task: Implement Lap Validator
+    - [ ] Create a service that decides if a file's Laps are "Trustworthy" or "Corrupted"
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Structural Matching Logic' (Protocol in workflow.md)
+
+## Phase 4: Hybrid Segmentation Engine
+- [ ] Task: Implement Signal-based Redetection (Fallback Branch)
+    - [ ] Write tests for detecting intervals when laps are missing/wrong
+    - [ ] Implement "Step Change" detection using moving averages (Speed/Power)
+    - [ ] Implement "Pattern Fitting" (finding the N expected intervals in the signal)
+- [ ] Task: Integrate Hybrid Logic in `IntervalDetector`
+    - [ ] Branch A: Use Laps if Validated
+    - [ ] Branch B: Use Redetection if Laps rejected
+- [ ] Task: Handle Pauses & Edge Cases
+    - [ ] Ensure pauses (auto-pause or manual) don't break the interval count
+- [ ] Task: Conductor - User Manual Verification 'Phase 4: Hybrid Segmentation Engine' (Protocol in workflow.md)
+
+## Phase 5: Metrics & Integration
+- [ ] Task: Update Metrics Calculation to use Corrected Segments
+    - [ ] Ensure MLS and other physiological indices use the output of the new engine
+    - [ ] Verify "Last Interval" and "Average Interval" calculations
+- [ ] Task: Final End-to-End Verification
+    - [ ] Run `scripts/run_ingest.py` on diverse sessions to confirm stability
+- [ ] Task: Conductor - User Manual Verification 'Phase 5: Metrics & Integration' (Protocol in workflow.md)
