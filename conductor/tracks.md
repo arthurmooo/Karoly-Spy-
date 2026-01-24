@@ -90,5 +90,7 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [x] **Track: Interval Detection 2.0 (Infaillible)**
+- [x] **Track: Interval Detection Engine Refactoring (Track 1.5)**
 *Link: [./tracks/interval_detection_20260124/](./tracks/interval_detection_20260124/)*
+- **Objectif :** Refonte du moteur pour une précision absolue via fusion Plan/Laps/Algo.
+- **Status :** 🟢 Completed. Robust hybrid engine (Plan/Lap/Algo) with precision metrics (Pa:Hr, Drift). Validated on real data.
