@@ -149,13 +149,26 @@ class AlgoDetector:
             return [IntervalBlock(start_time=self.df["time"].min(), end_time=self.df["time"].max(), type="active", detection_source=DetectionSource.ALGO)]
             
         signal = self.df[signal_col].fillna(0)
-        s_min, s_max = signal.min(), signal.max()
+        
+        # Smooth signal to remove noise spikes
+        signal_smooth = signal.rolling(window=5, center=True).mean().fillna(signal)
+        
+        s_min, s_max = signal_smooth.min(), signal_smooth.max()
         s_range = s_max - s_min
         if s_range < 5:
              return [IntervalBlock(start_time=self.df["time"].min(), end_time=self.df["time"].max(), type="active", detection_source=DetectionSource.ALGO)]
             
-        threshold = s_min + (s_range * 0.4)
-        is_active = signal > threshold
+        # Use Quantile for threshold: 
+        # For an interval session, "Active" time is usually less than 50% of total time?
+        # Let's try 60th percentile as a dynamic separator.
+        # If the athlete pushes hard, intervals are clearly above the median.
+        threshold = signal_smooth.quantile(0.6)
+        
+        # Safety: Ensure threshold is not too close to min (e.g. constant effort)
+        if threshold < s_min + (s_range * 0.1):
+             threshold = s_min + (s_range * 0.3)
+             
+        is_active = signal_smooth > threshold
         diff = is_active.astype(int).diff().fillna(0)
         starts = self.df.loc[diff == 1, "time"].tolist()
         ends = self.df.loc[diff == -1, "time"].tolist()
@@ -163,13 +176,30 @@ class AlgoDetector:
         if is_active.iloc[-1]: ends.append(self.df["time"].iloc[-1])
             
         blocks, last_end = [], self.df["time"].iloc[0]
-        for s, e in zip(starts, ends):
+        
+        # Filter short blocks (parasites)
+        min_duration = 10 # seconds
+        
+        valid_intervals = []
+        # First pass: collect all raw intervals
+        current_starts = sorted(starts)
+        current_ends = sorted(ends)
+        
+        # Safe zip
+        for s, e in zip(current_starts, current_ends):
+            if e - s >= min_duration:
+                valid_intervals.append((s, e))
+                
+        # Build blocks
+        for s, e in valid_intervals:
             if s > last_end + 1:
-                blocks.append(IntervalBlock(start_time=last_end, end_time=s, type="rest", detection_source=DetectionSource.ALGO))
+                 blocks.append(IntervalBlock(start_time=last_end, end_time=s, type="rest", detection_source=DetectionSource.ALGO))
             blocks.append(IntervalBlock(start_time=s, end_time=e, type="active", detection_source=DetectionSource.ALGO))
             last_end = e
+            
         if last_end < self.df["time"].max():
             blocks.append(IntervalBlock(start_time=last_end, end_time=self.df["time"].max(), type="rest", detection_source=DetectionSource.ALGO))
+            
         return blocks
 
 class EnsembleVoter:
