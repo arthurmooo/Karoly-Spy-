@@ -42,7 +42,7 @@
     - [x] Ensure pauses (auto-pause or manual) don't break the interval count
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Hybrid Segmentation Engine' (Protocol in workflow.md)
 
-## Phase 5: Metrics & Integration [checkpoint: pending]
+## Phase 5: Metrics & Integration [checkpoint: 720c1a7]
 - [x] Task: Update Metrics Calculation to use Corrected Segments [fa9a605]
     - [x] Ensure MLS and other physiological indices use the output of the new engine
     - [x] Verify "Last Interval" and "Average Interval" calculations
