@@ -30,17 +30,17 @@
     - [x] Create a service that decides if a file's Laps are "Trustworthy" or "Corrupted"
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Structural Matching Logic' (Protocol in workflow.md)
 
-## Phase 4: Hybrid Segmentation Engine
-- [ ] Task: Implement Signal-based Redetection (Fallback Branch)
-    - [ ] Write tests for detecting intervals when laps are missing/wrong
-    - [ ] Implement "Step Change" detection using moving averages (Speed/Power)
-    - [ ] Implement "Pattern Fitting" (finding the N expected intervals in the signal)
-- [ ] Task: Integrate Hybrid Logic in `IntervalDetector`
-    - [ ] Branch A: Use Laps if Validated
-    - [ ] Branch B: Use Redetection if Laps rejected
-- [ ] Task: Handle Pauses & Edge Cases
-    - [ ] Ensure pauses (auto-pause or manual) don't break the interval count
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Hybrid Segmentation Engine' (Protocol in workflow.md)
+## Phase 4: Hybrid Segmentation Engine [checkpoint: pending]
+- [x] Task: Implement Signal-based Redetection (Fallback Branch) [05154fe]
+    - [x] Write tests for detecting intervals when laps are missing/wrong
+    - [x] Implement "Step Change" detection using moving averages (Speed/Power)
+    - [x] Implement "Pattern Fitting" (finding the N expected intervals in the signal)
+- [x] Task: Integrate Hybrid Logic in `IntervalDetector` [05154fe]
+    - [x] Branch A: Use Laps if Validated
+    - [x] Branch B: Use Redetection if Laps rejected
+- [x] Task: Handle Pauses & Edge Cases [05154fe]
+    - [x] Ensure pauses (auto-pause or manual) don't break the interval count
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Hybrid Segmentation Engine' (Protocol in workflow.md)
 
 ## Phase 5: Metrics & Integration
 - [ ] Task: Update Metrics Calculation to use Corrected Segments
