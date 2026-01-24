@@ -31,8 +31,8 @@ class IntervalDetector:
 
         # --- STRATEGY 1: GUIDED (Plan Provided) ---
         if plan:
-            # Check feasibility
-            if plan.get('duration', 0) > len(df):
+            # Check feasibility (Legacy Dict Plan)
+            if isinstance(plan, dict) and plan.get('duration', 0) > len(df):
                 return {}
 
             # Normalize sport
@@ -61,8 +61,33 @@ class IntervalDetector:
             
             laps = activity.laps if hasattr(activity, 'laps') else None
             
-            results = matcher.match(df, target_grid, sport=sport, laps=laps)
-            return IntervalDetector._adapt_output(results)
+            # Debug Types
+            # print(f"DEBUG: Plan Type: {type(plan)}")
+            # if isinstance(plan, list) and plan:
+            #     print(f"DEBUG: First Item: {type(plan[0])} - {plan[0]}")
+            # print(f"DEBUG: Laps Type: {type(laps)}")
+            # if isinstance(laps, list) and laps:
+            #     print(f"DEBUG: First Lap: {type(laps[0])}")
+
+            try:
+                results = matcher.match(df, target_grid, sport=sport, laps=laps)
+                # print(f"DEBUG Results Type: {type(results)}")
+                # if isinstance(results, list) and results:
+                #      print(f"DEBUG First Result Type: {type(results[0])}")
+                
+                return IntervalDetector._adapt_output(results)
+            except AttributeError as e:
+                # Catch the specific 'list object has no attribute get' to identify source
+                if "get" in str(e):
+                    print(f"DEBUG CRASH: target_grid type: {type(target_grid)}")
+                    if isinstance(target_grid, list) and target_grid:
+                         print(f"DEBUG CRASH: target_grid[0] type: {type(target_grid[0])} val: {target_grid[0]}")
+                    
+                    if 'results' in locals():
+                         print(f"DEBUG CRASH: results type: {type(results)}")
+                         if isinstance(results, list) and results:
+                             print(f"DEBUG CRASH: results[0] type: {type(results[0])} val: {results[0]}")
+                raise e
 
         # --- STRATEGY 2: BLIND AUTOSTRUCT ---
         # Test common interval durations to find the best fit

@@ -15,7 +15,7 @@ from projectk_core.integrations.nolio import NolioClient
 from projectk_core.integrations.weather import WeatherClient
 from projectk_core.processing.parser import UniversalParser
 from projectk_core.processing.calculator import MetricsCalculator
-from projectk_core.processing.plan_parser import NolioPlanParser
+from projectk_core.processing.plan_parser import NolioPlanParser, TextPlanParser
 from projectk_core.logic.profile_manager import ProfileManager
 from projectk_core.logic.config_manager import AthleteConfig
 from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetrics
@@ -38,6 +38,8 @@ class ReprocessingEngine:
         self.profile_manager = ProfileManager(self.db)
         self.classifier = ActivityClassifier()
         self.interval_detector = IntervalDetector()
+        self.nolio_plan_parser = NolioPlanParser()
+        self.text_plan_parser = TextPlanParser()
 
     def run(self, athlete_name_filter: Optional[str] = None, force: bool = False):
         print(f"Starting Reprocessing Engine...")
@@ -112,23 +114,35 @@ class ReprocessingEngine:
             if nolio_id:
                 details = self.nolio.get_activity_details(int(nolio_id), athlete_id=athlete_nolio_id)
                 if details:
-                    # Stage 1: Try Deep JSON Parsing (if available)
-                    if details.get('planned_id'):
-                        planned_details = self.nolio.get_planned_workout(int(details['planned_id']), athlete_id=athlete_nolio_id)
-                        if planned_details and planned_details.get('structure'):
-                            plan = self.plan_parser.parse(planned_details['structure'], sport_type=sport)
-                            if plan:
-                                print(f"      [bold green]💎 Deep Plan Found:[/bold green] {len(plan)} intervals detected from JSON.")
+                    activity_title = details.get('planned_name') or details.get('name') or ""
                     
-                    # Stage 2: Fallback to title parsing if no deep plan was found
-                    if not plan:
-                        activity_title = details.get('planned_name') or details.get('name') or ""
-                        # Note: NolioPlanParser might not have a public string parser yet, 
-                        # but we use it if the plan was already resolved in details
-                        pass
+                    # Strategy A: Structured Workout from Activity Details (if synced)
+                    # or from Linked Planned Workout
+                    structure_source = details.get('structured_workout')
+                    
+                    if not structure_source and details.get('planned_id'):
+                         planned = self.nolio.get_planned_workout(int(details['planned_id']), athlete_id=athlete_nolio_id)
+                         if planned:
+                             structure_source = planned.get('structured_workout') or planned.get('structure')
+                             # Also try to parse text title of planned workout if no structure
+                             if not structure_source:
+                                 planned_title = planned.get('name', '')
+                                 plan = self.text_plan_parser.parse(planned_title)
+                    
+                    if structure_source:
+                        plan = self.nolio_plan_parser.parse(structure_source, sport_type=sport)
+                        print(f"      [bold green]💎 Deep Plan Found:[/bold green] {len(plan)} intervals detected from JSON.")
+                    elif not plan and activity_title:
+                        # Strategy B: Text Parsing
+                        plan = self.text_plan_parser.parse(activity_title)
+                        if plan:
+                             print(f"      [bold cyan]📝 Text Plan Parsed:[/bold cyan] {len(plan)} intervals from '{activity_title}'")
 
             if plan:
-                print(f"      [bold green]📋 Strategy: Guided Detection[/bold green] -> {plan['reps']}x{plan['duration']}{plan['unit']}")
+                if isinstance(plan, list):
+                    print(f"      [bold green]📋 Strategy: Guided Detection[/bold green] -> {len(plan)} Intervals Targeted")
+                else:
+                    print(f"      [bold green]📋 Strategy: Guided Detection[/bold green] -> {plan.get('reps', '?')}x{plan.get('duration', '?')}")
 
             # Detect Work Type
             work_type = self.classifier.detect_work_type(df, activity_title, "") 
