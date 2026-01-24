@@ -96,5 +96,34 @@ class TestIntervalMatcher(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertAlmostEqual(results[0]['respect_score'], 90.0, delta=1)
 
+    def test_bernard_alexis_case(self):
+        """
+        Test separation of Effort (1'30) from Active Recovery (3'30).
+        Total block is 5' of higher power, but the plan only asks for 1'30.
+        """
+        # 600s warmup 150W
+        # 90s Effort 400W
+        # 210s Active Recovery 250W
+        # 300s cool down 150W
+        # Total: 1200s
+        timestamps = pd.date_range(start='2026-01-01 10:00:00', periods=1200, freq='1s')
+        power = np.full(1200, 150.0)
+        power[600:690] = 400.0
+        power[690:900] = 250.0 # Active Recovery
+        
+        df = pd.DataFrame({'timestamp': timestamps, 'power': power})
+        
+        # Plan asks for 1'30 @ 400W
+        target_grid = [{"duration": 90, "target_type": "power", "type": "active", "target_min": 400}]
+        
+        results = self.matcher.match(df, target_grid, sport="bike")
+        
+        self.assertEqual(len(results), 1)
+        # Should match the 90s effort EXACTLY
+        self.assertEqual(results[0]['duration_sec'], 90)
+        self.assertEqual(results[0]['start_index'], 600)
+        self.assertEqual(results[0]['end_index'], 690)
+        self.assertAlmostEqual(results[0]['avg_power'], 400, delta=1)
+
 if __name__ == '__main__':
     unittest.main()

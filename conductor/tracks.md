@@ -106,4 +106,11 @@ This file tracks the master plan, strictly aligned with the contract phases.
 ---
 
 - [x] **Track: Benchmarking Expérimental - Optimisation Détection Signal (1.5.C)**
-*Link: [./tracks/algo_benchmarking_20260124/](./tracks/algo_benchmarking_20260124/)*
+*Archived in conductor/archive/algo_benchmarking_20260124/*
+
+---
+
+- [~] **Track: Détection Chirurgicale Ultra-Precision (1.5.D)**
+    - **Status:** 🔴 High Priority. Objectif : Perfection absolue (<1s erreur).
+    - **Link:** [./tracks/surgical_precision_20260124/](./tracks/surgical_precision_20260124/)
+

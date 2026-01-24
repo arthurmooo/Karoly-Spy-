@@ -22,6 +22,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 from projectk_core.logic.step_detector import StepDetector
+from projectk_core.logic.plan_driven_seeker import PlanDrivenSeeker
 
 
 class MatchStatus(Enum):
@@ -243,7 +244,7 @@ class IntervalMatcher:
                     # (This is implicitly handled by prox_limit being large for fallback search)
                     pass
         
-        return detected_intervals
+        return [r for r in detected_intervals if r['status'] == MatchStatus.MATCHED.value]
     
     def _preprocess_laps(
         self, 
@@ -519,9 +520,57 @@ class IntervalMatcher:
         is_resync: bool = False
     ) -> Dict[str, Any]:
         """
-        Uses pre-detected signal segments to find the best match for a target.
+        Uses PlanDrivenSeeker (Ultra-Precision) combined with Step Detection 
+        to find the best match for a target.
         """
         cfg = self.config
+        
+        # --- NEW: PlanDrivenSeeker (The Surgical Calque) ---
+        seeker = PlanDrivenSeeker(df, primary_signal=signal_col)
+        # Search window is larger if we are resyncing or it's the first target
+        search_window = 600 if (target_idx == 0 or is_resync) else 120
+        
+        seek_result = seeker.seek(
+            target_duration=duration_s, 
+            expected_start=start_ptr, 
+            search_window=search_window,
+            min_start=start_ptr - 10 # Allow slight overlap but not much
+        )
+        
+        if seek_result:
+            # Validate seek result against target_min
+            # We are more permissive here because refinement will have found the best plateau
+            if seek_result['avg'] >= target_min * 0.75:
+                start_idx = seek_result['start']
+                end_idx = seek_result['end']
+                
+                plateau_metrics = self._calculate_plateau_metrics(
+                    df, signal_col, start_idx, end_idx, duration_s
+                )
+                
+                realized = plateau_metrics.get(f'avg_{signal_col}', 0)
+                respect_score = (realized / target_min * 100) if target_min > 0 else None
+                
+                return {
+                    "status": MatchStatus.MATCHED.value,
+                    "source": MatchSource.SIGNAL.value,
+                    "confidence": 0.95, # High confidence for PlanDrivenSeeker
+                    "lap_index": None,
+                    "target_index": target_idx,
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "duration_sec": end_idx - start_idx,
+                    "expected_duration": duration_s,
+                    "avg_power": plateau_metrics.get('avg_power'),
+                    "avg_speed": plateau_metrics.get('avg_speed'),
+                    "avg_hr": plateau_metrics.get('avg_hr'),
+                    "plateau_avg_power": plateau_metrics.get('plateau_avg_power'),
+                    "plateau_avg_speed": plateau_metrics.get('plateau_avg_speed'),
+                    "respect_score": respect_score,
+                    "target": target
+                }
+
+        # --- FALLBACK: Legacy Segment-based search ---
         best_segment = None
         best_score = 0
         
@@ -548,7 +597,6 @@ class IntervalMatcher:
                 dur_score = 1 - abs(1 - dur_ratio)
             elif 1.5 < dur_ratio <= 4.0:
                 # It's a "Big Block" (potentially multiple intervals fused)
-                # We give it a decent score because it likely contains our target
                 dur_score = 0.8
             elif 0.5 <= dur_ratio < 0.7:
                 # Partial credit for short segments
@@ -560,20 +608,15 @@ class IntervalMatcher:
             intensity_ratio = seg['mean'] / target_min if target_min > 0 else 0
             if intensity_ratio >= cfg.entry_threshold_ratio: # 0.8
                 int_score = 1.0
-            elif intensity_ratio >= 0.70: # Increased hard floor from 0.5 to 0.7
-                # Linear penalty between 0.7 and 0.8
-                # If ratio is 0.75, score is 0.5
+            elif intensity_ratio >= 0.70:
                 int_score = 0.5 + 0.5 * ((intensity_ratio - 0.70) / 0.10)
             else:
                 int_score = 0
                 
-            # KILL SWITCH: If intensity score is 0 (i.e. < 70% of target), 
-            # the total score is capped at 0.4 to prevent matching purely on duration/proximity.
             if int_score == 0:
-                dur_score *= 0.5 # Heavy penalty on duration score too
+                dur_score *= 0.5
                 
-            # 3. Proximity score (prefer segments closer to current pointer)
-            # Make it more forgiving for the first target OR if we are resyncing
+            # 3. Proximity score
             prox_limit = 3600 if (target_idx == 0 or is_resync) else 900
             prox_score = 1 - min(1.0, abs(seg['start'] - start_ptr) / prox_limit)
             
@@ -583,29 +626,18 @@ class IntervalMatcher:
                 best_score = total_score
                 best_segment = seg
 
-        if best_segment and best_score > 0.5: # Lowered threshold from 0.6
+        if best_segment and best_score > 0.5:
             start_idx = best_segment['start']
             end_idx = best_segment['end']
             
-            # 1. Handle too long segments (if grouped by detector)
             if best_segment['duration'] > duration_s * 1.2:
-                 # Trim to expected duration centered around max intensity
                  start_idx, end_idx = self._find_best_window(signal, start_idx, end_idx, duration_s)
-            
-            # 2. Handle too short segments (Target Duration Alignment)
-            # If the segment is shorter than target, try to expand it symmetrically
-            # to match the planned duration, which is often what manual laps do.
             elif best_segment['duration'] < duration_s:
                 diff = duration_s - best_segment['duration']
-                # Expand by half the difference on each side
                 new_start = max(0, start_idx - diff // 2)
                 new_end = min(len(signal), end_idx + (diff - diff // 2))
-                
-                # Check if expansion is reasonable (not falling into a complete stop)
-                # We calculate the mean of the expanded part
                 if new_start < start_idx or new_end > end_idx:
                     expanded_mean = np.mean(signal[new_start:new_end])
-                    # If expanded mean is still > 85% of original segment mean, we keep it
                     if expanded_mean > 0.85 * best_segment['mean']:
                         start_idx, end_idx = new_start, new_end
 
