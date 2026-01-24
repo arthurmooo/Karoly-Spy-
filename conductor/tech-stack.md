@@ -8,6 +8,8 @@
     - `scipy.signal`: For signal processing and noise filtering (HR/Power smoothing).
 - **File Parsing:**
     - `fitdecode`: For robust extraction of raw data from modern .FIT files (Garmin, Wahoo, Coros).
+    - `xml.etree.ElementTree`: For parsing .TCX files (Standard Library).
+    - `gzip`: For handling compressed activity files (Standard Library).
 - **API Clients:**
     - `supabase`: Official Python client for interacting with Supabase DB and Storage.
     - `requests`: For handling REST API interactions (Nolio).

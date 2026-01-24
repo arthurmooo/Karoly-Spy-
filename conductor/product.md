@@ -24,6 +24,7 @@ To transform Karoly Spy's coaching methodology into a scalable, automated, and s
 
 ### 1. Ingestion & Data Strategy
 -   **Automated Sync:** Ingestion from Nolio/Strava to Supabase.
+-   **Multi-Format Support:** Robust parsing of `.FIT`, `.TCX`, and `.GZ` compressed files to support a wider range of devices (e.g., Polar, older Garmins).
 -   **Onboarding Strategy:** Rolling window import (last 3-6 months) for immediate relevance.
 -   **Hardware Mapping:** Automatic athlete attribution via Device Serial Numbers found in .FIT files.
 -   **Data Enrichment:**
