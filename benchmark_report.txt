@@ -1,0 +1,120 @@
+/opt/anaconda3/lib/python3.13/site-packages/fitdecode/reader.py:583: UserWarning: invalid field size 1 in definition message @ 19873 for type uint32 (expected a multiple of 4)
+  warnings.warn(msg)
+/opt/anaconda3/lib/python3.13/site-packages/fitdecode/reader.py:583: UserWarning: invalid field size 1 in definition message @ 19873 for type uint32 (expected a multiple of 4)
+  warnings.warn(msg)
+/opt/anaconda3/lib/python3.13/site-packages/fitdecode/reader.py:583: UserWarning: invalid field size 1 in definition message @ 19873 for type uint32 (expected a multiple of 4)
+  warnings.warn(msg)
+Benchmarking Baseline (3-Cluster) on Adrien_2026-01-07...
+Benchmarking Baseline (3-Cluster) on Baptiste_2026-01-09...
+Benchmarking Baseline (3-Cluster) on Alexis_2025-10-17...
+Benchmarking Baseline (3-Cluster) on Dries_2026-01-17...
+
+--- RESULTS FOR Baseline (3-Cluster) ---
+
+Activity: Adrien_2026-01-07
+  Recall: 91.7% (11/12)
+  Precision: 84.6%
+  Avg Start Error: 5.7s
+  Avg End Error: 14.2s
+  Avg HR Error: 1.24 bpm
+  Avg IoU: 0.88
+
+Activity: Baptiste_2026-01-09
+  Recall: 50.0% (8/16)
+  Precision: 53.3%
+  Avg Start Error: 7.1s
+  Avg End Error: 16.8s
+  Avg HR Error: 1.52 bpm
+  Avg IoU: 0.81
+
+Activity: Alexis_2025-10-17
+  Recall: 37.5% (3/8)
+  Precision: 42.9%
+  Avg Start Error: 86.7s
+  Avg End Error: 8.7s
+  Avg HR Error: 1.93 bpm
+  Avg IoU: 0.69
+
+Activity: Dries_2026-01-17
+  Recall: 100.0% (2/2)
+  Precision: 16.7%
+  Avg Start Error: 286.0s
+  Avg End Error: 44.0s
+  Avg HR Error: 1.04 bpm
+  Avg IoU: 0.84
+Benchmarking Strategy A (Gradient) on Adrien_2026-01-07...
+Benchmarking Strategy A (Gradient) on Baptiste_2026-01-09...
+Benchmarking Strategy A (Gradient) on Alexis_2025-10-17...
+Benchmarking Strategy A (Gradient) on Dries_2026-01-17...
+
+--- RESULTS FOR Strategy A (Gradient) ---
+
+Activity: Adrien_2026-01-07
+  Recall: 91.7% (11/12)
+  Precision: 61.1%
+  Avg Start Error: 2.4s
+  Avg End Error: 15.7s
+  Avg HR Error: 0.77 bpm
+  Avg IoU: 0.89
+
+Activity: Baptiste_2026-01-09
+  Recall: 50.0% (8/16)
+  Precision: 44.4%
+  Avg Start Error: 15.9s
+  Avg End Error: 18.6s
+  Avg HR Error: 0.95 bpm
+  Avg IoU: 0.81
+
+Activity: Alexis_2025-10-17
+  Recall: 37.5% (3/8)
+  Precision: 42.9%
+  Avg Start Error: 89.0s
+  Avg End Error: 9.0s
+  Avg HR Error: 1.87 bpm
+  Avg IoU: 0.68
+
+Activity: Dries_2026-01-17
+  Recall: 100.0% (2/2)
+  Precision: 15.4%
+  Avg Start Error: 286.0s
+  Avg End Error: 42.5s
+  Avg HR Error: 1.04 bpm
+  Avg IoU: 0.84
+Benchmarking Strategy ULTRA V5 (Surgeon) on Adrien_2026-01-07...
+Benchmarking Strategy ULTRA V5 (Surgeon) on Baptiste_2026-01-09...
+Benchmarking Strategy ULTRA V5 (Surgeon) on Alexis_2025-10-17...
+Benchmarking Strategy ULTRA V5 (Surgeon) on Dries_2026-01-17...
+
+--- RESULTS FOR Strategy ULTRA V5 (Surgeon) ---
+
+Activity: Adrien_2026-01-07
+  Recall: 83.3% (10/12)
+  Precision: 100.0%
+  Avg Start Error: 4.9s
+  Avg End Error: 10.0s
+  Avg HR Error: 0.98 bpm
+  Avg IoU: 0.88
+
+Activity: Baptiste_2026-01-09
+  Recall: 37.5% (6/16)
+  Precision: 100.0%
+  Avg Start Error: 6.8s
+  Avg End Error: 5.7s
+  Avg HR Error: 1.51 bpm
+  Avg IoU: 0.81
+
+Activity: Alexis_2025-10-17
+  Recall: 37.5% (3/8)
+  Precision: 50.0%
+  Avg Start Error: 86.7s
+  Avg End Error: 13.0s
+  Avg HR Error: 2.03 bpm
+  Avg IoU: 0.68
+
+Activity: Dries_2026-01-17
+  Recall: 100.0% (2/2)
+  Precision: 22.2%
+  Avg Start Error: 276.5s
+  Avg End Error: 52.0s
+  Avg HR Error: 0.91 bpm
+  Avg IoU: 0.84

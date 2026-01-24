@@ -190,86 +190,125 @@ class LapAnalyzer:
 
 class AlgoDetector:
     """
-    Detects intervals using signal processing (Power/Speed).
+    Detects intervals using high-fidelity signal processing (ULTRA V5 logic).
+    Uses histogram valley detection for optimal thresholding and raw gradient
+    analysis for surgical edge refinement.
     """
     def __init__(self, df: pd.DataFrame):
         self.df = df
 
     def detect(self) -> List[IntervalBlock]:
         if self.df.empty: return []
-        signal_col = "power" if "power" in self.df.columns else "speed"
+        signal_col = "power" if "power" in self.df.columns and self.df["power"].max() > 100 else "speed"
         if signal_col not in self.df.columns:
-            return [IntervalBlock(start_time=self.df["time"].min(), end_time=self.df["time"].max(), type="active", detection_source=DetectionSource.ALGO)]
+            start_t = self.df["time"].min() if "time" in self.df.columns else 0
+            end_t = self.df["time"].max() if "time" in self.df.columns else 0
+            return [IntervalBlock(start_time=start_t, end_time=end_t, type="active", detection_source=DetectionSource.ALGO)]
             
         signal = self.df[signal_col].fillna(0)
         
-        # Smooth signal (10s)
-        signal_smooth = signal.rolling(window=10, center=True).mean().fillna(signal)
+        # 1. Histogram-based optimal threshold (Valley Detection)
+        # Smooth for level detection (15s window)
+        s_mid = signal.rolling(window=15, center=True).mean().fillna(signal)
         
-        s_min, s_max = signal_smooth.min(), signal_smooth.max()
-        s_range = s_max - s_min
-        if s_range < 5:
-             return [IntervalBlock(start_time=self.df["time"].min(), end_time=self.df["time"].max(), type="active", detection_source=DetectionSource.ALGO)]
+        # Filter out zero/near-zero to find moving levels
+        non_zero = s_mid[s_mid > s_mid.max() * 0.1]
+        if non_zero.empty: non_zero = s_mid
+        
+        # Find peaks in histogram to identify 'Rest' and 'Work' levels
+        hist, bins = np.histogram(non_zero, bins=40)
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+        
+        from scipy.signal import find_peaks
+        peaks, _ = find_peaks(hist, distance=3, height=len(non_zero)*0.03)
+        
+        if len(peaks) >= 2:
+            sorted_peaks = sorted(peaks)
+            p_rest = sorted_peaks[0]
+            p_work = sorted_peaks[-1]
+            # Threshold is the deepest valley between rest and work peaks
+            valley_idx = np.argmin(hist[p_rest:p_work]) + p_rest
+            threshold_high = bin_centers[valley_idx]
+            # Low threshold for hysteresis (recovery level + 50% of gap)
+            threshold_low = bin_centers[p_rest] + (threshold_high - bin_centers[p_rest]) * 0.5
+        else:
+            # Fallback to adaptive quantiles if signal is unimodal (e.g. constant tempo)
+            threshold_high = non_zero.quantile(0.70)
+            threshold_low = non_zero.quantile(0.50)
             
-        # K-Means (3 Clusters) Logic for robust thresholding
-        values = signal_smooth.values
-        v_min = values.min()
-        v_max = values.max()
-        v_med = np.median(values)
-        
-        c_low = v_min
-        c_med = v_med
-        c_high = v_max
-        
-        for _ in range(5):
-            d_low = abs(values - c_low)
-            d_med = abs(values - c_med)
-            d_high = abs(values - c_high)
+        # 2. Hysteresis Thresholding for stability
+        is_active = pd.Series(False, index=self.df.index)
+        currently_active = False
+        for i in range(len(s_mid)):
+            val = s_mid.iloc[i]
+            if not currently_active and val > threshold_high:
+                currently_active = True
+            elif currently_active and val < threshold_low:
+                currently_active = False
+            is_active.iloc[i] = currently_active
             
-            # Assign to nearest
-            labels = np.argmin(np.vstack((d_low, d_med, d_high)), axis=0)
-            
-            # Update
-            if (labels==0).any(): c_low = values[labels==0].mean()
-            if (labels==1).any(): c_med = values[labels==1].mean()
-            if (labels==2).any(): c_high = values[labels==2].mean()
+        # 3. Clean Spikes/Gaps
+        # Merge gaps < 10s and remove spikes < 15s
+        is_active = is_active.rolling(window=10, center=True).max().fillna(is_active).astype(bool)
+        is_active = is_active.rolling(window=15, center=True).min().fillna(is_active).astype(bool)
         
-        # Threshold between Med and High (Rest vs Active)
-        threshold = (c_med + c_high) / 2
-             
-        is_active = signal_smooth > threshold
         diff = is_active.astype(int).diff().fillna(0)
+        
+        # Ensure 'time' column exists for block creation
+        time_col = "time"
+        if "time" not in self.df.columns:
+             start_ts = self.df.index[0] if isinstance(self.df.index, pd.DatetimeIndex) else 0
+             if isinstance(start_ts, pd.Timestamp):
+                 self.df["time"] = (self.df.index - start_ts).total_seconds()
+             else:
+                 self.df["time"] = self.df.index
+        
         starts = self.df.loc[diff == 1, "time"].tolist()
         ends = self.df.loc[diff == -1, "time"].tolist()
+        
         if is_active.iloc[0]: starts.insert(0, self.df["time"].iloc[0])
         if is_active.iloc[-1]: ends.append(self.df["time"].iloc[-1])
-            
-        # Collect raw intervals
+        
+        # 4. Surgical Edge Refinement using Raw Gradient
+        # We look for the absolute sharpest transition in a +/- 20s window
+        raw_smooth = signal.rolling(window=2, center=True).mean().fillna(signal)
+        raw_grad = np.gradient(raw_smooth.values)
+        grad_series = pd.Series(raw_grad, index=self.df.index)
+        
         raw_intervals = []
-        for s, e in zip(starts, ends):
-            raw_intervals.append((s, e))
+        for s_t, e_t in zip(starts, ends):
+            # Convert time to index/timestamp for slicing
+            s_idx = self.df[self.df["time"] == s_t].index[0]
+            e_idx = self.df[self.df["time"] == e_t].index[0]
             
-        # Merge close intervals (gap < 20s)
-        if not raw_intervals:
-            return []
+            # Start Refinement
+            s_win = grad_series.loc[s_idx - pd.Timedelta(seconds=20) : s_idx + pd.Timedelta(seconds=20)] if isinstance(s_idx, pd.Timestamp) else grad_series.iloc[int(max(0, s_t-20)):int(min(len(grad_series), s_t+20))]
+            if not s_win.empty:
+                best_s_idx = s_win.idxmax()
+                s_t = self.df.loc[best_s_idx, "time"] if "time" in self.df.columns else best_s_idx
+                
+            # End Refinement
+            e_win = grad_series.loc[e_idx - pd.Timedelta(seconds=20) : e_idx + pd.Timedelta(seconds=20)] if isinstance(e_idx, pd.Timestamp) else grad_series.iloc[int(max(0, e_t-20)):int(min(len(grad_series), e_t+20))]
+            if not e_win.empty:
+                best_e_idx = e_win.idxmin()
+                e_t = self.df.loc[best_e_idx, "time"] if "time" in self.df.columns else best_e_idx
             
-        merged_intervals = []
-        current_s, current_e = raw_intervals[0]
+            if e_t - s_t >= 15:
+                raw_intervals.append((s_t, e_t))
         
-        for next_s, next_e in raw_intervals[1:]:
-            if next_s - current_e < 20: 
-                current_e = next_e
-            else:
-                merged_intervals.append((current_s, current_e))
-                current_s, current_e = next_s, next_e
-        merged_intervals.append((current_s, current_e))
-        
-        # Filter short blocks (noise < 15s)
-        final_intervals = []
-        for s, e in merged_intervals:
-            if e - s >= 15:
-                final_intervals.append((s, e))
-        
+        # 5. Smart Filtering (Main Set Selection)
+        if len(raw_intervals) > 3:
+            durs = [e - s for s, e in raw_intervals]
+            median_dur = np.median(durs)
+            final_intervals = []
+            for s, e in raw_intervals:
+                dur = e - s
+                if dur > 300 or (0.5 * median_dur <= dur <= 1.5 * median_dur):
+                    final_intervals.append((s, e))
+        else:
+            final_intervals = raw_intervals
+            
+        # 6. Create IntervalBlocks
         blocks = []
         last_end = self.df["time"].iloc[0]
         
