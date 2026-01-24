@@ -1,6 +1,6 @@
 # Implementation Plan - Interval Detection 2.0 (Infaillible)
 
-## Phase 1: Audit & Diagnostic
+## Phase 1: Audit & Diagnostic [checkpoint: 0e41a09]
 - [x] Task: Create detailed audit script `scripts/audit_interval_precision.py` [e3e236b]
     - [x] Implement data extraction for current interval detection
     - [x] Add sport-specific metrics (Speed for Run, Power for Bike) + HR in logs
@@ -8,7 +8,7 @@
 - [x] Task: Execute Audit on known problematic sessions [e3e236b]
     - [x] Run audit on Jan 7 session (Adrien) - *Substituted with Jan 14 due to missing data*
     - [x] Log results to identify specific failure modes (e.g., missed laps, bad recovery detection)
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Audit & Diagnostic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Audit & Diagnostic' (Protocol in workflow.md)
 
 ## Phase 2: Planned Structure Integration
 - [ ] Task: Implement Nolio API Planned Structure Retrieval
