@@ -9,7 +9,7 @@
     - [ ] Define `DetectionSource` enum (PLAN, LAP, ALGO).
 - [ ] Task: Conductor - User Manual Verification 'Preparation & Infrastructure' (Protocol in workflow.md)
 
-## Phase 2: Detection Strategy - Priority 1 (Plan Correlation)
+## Phase 2: Detection Strategy - Priority 1 (Plan Correlation) [checkpoint: b8b4b7c]
 - [x] Task: Implement Plan Projection Logic. [9ee309f]
     - [ ] Create `PlanProjector` class to map Nolio structure onto time series.
     - [ ] TDD: Test mapping of simple 10x400m structure.
