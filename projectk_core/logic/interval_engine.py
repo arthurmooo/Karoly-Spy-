@@ -77,3 +77,18 @@ class ElasticMatcher:
             self.blocks[i].end_time += diff
             
         return self.blocks
+
+    def remove_blocks(self, indices: List[int]) -> List[IntervalBlock]:
+        """
+        Remove specified blocks and shift remaining blocks to close gaps.
+        """
+        indices = sorted(indices, reverse=True)
+        for idx in indices:
+            if 0 <= idx < len(self.blocks):
+                removed_block = self.blocks.pop(idx)
+                duration = removed_block.duration
+                # Shift subsequent blocks backwards
+                for i in range(idx, len(self.blocks)):
+                    self.blocks[i].start_time -= duration
+                    self.blocks[i].end_time -= duration
+        return self.blocks
