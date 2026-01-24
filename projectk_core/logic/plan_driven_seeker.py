@@ -59,12 +59,12 @@ class PlanDrivenSeeker:
         if strict_duration:
             # If strict, we only snap if the gradient is very close to the sliding window result
             if abs(refined_start - abs_start) <= 3:
-                abs_start = refined_start
+                abs_start = int(refined_start)
             if abs(refined_end - abs_end) <= 3:
-                abs_end = refined_end
+                abs_end = int(refined_end)
         else:
-            abs_start = refined_start
-            abs_end = refined_end
+            abs_start = int(refined_start)
+            abs_end = int(refined_end)
 
         # Recalculate metrics
         avg_val = np.mean(self.signal[abs_start:abs_end])

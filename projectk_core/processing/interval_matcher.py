@@ -22,7 +22,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 from projectk_core.logic.step_detector import StepDetector
-from projectk_core.logic.plan_driven_seeker import PlanDrivenSeeker
+from projectk_core.logic.meta_seeker import MetaSeeker
 
 
 class MatchStatus(Enum):
@@ -524,13 +524,13 @@ class IntervalMatcher:
         is_resync: bool = False
     ) -> Dict[str, Any]:
         """
-        Uses PlanDrivenSeeker (Ultra-Precision) combined with Step Detection 
+        Uses MetaSeeker (Sub-second Spline Precision) combined with Step Detection 
         to find the best match for a target.
         """
         cfg = self.config
         
-        # --- NEW: PlanDrivenSeeker (The Surgical Calque) ---
-        seeker = PlanDrivenSeeker(df, primary_signal=signal_col)
+        # --- NEW: MetaSeeker (The Surgical Spline Calque) ---
+        seeker = MetaSeeker(df, primary_signal=signal_col, resolution_hz=10)
         # Search window is larger if we are resyncing or it's the first target
         search_window = 600 if (target_idx == 0 or is_resync) else 120
         
