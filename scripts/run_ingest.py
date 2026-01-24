@@ -443,10 +443,11 @@ class IngestionRobot:
             
             # Condition for refresh:
             # - Missing duration or distance
-            # - Missing FIT file (if it's a sport that should have one)
+            # - Missing FIT file (if it's a sport that should have one AND Nolio has a file)
             # - OR Distance looks like KM (e.g. < 200m for a Run/Bike, which is very unlikely unless it's a test)
             is_missing = (dur is None or dist is None)
-            is_missing_fit = not has_fit and sport in ['Run', 'Bike', 'Swim']
+            nolio_has_file = nolio_act.get("file_url") is not None
+            is_missing_fit = not has_fit and sport in ['Run', 'Bike', 'Swim'] and nolio_has_file
             is_probably_km = (dist is not None and 0 < dist < 300 and sport in ['Run', 'Bike'])
             
             if not (is_missing or is_missing_fit or is_probably_km or self.force_refresh):
@@ -492,14 +493,13 @@ class IngestionRobot:
         internal_sport = "Other"
         nolio_sport_lower = nolio_sport.lower()
         
-        # Priority check: Bike/Strength first, then Swim, then Run
+        # Priority check: Bike/Strength first, then Swim, then Run, then Ski
         found_category = None
-        for category in ["Bike", "Strength", "Swim", "Run"]:
+        for category in ["Bike", "Strength", "Swim", "Run", "Ski"]:
             keywords = sport_map[category]
             for kw in keywords:
                 if kw.lower() in nolio_sport_lower:
                     found_category = category
-                    # print(f"         🔍 Sport Match: '{nolio_sport}' -> {category} (via '{kw}')")
                     break
             if found_category:
                 break

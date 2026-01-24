@@ -24,7 +24,8 @@ class ActivityClassifier:
 
     ENDURANCE_KEYWORDS = [
         r"échauffement", r"récupération", r"récup\b", r"cool\s*down", r"décrassage",
-        r"footing", r"endurance\s+fondamentale", r"ef\b", r"\blit\b"
+        r"footing", r"endurance\s+fondamentale", r"ef\b", r"\blit\b",
+        r"tapis", r"roulant"
     ]
 
     def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, sport_name: str = "", target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
@@ -41,11 +42,15 @@ class ActivityClassifier:
         if target_grid and len(target_grid) > 0:
             return "intervals"
 
-        # 3. Check for Generic Title (e.g. Title == Sport Name)
+        # 3. Check for Generic Title (e.g. Title contains only the sport name)
         # If the title is just the sport and there's no plan, it's very likely generic endurance
-        if sport_name and title.strip().lower() == sport_name.strip().lower():
-             if not target_grid:
-                 return "endurance"
+        if sport_name:
+            clean_title = title.strip().lower()
+            clean_sport = sport_name.strip().lower()
+            # If title is exactly sport name OR title is a subset of common generic sport names
+            if clean_title == clean_sport or clean_title in ["course à pied", "vélo", "ski de fond", "natation", "ski de randonnée"]:
+                 if not target_grid:
+                     return "endurance"
 
         # 4. Intervals (Strategy B: Keywords)
         is_interval_by_kw = False

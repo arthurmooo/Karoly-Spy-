@@ -59,7 +59,12 @@ class MetricsCalculator:
         # 1. Basic Pre-calc
         # Karoly counts strictly active time (rows with valid dt > 0)
         # We must ignore the resampled gaps for duration-based metrics
-        active_df = df[df['heart_rate'].notna()].copy()
+        if 'heart_rate' in df.columns:
+            active_df = df[df['heart_rate'].notna()].copy()
+        else:
+            # Fallback if no heart rate data: use all rows or speed/power if available
+            active_df = df.copy()
+            
         total_seconds = float(len(active_df))
         
         if total_seconds == 0:
