@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from projectk_core.logic.models import PlannedStructure, IntervalBlock, DetectionSource
 
 class IntervalEngine:
@@ -92,3 +92,47 @@ class ElasticMatcher:
                     self.blocks[i].start_time -= duration
                     self.blocks[i].end_time -= duration
         return self.blocks
+
+class LapAnalyzer:
+    """
+    Processes raw laps from activity files.
+    """
+    def __init__(self, raw_laps: List[Dict[str, Any]], min_duration: float = 10.0):
+        self.raw_laps = raw_laps
+        self.min_duration = min_duration
+
+    def to_blocks(self) -> List[IntervalBlock]:
+        """
+        Convert raw laps to IntervalBlocks, filtering out parasites.
+        """
+        blocks = []
+        for lap in self.raw_laps:
+            duration = lap.get("total_elapsed_time", 0)
+            if duration < self.min_duration:
+                continue
+                
+            start_time = lap.get("start_time", 0)
+            
+            # Map intensity to standard types
+            raw_type = lap.get("intensity", "active")
+            block_type = self._map_type(raw_type)
+            
+            block = IntervalBlock(
+                start_time=start_time,
+                end_time=start_time + duration,
+                type=block_type,
+                detection_source=DetectionSource.LAP
+            )
+            blocks.append(block)
+            
+        return blocks
+
+    def _map_type(self, raw_type: str) -> str:
+        mapping = {
+            "warmup": "warmup",
+            "cooldown": "cooldown",
+            "rest": "rest",
+            "recovery": "rest",
+            "active": "active"
+        }
+        return mapping.get(raw_type.lower(), "active")
