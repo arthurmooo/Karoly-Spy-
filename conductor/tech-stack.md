@@ -5,8 +5,8 @@
 - **Data Processing:**
     - `pandas`: For vectorized data manipulation (Strictly no `for` loops on DataFrames).
     - `numpy`: For high-performance numerical operations.
-    - `scipy.signal`: For signal processing and noise filtering (HR/Power smoothing).
-    - **Surgical Alignment:** Custom cross-correlation (sliding window) and multi-signal gradient refinement for sub-second interval precision.
+    - `scipy`: For advanced signal processing (Savitzky-Golay filtering) and Meta-Precision interpolation (`scipy.interpolate.CubicSpline`).
+- **Méta-Précision:** Hardware Lag Compensation and Sub-second Spline Interpolation for surgical interval alignment (<500ms error target).
 - **File Parsing:**
     - `fitdecode`: For robust extraction of raw data from modern .FIT files (Garmin, Wahoo, Coros).
     - `xml.etree.ElementTree`: For parsing .TCX files (Standard Library).
