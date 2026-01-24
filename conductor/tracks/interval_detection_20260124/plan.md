@@ -1,6 +1,6 @@
 # Implementation Plan - Interval Engine Refactoring (Track 1.5)
 
-## Phase 1: Preparation & Infrastructure
+## Phase 1: Preparation & Infrastructure [checkpoint: b041c0d]
 - [x] Task: Create `projectk_core/logic/interval_engine.py` and `tests/test_interval_engine.py` structure. [0faf1f4]
     - [ ] Create initial empty class `IntervalEngine`.
     - [ ] Create test scaffold with `pytest`.
