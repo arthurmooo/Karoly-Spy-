@@ -1,4 +1,3 @@
-
 import unittest
 from unittest.mock import MagicMock, patch
 from datetime import datetime
@@ -13,19 +12,23 @@ class TestNolioPlanIntegration(unittest.TestCase):
 
     @patch('requests.get')
     def test_get_planned_workout_by_id(self, mock_get):
-        # Mock successful response
+        # Mock successful response for get_planned_workout
+        # It returns a LIST containing the workout
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = [{"id": 123, "structure": {"type": "repetition"}}]
+        # Reflecting real structure found: nolio_id, structured_workout
+        mock_response.json.return_value = [{
+            "nolio_id": 123, 
+            "structured_workout": [{"step_duration_type": "duration"}]
+        }]
         mock_get.return_value = mock_response
 
         # Test valid ID
         result = self.client.get_planned_workout_by_id(123)
         self.assertIsNotNone(result)
-        self.assertEqual(result.get("structure"), {"type": "repetition"})
+        self.assertEqual(result.get("structured_workout"), [{"step_duration_type": "duration"}])
         
-        # Verify URL and Params (We expect it to use the new endpoint logic if needed or existing one)
-        # Based on previous exploration, we know /get/planned/training/ works with ID
+        # Verify URL and Params
         mock_get.assert_called_with(
             "https://www.nolio.io/api/get/planned/training/", 
             headers={"Authorization": "Bearer fake_token", "Accept": "application/json"},
@@ -33,13 +36,14 @@ class TestNolioPlanIntegration(unittest.TestCase):
         )
 
     @patch('requests.get')
-    def test_find_planned_workout_fallback(self, mock_get):
-        # Mock list response
+    def test_find_planned_workout_logic(self, mock_get):
+        # Mock list response for range query
         mock_response = MagicMock()
         mock_response.status_code = 200
+        # Reflecting real structure
         mock_response.json.return_value = [
-            {"nolio_id": 101, "name": "10x30/30", "date_start": "2026-01-15"},
-            {"nolio_id": 102, "name": "Endurance", "date_start": "2026-01-16"}
+            {"nolio_id": 101, "name": "10x30/30", "date_start": "2026-01-15", "structured_workout": []},
+            {"nolio_id": 102, "name": "Endurance", "date_start": "2026-01-16", "structured_workout": []}
         ]
         mock_get.return_value = mock_response
 
@@ -50,11 +54,11 @@ class TestNolioPlanIntegration(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["nolio_id"], 101)
         
-        # Verify it searched a range (Same Week logic)
-        # We expect the client to define the range
+        # Verify params have date range
         args, kwargs = mock_get.call_args
         self.assertIn("from", kwargs['params'])
         self.assertIn("to", kwargs['params'])
+        self.assertEqual(kwargs['params']['athlete_id'], "athlete_1")
 
 if __name__ == '__main__':
     unittest.main()
