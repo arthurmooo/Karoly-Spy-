@@ -21,16 +21,15 @@
     - [ ] TDD: Test case where athlete stops early.
 - [ ] Task: Conductor - User Manual Verification 'Detection Strategy - Priority 1' (Protocol in workflow.md)
 
-## Phase 3: Detection Strategy - Priority 2 & 3 (Laps & Algo)
-- [ ] Task: Implement Lap Analyzer (Priority 2).
+## Phase 3: Detection Strategy - Priority 2 & 3 (Laps & Algo) [checkpoint: 6a06cdd]
+- [x] Task: Implement Lap Analyzer (Priority 2). [1d30552]
     - [ ] Logic to import laps from FIT file.
     - [ ] Filter logic: Remove "parasite laps" (<10s or inconsistent).
     - [ ] TDD: Test with a real FIT file containing manual laps.
-- [ ] Task: Implement Algorithmic Detector (Priority 3 - Fallback).
+- [x] Task: Implement Algorithmic Detector (Priority 3 - Fallback). [91f5b3b]
     - [ ] Logic to detect "Signal Rupture" (Power/Speed changes).
     - [ ] TDD: Test on a file without laps or plan (raw signal).
-- [ ] Task: Implement "Ensemble Voter" (Fusion).
-    - [ ] Logic to cross-reference Plan, Laps, and Algo.
+- [x] Task: Implement "Ensemble Voter" (Fusion). [a2e4830]
     - [ ] Scoring system to select the best start/end times.
     - [ ] TDD: Test with conflicting inputs (e.g., Lap pressed late).
 - [ ] Task: Conductor - User Manual Verification 'Detection Strategy - Priority 2 & 3' (Protocol in workflow.md)
