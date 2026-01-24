@@ -133,6 +133,26 @@ class ActivityMetrics(BaseModel):
     # Smart Segmentation Metrics
     segmented_metrics: Optional[SegmentationOutput] = None
 
+class PlannedInterval(BaseModel):
+    """
+    Represents a single step in a planned structured workout.
+    """
+    type: str = Field(..., description="active, rest, warmup, cooldown")
+    duration: Optional[float] = Field(None, description="Target duration in seconds")
+    distance_m: Optional[float] = Field(None, description="Target distance in meters")
+    target_type: str = Field("none", description="power, heart_rate, speed, pace, rpe, none")
+    target_min: Optional[float] = None
+    target_max: Optional[float] = None
+    name: Optional[str] = None
+
+class PlannedStructure(BaseModel):
+    """
+    Represents the full planned structure of a workout.
+    """
+    source: str = Field(..., description="nolio_api, text_parser, manual")
+    intervals: List[PlannedInterval]
+    original_plan_id: Optional[str] = None
+
 class Activity:
     """
     Represents a single workout session with raw data streams and computed metrics.
@@ -142,6 +162,7 @@ class Activity:
         self.streams = streams
         self.laps = laps or []
         self.metrics: ActivityMetrics = ActivityMetrics()
+        self.planned_structure: Optional[PlannedStructure] = None
     
     @property
     def empty(self) -> bool:
