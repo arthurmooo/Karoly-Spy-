@@ -59,10 +59,25 @@ def reprocess_all_offline():
         # C. Update if changed
         if new_sport != current_sport or new_work != current_work:
             print(f"   ✨ Updating {act['nolio_id']}: {current_sport}->{new_sport} | {current_work}->{new_work} ({activity_name})")
-            db.client.table("activities").update({
+            
+            update_payload = {
                 "sport_type": new_sport,
                 "work_type": new_work
-            }).eq("id", db_id).execute()
+            }
+            
+            # Cleaning metrics if it was intervals and is not anymore
+            if current_work == "intervals" and new_work != "intervals":
+                update_payload.update({
+                    "interval_power_mean": None,
+                    "interval_power_last": None,
+                    "interval_hr_mean": None,
+                    "interval_hr_last": None,
+                    "interval_pace_mean": None,
+                    "interval_pace_last": None,
+                    "interval_respect_score": None
+                })
+
+            db.client.table("activities").update(update_payload).eq("id", db_id).execute()
             updates += 1
             
     print(f"\n✅ Reprocessing complete. {updates} activities updated.")

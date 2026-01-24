@@ -563,9 +563,13 @@ class IngestionRobot:
                 file_hash = calculate_file_hash(fit_data)
                 
                 # Check for hash duplicate
-                hash_exists = self.db.client.table("activities").select("id").eq("fit_file_hash", file_hash).execute()
+                hash_exists = self.db.client.table("activities").select("id, fit_file_path").eq("fit_file_hash", file_hash).execute()
                 if hash_exists.data and not self.force_refresh:
-                    return
+                    # If it exists by hash, only skip if the file_path is already there
+                    if hash_exists.data[0].get("fit_file_path"):
+                        return
+                    else:
+                        print(f"      📍 Found existing activity by hash but missing storage path. Updating...")
 
                 # Parse FIT
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".fit") as tmp:

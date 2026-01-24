@@ -17,4 +17,8 @@ class DBConnector:
         if not url or not key:
             raise ValueError("Supabase credentials (URL or SERVICE_ROLE_KEY) not found in environment variables.")
             
+        # Ensure trailing slash for Supabase client
+        if not url.endswith("/"):
+            url += "/"
+            
         self.client: Client = create_client(url, key)

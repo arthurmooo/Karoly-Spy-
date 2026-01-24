@@ -7,7 +7,7 @@ class StorageManager:
         self.db = DBConnector()
         self.client = self.db.client
         
-    def upload_fit_file(self, athlete_id: int, nolio_id: int, content: bytes, year: str) -> str:
+    def upload_fit_file(self, athlete_id: str, nolio_id: int, content: bytes, year: str) -> str:
         """
         Uploads a FIT file to Supabase Storage.
         Path format: {athlete_id}/{year}/{nolio_id}.fit
@@ -15,13 +15,23 @@ class StorageManager:
         """
         path = f"{athlete_id}/{year}/{nolio_id}.fit"
         
-        # 'file_options' keys might vary by SDK version, but 'content-type' and 'upsert' are standard.
-        # upsert='false' ensures we don't silently overwrite (though hash check logic should prevent this upstream).
-        self.client.storage.from_(self.BUCKET_NAME).upload(
-            path=path,
-            file=content,
-            file_options={"content-type": "application/octet-stream", "upsert": "false"}
-        )
+        try:
+            # upsert='false' ensures we don't silently overwrite
+            self.client.storage.from_(self.BUCKET_NAME).upload(
+                path=path,
+                file=content,
+                file_options={"content-type": "application/octet-stream", "upsert": "false"}
+            )
+        except Exception as e:
+            # Check if it's a "Duplicate" error (409)
+            # Depending on the Supabase Python SDK version, the error might be in different formats
+            err_msg = str(e).lower()
+            if "duplicate" in err_msg or "already exists" in err_msg or "409" in err_msg:
+                # File is already there, we just return the path to update the DB
+                return path
+            else:
+                # Other error, re-raise
+                raise e
         
         return path
 
