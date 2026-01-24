@@ -32,11 +32,6 @@ class PlanProjector:
             # to avoid validation errors, until we have speed data.
             duration = p_interval.duration or (1.0 if p_interval.distance_m else 0.0)
             
-            if duration == 0.0 and p_interval.type != "rest":
-                # If truly 0 and not rest, we might have an issue, but let's allow it for now
-                # or skip.
-                pass
-
             block = IntervalBlock(
                 start_time=current_time,
                 end_time=current_time + duration,
@@ -47,3 +42,38 @@ class PlanProjector:
             current_time += duration
             
         return projected
+
+class ElasticMatcher:
+    """
+    Aligns projected blocks with actual events by shifting or scaling.
+    """
+    def __init__(self, blocks: List[IntervalBlock]):
+        self.blocks = [b.model_copy() for b in blocks]
+
+    def apply_shift(self, seconds: float) -> List[IntervalBlock]:
+        """
+        Apply a constant time shift to all blocks.
+        """
+        for block in self.blocks:
+            block.start_time += seconds
+            block.end_time += seconds
+        return self.blocks
+
+    def scale_block(self, index: int, new_duration: float) -> List[IntervalBlock]:
+        """
+        Adjust the duration of a specific block and shift subsequent blocks.
+        """
+        if index < 0 or index >= len(self.blocks):
+            return self.blocks
+            
+        old_duration = self.blocks[index].duration
+        diff = new_duration - old_duration
+        
+        self.blocks[index].end_time += diff
+        
+        # Shift all subsequent blocks
+        for i in range(index + 1, len(self.blocks)):
+            self.blocks[i].start_time += diff
+            self.blocks[i].end_time += diff
+            
+        return self.blocks
