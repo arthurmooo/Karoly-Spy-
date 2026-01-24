@@ -10,7 +10,7 @@
     - [x] Log results to identify specific failure modes (e.g., missed laps, bad recovery detection)
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Audit & Diagnostic' (Protocol in workflow.md)
 
-## Phase 2: Planned Structure Integration
+## Phase 2: Planned Structure Integration [checkpoint: 01c4b63]
 - [x] Task: Implement Nolio API Planned Structure Retrieval [f7f4dce]
     - [x] Write tests for retrieving structured blocks/reps from Nolio API
     - [x] Implement the retrieval logic in `projectk_core/integrations/nolio_api.py`
@@ -19,7 +19,7 @@
     - [x] Implement regex-based parser for common workout patterns
 - [x] Task: Create Universal Plan Model [3d7b19b]
     - [x] Define a Pydantic model to represent a planned structure (count, duration/distance, intensity target)
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Planned Structure Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Planned Structure Integration' (Protocol in workflow.md)
 
 ## Phase 3: Structural Matching Logic
 - [ ] Task: Develop "Consistency Score" Algorithm
