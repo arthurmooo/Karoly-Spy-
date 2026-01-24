@@ -87,3 +87,8 @@ This file tracks the master plan, strictly aligned with the contract phases.
 - [x] **Track: Étendre les capacités d'ingestion de Project K pour supporter les fichiers .tcx et .gz**
     - **Status:** 🟢 Completed & Archived. Implemented `TcxParser`, `UniversalParser`, and GZIP support. Validated with real data.
 *Link: [./archive/tcx_support_20260124/](./archive/tcx_support_20260124/)*
+
+---
+
+- [x] **Track: Interval Detection 2.0 (Infaillible)**
+*Link: [./tracks/interval_detection_20260124/](./tracks/interval_detection_20260124/)*
