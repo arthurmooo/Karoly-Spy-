@@ -81,3 +81,8 @@ This file tracks the master plan, strictly aligned with the contract phases.
 ---
 
 # 🧠 PHASE 2 : Analyse & Reporting (LOCKED)
+
+---
+
+- [~] **Track: Étendre les capacités d'ingestion de Project K pour supporter les fichiers .tcx et .gz**
+*Link: [./tracks/tcx_support_20260124/](./tracks/tcx_support_20260124/)*
