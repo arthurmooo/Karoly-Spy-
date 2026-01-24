@@ -38,14 +38,53 @@ class TestWorkoutClassifier(unittest.TestCase):
         res = self.classifier.detect_work_type(pd.DataFrame(), "4Km : 2Km Tempo + 500m Z2", "Entraînement")
         self.assertEqual(res, "intervals", "Should detect 'Tempo' as intervals")
 
-    def test_classify_endurance_baseline(self):
-        """Should classify as 'endurance' for steady signal."""
+    def test_generic_title_forces_endurance(self):
+        """Should classify as 'endurance' if title matches sport name (and no plan)."""
+        res = self.classifier.detect_work_type(pd.DataFrame(), "Ski de randonnée", "Training", sport_name="Ski de randonnée")
+        self.assertEqual(res, "endurance")
+        
+        # Even with some variability, generic title should win if it's below the new high threshold
         n = 100
-        signal = np.full(n, 200) + np.random.normal(0, 5, n) # Flat with noise
+        signal = np.concatenate([np.full(50, 100), np.full(50, 150)]) # CV ~ 20%
+        df = pd.DataFrame({'speed': signal})
+        res = self.classifier.detect_work_type(df, "Vélo - Route", "Training", sport_name="Vélo - Route")
+        self.assertEqual(res, "endurance")
+
+    def test_endurance_keywords_force_endurance(self):
+        """Should classify as 'endurance' if endurance keywords are present, even with high CV."""
+        n = 100
+        signal = np.concatenate([np.full(20, 100), np.full(20, 400)] * 2 + [np.full(20, 100)])
         df = pd.DataFrame({'power': signal})
         
-        res = self.classifier.detect_work_type(df, "Long Ride", "Training")
+        res = self.classifier.detect_work_type(df, "échauffement", "Training")
         self.assertEqual(res, "endurance")
+        
+        res = self.classifier.detect_work_type(df, "récupération active", "Training")
+        self.assertEqual(res, "endurance")
+
+    def test_new_interval_patterns(self):
+        """Should detect new patterns like 6-4-r-2, Tempo, 1'-1'."""
+        self.assertEqual(self.classifier.detect_work_type(None, "Workout: 6-4-r-2--", "Training"), "intervals")
+        self.assertEqual(self.classifier.detect_work_type(None, "Vélocité 1'-1'", "Training"), "intervals")
+        self.assertEqual(self.classifier.detect_work_type(None, "2Km Tempo", "Training"), "intervals")
+        self.assertEqual(self.classifier.detect_work_type(None, "Bloc Z3", "Training"), "intervals")
+
+    def test_mountain_variability_threshold(self):
+        """Should be very conservative for mountain sports without keywords."""
+        # CV = 0.5 (50%)
+        signal = np.concatenate([np.full(50, 100), np.full(50, 300)]) 
+        df = pd.DataFrame({'speed': signal})
+        
+        # For a mountain sport name
+        res = self.classifier.detect_work_type(df, "Sortie Trail", "Training")
+        self.assertEqual(res, "endurance", "CV of 0.5 should still be endurance for Trail/Ski unless keywords present")
+
+        # But if it's really high (CV > 0.6)
+        signal_extreme = np.concatenate([np.full(10, 10), np.full(10, 1000)])
+        df_ext = pd.DataFrame({'speed': signal_extreme})
+        res = self.classifier.detect_work_type(df_ext, "Sortie Ski", "Training")
+        self.assertEqual(res, "intervals", "Extreme variability should still trigger intervals as safety")
+
 
 if __name__ == '__main__':
     unittest.main()

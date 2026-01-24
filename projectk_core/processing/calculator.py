@@ -215,7 +215,14 @@ class MetricsCalculator:
             tss = 0.0
 
         # 4. Detect Work Type
-        meta.work_type = self.classifier.detect_work_type(df, meta.activity_name or "", nolio_type or "", target_grid=target_grid, is_competition_nolio=is_competition_nolio)
+        meta.work_type = self.classifier.detect_work_type(
+            df, 
+            meta.activity_name or "", 
+            nolio_type or "", 
+            sport_name=meta.activity_type or "",
+            target_grid=target_grid, 
+            is_competition_nolio=is_competition_nolio
+        )
 
         # 10. Interval Metrics (Requested by Karoly)
         # We now have two modes: LAP-based (legacy) and MATCHER-based (surgical)

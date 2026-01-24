@@ -1,0 +1,11 @@
+{
+  "comment": "Registre Physiologique Local - Surcharge les données Nolio pour économiser l'API et garantir la précision.",
+  "athletes": {
+    "1cc0cd46-e5a0-4a94-8b49-2df03be964fb": {
+      "name": "Louis Richard",
+      "lt1_hr": null,
+      "lt2_hr": null,
+      "last_updated": "2026-01-24"
+    }
+  }
+}

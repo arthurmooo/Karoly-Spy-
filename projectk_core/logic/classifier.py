@@ -16,10 +16,18 @@ class ActivityClassifier:
     INTERVAL_KEYWORDS = [
         r"\d+\s*[*x]\s*\d+", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint",
         r"\d+%\b", r"à\s*\d+\s*%", r"\d+\s*[*x]\s*\(", r"\b30[-/]30\b", r"test\s+\d+",
-        r"\d+'/\d+''", r"\d+''/\d+''", r"piste", r"\bhit\b"
+        r"\d+'/\d+''", r"\d+''/\d+''", r"piste", r"\bhit\b",
+        r"\d+\s*-\s*\d+\s*-\s*r\s*-\s*\d+", # 6-4-r-2
+        r"\d+'\s*-\s*\d+'", # 1'-1'
+        r"\btempo\b", r"\bz[345]\b", r"allure\s+course", r"travail\s+spé"
     ]
 
-    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
+    ENDURANCE_KEYWORDS = [
+        r"échauffement", r"récupération", r"récup\b", r"cool\s*down", r"décrassage",
+        r"footing", r"endurance\s+fondamentale", r"ef\b", r"\blit\b"
+    ]
+
+    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, sport_name: str = "", target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
         """
         Classifies activity as 'endurance', 'intervals', or 'competition'.
         """
@@ -33,21 +41,38 @@ class ActivityClassifier:
         if target_grid and len(target_grid) > 0:
             return "intervals"
 
-        # 3. Intervals (Strategy B: Keywords)
+        # 3. Check for Generic Title (e.g. Title == Sport Name)
+        # If the title is just the sport and there's no plan, it's very likely generic endurance
+        if sport_name and title.strip().lower() == sport_name.strip().lower():
+             if not target_grid:
+                 return "endurance"
+
+        # 4. Intervals (Strategy B: Keywords)
+        is_interval_by_kw = False
         for kw in self.INTERVAL_KEYWORDS:
             if re.search(kw, combined_text):
-                return "intervals"
+                is_interval_by_kw = True
+                break
 
-        # 4. LIT Priority (Low Intensity Training is endurance if no intervals detected)
-        if re.search(r"\blit\b", combined_text):
+        # 5. Endurance Keywords (High priority if no explicit intervals)
+        is_endurance_by_kw = False
+        for kw in self.ENDURANCE_KEYWORDS:
+            if re.search(kw, combined_text):
+                is_endurance_by_kw = True
+                break
+        
+        if is_endurance_by_kw and not is_interval_by_kw:
             return "endurance"
+        
+        if is_interval_by_kw:
+            return "intervals"
 
-        # 5. Competition (Strategy C: Keywords in Title)
+        # 6. Competition (Strategy C: Keywords in Title)
         for kw in self.COMPETITION_KEYWORDS:
             if re.search(kw, combined_text):
                 return "competition"
 
-        # 5. Signal Variability
+        # 7. Signal Variability (LAST RESORT, more conservative)
         signal = None
         if df is not None and not df.empty:
             if 'power' in df.columns and df['power'].mean() > 0:
@@ -56,18 +81,14 @@ class ActivityClassifier:
                 signal = df['speed']
 
         if signal is not None:
-            # CV = Std Dev / Mean
             mean_val = signal.mean()
             if mean_val > 0:
                 cv = signal.std() / mean_val
                 
-                # If we have keywords, we already returned 'intervals'.
-                # Here we are in the 'blind' detection.
-                # Threshold: > 30% variability (increased from 20%)
-                # And we are more conservative if it's a 'nature' sport.
-                threshold = 0.30
-                if any(k in combined_text for k in ["ski", "trail", "rando"]):
-                    threshold = 0.45 # Very high threshold for mountain sports
+                # Much higher thresholds to avoid false positives on generic mountain sessions
+                threshold = 0.40 # Default 40%
+                if any(k in combined_text for k in ["ski", "trail", "rando", "montagne"]):
+                    threshold = 0.60 # Extremely high for mountain sports
                 
                 if cv > threshold:
                     return "intervals"

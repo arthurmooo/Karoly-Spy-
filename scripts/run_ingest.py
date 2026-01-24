@@ -54,6 +54,18 @@ class IngestionRobot:
         Fetches athletes from Nolio and ensures they exist in DB.
         Syncs physiological metrics ONLY during the night run (02:00-04:00 UTC) or if forced.
         """
+        import json
+
+        # Load Local Registry
+        local_registry = {}
+        registry_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'physio_registry.json')
+        if os.path.exists(registry_path):
+            try:
+                with open(registry_path, 'r') as f:
+                    local_registry = json.load(f).get("athletes", {})
+            except Exception as e:
+                print(f"⚠️ Failed to load physio_registry.json: {e}")
+
         current_hour = datetime.now(timezone.utc).hour
         # On définit la fenêtre de synchro profonde (ex: 2h du matin UTC)
         is_main_run = (2 <= current_hour <= 4) or force_metrics
@@ -131,8 +143,22 @@ class IngestionRobot:
 
                     # Champs personnalisés Karoly (à créer par lui dans Nolio)
                     # Plus de valeurs par défaut (130/160) -> On veut du Null si pas renseigné
-                    lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
-                    lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr")
+                    lt1_hr = None
+                    lt2_hr = None
+
+                    # A. Check Local Registry First (Priority Override)
+                    if athlete_uuid in local_registry:
+                        local_data = local_registry[athlete_uuid]
+                        lt1_hr = local_data.get("lt1_hr")
+                        lt2_hr = local_data.get("lt2_hr")
+                        if lt1_hr or lt2_hr:
+                            print(f"      📂 Using LOCAL Registry for LT1/LT2: LT1={lt1_hr}, LT2={lt2_hr}")
+
+                    # B. Fallback to Nolio API
+                    if not lt1_hr:
+                        lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
+                    if not lt2_hr:
+                        lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr") or get_latest("lacticthreshold")
 
                     # 2.2 Mise à jour HISTORISÉE des profils (SCD Type 2)
                     if lt1_hr and lt2_hr:
@@ -553,7 +579,13 @@ class IngestionRobot:
         # 4. Detect Work Type
         activity_title = nolio_act.get("name", "")
         is_comp = nolio_act.get("is_competition", False)
-        meta.work_type = self.classifier.detect_work_type(df, activity_title, nolio_sport, is_competition_nolio=is_comp)
+        meta.work_type = self.classifier.detect_work_type(
+            df, 
+            activity_title, 
+            nolio_sport, 
+            sport_name=internal_sport, 
+            is_competition_nolio=is_comp
+        )
 
         # 5. Create Activity Object
         activity = Activity(metadata=meta, streams=df, laps=laps)

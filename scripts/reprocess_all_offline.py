@@ -48,11 +48,12 @@ def reprocess_all_offline():
         
         # B. Re-classify Work Type (Endurance / Intervals / Competition)
         # We simulate the detect_work_type but without the signal (df empty)
-        # which will rely on title keywords.
+        # which will rely on title keywords and generic title logic.
         new_work = classifier.detect_work_type(
             pd.DataFrame(), 
             activity_name, 
-            source_sport
+            source_sport,
+            sport_name=new_sport # Pass the detected sport for Title == Sport check
         )
         
         # C. Update if changed
