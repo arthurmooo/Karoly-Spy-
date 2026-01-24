@@ -2,12 +2,75 @@ import fitdecode
 import pandas as pd
 import numpy as np
 import os
+import gzip
+import shutil
+import tempfile
 from typing import Optional, List, Dict
+from projectk_core.processing.tcx_parser import TcxParser
+
+class UniversalParser:
+    """
+    Dispatcher that detects file type (FIT, TCX, GZIP) and delegates to the appropriate parser.
+    Ensures a unified interface for all activity files.
+    """
+    
+    @staticmethod
+    def parse(file_path: str) -> tuple[pd.DataFrame, Dict, List[Dict]]:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        # 1. Handle GZIP transparently
+        is_gz = False
+        try:
+            with open(file_path, 'rb') as f:
+                header = f.read(3)
+                if header == b'\x1f\x8b\x08':
+                    is_gz = True
+        except Exception:
+            pass
+
+        actual_file_path = file_path
+        temp_decompressed = None
+
+        try:
+            if is_gz:
+                fd, temp_decompressed = tempfile.mkstemp()
+                os.close(fd)
+                with gzip.open(file_path, 'rb') as f_in:
+                    with open(temp_decompressed, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                actual_file_path = temp_decompressed
+
+            # 2. Detect File Type
+            with open(actual_file_path, 'rb') as f:
+                # Read enough to catch FIT header (usually ~14 bytes) and XML declaration
+                head = f.read(100)
+            
+            # FIT files usually have .FIT at offset 8
+            if b'.FIT' in head:
+                # Delegate to FitParser
+                # Note: FitParser can handle GZ internally too, but we already decompressed it 
+                # if it was GZ, so we pass the plain file.
+                return FitParser.parse(actual_file_path)
+            
+            # TCX / XML Check
+            # Look for XML declaration or root tag
+            if b'<?xml' in head or b'<TrainingCenterDatabase' in head:
+                return TcxParser.parse(actual_file_path)
+
+            raise ValueError(f"Unsupported file format or unknown signature in {file_path}")
+
+        finally:
+            # 3. Cleanup
+            if temp_decompressed and os.path.exists(temp_decompressed):
+                os.remove(temp_decompressed)
+
 
 class FitParser:
     """
     Robust parser for .FIT files using fitdecode.
     Handles Garmin, Wahoo, and Coros formats.
+    Now supports GZIP compressed files (.fit.gz).
     """
     
     # Mapping of FIT fields to internal canonical names
@@ -40,6 +103,34 @@ class FitParser:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
+        # Handle GZIP compressed files (.fit.gz)
+        # Check signature 1f 8b 08
+        is_gz = False
+        try:
+            with open(file_path, 'rb') as f:
+                header = f.read(3)
+                if header == b'\x1f\x8b\x08':
+                    is_gz = True
+        except Exception:
+            pass
+
+        actual_file_path = file_path
+        temp_decompressed = None
+
+        if is_gz:
+            # Create a temporary decompressed version
+            fd, temp_decompressed = tempfile.mkstemp(suffix=".fit")
+            os.close(fd)
+            try:
+                with gzip.open(file_path, 'rb') as f_in:
+                    with open(temp_decompressed, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                actual_file_path = temp_decompressed
+            except Exception as e:
+                if temp_decompressed and os.path.exists(temp_decompressed):
+                    os.remove(temp_decompressed)
+                raise ValueError(f"Failed to decompress GZIP file: {e}")
+
         data = []
         laps = []
         metadata = {
@@ -52,7 +143,7 @@ class FitParser:
         
         # 1. Read Raw Data & Metadata
         try:
-            with fitdecode.FitReader(file_path) as fit:
+            with fitdecode.FitReader(actual_file_path) as fit:
                 for frame in fit:
                     if frame.frame_type == fitdecode.FIT_FRAME_DATA:
                         if frame.name == 'session':
@@ -108,6 +199,10 @@ class FitParser:
                             data.append(row)
         except Exception as e:
              raise ValueError(f"Error parsing FIT file: {e}")
+        finally:
+            # Clean up temporary file if created
+            if temp_decompressed and os.path.exists(temp_decompressed):
+                os.remove(temp_decompressed)
 
         if not data:
             raise ValueError("No 'record' data found in FIT file.")
