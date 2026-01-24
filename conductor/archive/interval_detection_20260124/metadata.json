@@ -1,0 +1,29 @@
+{
+  "track_id": "interval_detection_20260124",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-24T14:30:00Z",
+  "updated_at": "2026-01-24T15:05:00Z",
+  "description": "Refonte du moteur de détection d'intervalles (Track 1.5) via fusion Plan/Laps/Algo pour une précision absolue.",
+  "gold_standard_sessions": [
+    {
+      "athlete": "Baptiste Delmas",
+      "date": "2026-01-18",
+      "type": "Long Blocks",
+      "description": "2*8Km LT1 / r 2Km"
+    },
+    {
+      "athlete": "Baptiste Delmas",
+      "date": "2026-01-09",
+      "type": "Interrupted",
+      "description": "10*1' Z3 + 5*2' Z3 + 10' Z2 (Séance non terminée - Test Elasticity)"
+    },
+    {
+      "athlete": "Bernard Alexis",
+      "date": "2025-10-17",
+      "type": "Classic Reps",
+      "description": "5*(1'30'' Z3 + 3'30'' Z2)"
+    }
+  ],
+  "technical_mandate": "Perfection requise. Erreur tolérée : 0%. Utilisation de l'approche Ensemble/Fusion."
+}
