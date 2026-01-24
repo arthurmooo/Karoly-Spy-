@@ -9,7 +9,7 @@
 - [ ] **Task: Conductor - User Manual Verification 'Phase 1: Foundation & TCX Parsing' (Protocol in workflow.md)**
 
 ## Phase 2: Universal Parsing & GZIP Support
-- [ ] **Task: Implement Universal Dispatcher & GZIP handling**
+- [x] **Task: Implement Universal Dispatcher & GZIP handling** 4b5502a
     - [ ] Create or update `projectk_core/processing/parser.py` to include a `UniversalParser` class.
     - [ ] Write tests in `tests/test_universal_parser.py` for file type detection (FIT vs TCX vs GZ) (Red Phase).
     - [ ] Implement in-memory GZIP decompression (Green Phase).
