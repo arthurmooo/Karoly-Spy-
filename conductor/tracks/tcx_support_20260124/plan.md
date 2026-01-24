@@ -17,7 +17,7 @@
 - [ ] **Task: Conductor - User Manual Verification 'Phase 2: Universal Parsing & GZIP Support' (Protocol in workflow.md)**
 
 ## Phase 3: Integration & Validation
-- [ ] **Task: Create validation script and verify with real data**
+- [x] **Task: Create validation script and verify with real data** 331678b
     - [ ] Create `scripts/validate_tcx_support.py`.
     - [ ] Test the full pipeline with Matthieu Poullain's sample files (if available in `data/samples/`).
     - [ ] Verify average Heart Rate and Power match Nolio reference values.
