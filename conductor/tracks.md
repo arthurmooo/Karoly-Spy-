@@ -111,6 +111,11 @@ This file tracks the master plan, strictly aligned with the contract phases.
 ---
 
 - [x] **Track: Détection Chirurgicale Ultra-Precision (1.5.D)**
-    - **Status:** 🟢 Completed. Precision perfectly aligned with LAPs (<1s error).
-    - **Link:** [./tracks/surgical_precision_20260124/](./tracks/surgical_precision_20260124/)
+*Archived in conductor/archive/surgical_precision_20260124/*
+
+---
+
+- [x] **Track: Méta-Précision - Physique des Capteurs (1.5.E)**
+    - **Status:** 🟢 Completed. Sub-second precision via Spline Interpolation and lag compensation. 21% error reduction validated.
+    - **Link:** [./tracks/meta_precision_20260124/](./tracks/meta_precision_20260124/)
 
