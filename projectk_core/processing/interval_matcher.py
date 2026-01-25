@@ -137,7 +137,8 @@ class IntervalMatcher:
         df: pd.DataFrame, 
         target_grid: List[Dict[str, Any]], 
         sport: str = "run",
-        laps: Optional[List[Dict[str, Any]]] = None
+        laps: Optional[List[Dict[str, Any]]] = None,
+        cp: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Main entry point: Match target intervals to actual data.
@@ -147,6 +148,7 @@ class IntervalMatcher:
             target_grid: List of target intervals from plan_parser
             sport: Sport type ('run', 'bike', 'swim')
             laps: Optional list of LAP records from FIT file
+            cp: Optional Critical Power/Speed for relative intensity classification
             
         Returns:
             List of detected intervals with metrics, status, and source
@@ -159,6 +161,15 @@ class IntervalMatcher:
         if signal is None:
             return []
         
+        # --- NEW: Robust Intensity Reference ---
+        # If CP is missing, we use a session-based heuristic (90% of mean) 
+        # to avoid hardcoded thresholds that fail for very light or very strong athletes.
+        if cp is None:
+            session_mean = float(np.mean(signal)) if len(signal) > 0 else 0
+            # For Bike, session mean is usually a good proxy for 'Transition' zone.
+            # For Run, session mean is usually 'Endurance' zone.
+            cp = session_mean * 1.1 if sport == 'bike' else session_mean * 1.0
+        
         # 2. Pre-detect all intensity segments (Step Detection)
         # Use sport-specific min_delta
         min_delta = 10.0 if signal_col == 'power' else 0.2
@@ -168,14 +179,15 @@ class IntervalMatcher:
         signal_segments = self.detector.segment_by_steps(signal, detected_steps)
         
         # 3. Preprocess LAPs if available
-        processed_laps = self._preprocess_laps(laps, signal_col) if laps else []
+        processed_laps = self._preprocess_laps(laps, signal_col, ref_intensity=cp) if laps else []
         
         # 4. Detect pause zones
         pause_mask = self._detect_pauses(signal, sport)
         
-        # 5. Filter LAPs to only WORK laps with meaningful duration (>20s)
-        work_laps = [l for l in processed_laps 
-                     if l.get('intensity') == 'work' and l.get('duration', 0) >= 20]
+        # 5. Filter LAPs to keep all potentially useful laps
+        # ROBUSTNESS: We only exclude very short artifacts (<10s) or confirmed recovery 
+        # ONLY IF the plan target is clearly 'active'.
+        work_laps = [l for l in processed_laps if l.get('duration', 0) >= 10]
         
         # 6. Simple sequential matching: consume LAPs in order, fallback to signal
         detected_intervals = []
@@ -195,7 +207,8 @@ class IntervalMatcher:
             # Try to find a matching LAP
             matched_lap = None
             matched_idx = None
-            search_limit = min(lap_idx + 5, len(work_laps))
+            # Look ahead slightly more for LAPs (skip up to 5)
+            search_limit = min(lap_idx + 6, len(work_laps))
             
             for i in range(lap_idx, search_limit):
                 lap = work_laps[i]
@@ -238,20 +251,15 @@ class IntervalMatcher:
                     current_ptr = result['end_index'] + 5
                 else:
                     # SMART RESYNC: If target not found, the sequence might be broken.
-                    # We look ahead for the NEXT target to see if we can find it.
-                    # This allows skipping an interval the athlete didn't do.
                     current_ptr += duration_s // 2 # Small advance to avoid loop
-                    
-                    # If we've missed 2 targets in a row, we allow a wider search for the next one
-                    # (This is implicitly handled by prox_limit being large for fallback search)
-                    pass
         
         return [r for r in detected_intervals if r['status'] == MatchStatus.MATCHED.value]
     
     def _preprocess_laps(
         self, 
         laps: List[Dict[str, Any]], 
-        signal_col: str
+        signal_col: str,
+        ref_intensity: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Preprocess LAP records to add cumulative offsets and normalize fields.
@@ -272,7 +280,7 @@ class IntervalMatcher:
                 'avg_speed': lap.get('enhanced_avg_speed') or lap.get('avg_speed', 0),
                 'avg_hr': lap.get('avg_heart_rate', 0),
                 'total_distance': lap.get('total_distance', 0),
-                'intensity': self._classify_lap_intensity(lap, signal_col),
+                'intensity': self._classify_lap_intensity(lap, signal_col, ref_intensity),
                 'raw': lap
             })
             
@@ -280,24 +288,41 @@ class IntervalMatcher:
         
         return processed
     
-    def _classify_lap_intensity(self, lap: Dict, signal_col: str) -> str:
+    def _classify_lap_intensity(self, lap: Dict, signal_col: str, ref: Optional[float] = None) -> str:
         """Classify a LAP as WORK, RECOVERY, or TRANSITION based on intensity."""
         power = lap.get('avg_power') or 0
         speed = lap.get('enhanced_avg_speed') or lap.get('avg_speed') or 0
         
-        # Always check power first since it's more reliable in FIT files
-        if power > 0:
-            if power > 400:  # Lowered from 450 to capture strong tempo
+        # --- BIKE LOGIC ---
+        if signal_col == 'power' or (power > 50 and power < 2000):
+            # Dynamic thresholds if CP is available
+            if ref and ref > 100:
+                w_thresh = ref * 0.75 # 75% of CP is definitely Work/Tempo
+                r_thresh = ref * 0.55 # Below 55% is Recovery
+            else:
+                # Lowered defaults for general population (Karoly's previous 400/300 were too high)
+                w_thresh = 200.0
+                r_thresh = 150.0
+                
+            if power >= w_thresh:
                 return 'work'
-            elif power < 300: # Lowered from 350
+            elif power < r_thresh:
                 return 'recovery'
             return 'transition'
         
-        # Fallback to speed if power is not available
+        # --- RUN/SWIM LOGIC ---
         if speed > 0:
-            if speed > 4.0: # Lowered from 4.5
+            if ref and ref > 0:
+                # For Run, speed is in m/s. 85% of CS is usually Work.
+                w_thresh = ref * 0.82
+                r_thresh = ref * 0.70
+            else:
+                w_thresh = 3.5 # ~12.6 km/h
+                r_thresh = 2.8 # ~10 km/h
+                
+            if speed >= w_thresh:
                 return 'work'
-            elif speed < 3.0:
+            elif speed < r_thresh:
                 return 'recovery'
             return 'transition'
         

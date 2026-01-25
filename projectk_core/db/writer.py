@@ -135,10 +135,15 @@ class ActivityWriter:
     def save_intervals(intervals: List[Any], activity_id: str, db_connector):
         """
         Saves a list of detected intervals to activity_intervals table.
+        Deletes existing ones first for this activity.
         """
         if not intervals:
             return
             
+        # 1. Clean up old intervals for this activity (Robustness for re-ingestion)
+        db_connector.client.table('activity_intervals').delete().eq('activity_id', activity_id).execute()
+        
+        # 2. Prepare and Insert
         data_to_save = []
         for block in intervals:
             # block is an IntervalBlock (Pydantic)

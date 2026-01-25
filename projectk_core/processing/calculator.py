@@ -240,6 +240,7 @@ class MetricsCalculator:
         last_interval_pace = None
         global_respect_score = None
         interval_detection_source = None
+        detected_blocks = []
         
         # New Pa:HR (or Speed:HR) metrics
         interval_pahr_mean = None
@@ -252,8 +253,12 @@ class MetricsCalculator:
 
         if meta.work_type == "intervals" and target_grid:
             # SURGICAL MODE
-            detections = self.matcher.match(df, target_grid, sport=sport)
+            # Pass CP to help the matcher classify LAPs correctly
+            athlete_cp = profile.cp if profile else None
+            detections = self.matcher.match(df, target_grid, sport=sport, laps=activity.laps, cp=athlete_cp)
             if detections:
+                from projectk_core.logic.models import IntervalBlock, DetectionSource
+                
                 valid_p = [d['avg_power'] for d in detections if d['avg_power'] is not None]
                 valid_s = [d['avg_speed'] for d in detections if d['avg_speed'] is not None]
                 valid_h = [d['avg_hr'] for d in detections if d['avg_hr'] is not None]
@@ -266,34 +271,35 @@ class MetricsCalculator:
                 else:
                     interval_detection_source = "plan" # Default fallback if status was matched
                 
-                # Efficiency Calculation (Surgical)
-                efficiencies = []
+                # Create IntervalBlock objects for the DB
                 for d in detections:
-                    val = d.get(f'avg_{eff_signal_col}')
-                    hr = d.get('avg_hr')
-                    if val and hr and hr > 0:
-                        efficiencies.append(val / hr)
+                    detection_source_enum = DetectionSource.LAP if d['source'] == 'lap' else DetectionSource.ALGO
+                    block = IntervalBlock(
+                        start_time=float(d['start_index']),
+                        end_time=float(d['end_index']),
+                        type=d['target'].get('type', 'active'),
+                        detection_source=detection_source_enum,
+                        avg_power=d.get('avg_power'),
+                        avg_speed=d.get('avg_speed'),
+                        avg_hr=d.get('avg_hr'),
+                        respect_score=d.get('respect_score')
+                    )
+                    detected_blocks.append(block)
+
+                # ROBUSTNESS: Filter for Performance Averages
+                # We only include intervals that meet a minimum intensity respect score (82%)
+                # to avoid including warmups that match the duration of a work block.
+                perf_detections = [d for d in detections if d.get('respect_score') is not None and d.get('respect_score') >= 82.0]
                 
-                if efficiencies:
-                    interval_pahr_mean = sum(efficiencies) / len(efficiencies)
-                    interval_pahr_last = efficiencies[-1]
-                
-                if valid_p:
-                    avg_intervals_power = sum(valid_p) / len(valid_p)
-                    last_interval_power = valid_p[-1]
-                
-                if valid_s:
-                    # Convert speed (m/s) to pace (min/km) for display
-                    def s_to_p(s): return 1000.0 / s / 60.0 if s > 0 else 0
-                    avg_intervals_pace = s_to_p(sum(valid_s) / len(valid_s))
-                    last_interval_pace = s_to_p(valid_s[-1])
-                
-                if valid_h:
-                    avg_intervals_hr = sum(valid_h) / len(valid_h)
-                    last_interval_hr = valid_h[-1]
-                
-                if valid_r:
-                    global_respect_score = sum(valid_r) / len(valid_r)
+                # If everything is below 82%, we fall back to all detections to avoid 0,
+                # but we'll print a warning in the logs.
+                if not perf_detections:
+                    perf_detections = detections
+
+                valid_p = [d['avg_power'] for d in perf_detections if d['avg_power'] is not None]
+                valid_s = [d['avg_speed'] for d in perf_detections if d['avg_speed'] is not None]
+                valid_h = [d['avg_hr'] for d in perf_detections if d['avg_hr'] is not None]
+                valid_r = [d['respect_score'] for d in perf_detections if d['respect_score'] is not None]
         else:
             # LAP-BASED MODE (Fallback)
             # Weighted averages for all intervals (laps) using Recalculated Durations
@@ -427,7 +433,8 @@ class MetricsCalculator:
             "mls_load": round(mls_load, 1) if mls_load is not None else None,
             "normalized_power": round(np_val, 1),
             "tss": round(tss, 1),
-            "segmented_metrics": seg_output
+            "segmented_metrics": seg_output,
+            "intervals": detected_blocks
         }
 
     def _pick_intensity_factor(self, if_val: float) -> float:

@@ -695,7 +695,11 @@ class IngestionRobot:
                 interval_keys = ["interval_power_last", "interval_hr_last", "interval_power_mean", "interval_hr_mean"]
                 for k in interval_keys:
                     metrics_dict.pop(k, None)
-            
+                activity.intervals = []
+            else:
+                # Assign detected intervals for DB storage
+                activity.intervals = metrics_dict.get("intervals", [])
+
             activity.metrics = ActivityMetrics(**metrics_dict)
             
             # 6.1 Write-back to Nolio (Optional)

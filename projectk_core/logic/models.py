@@ -195,6 +195,7 @@ class IntervalBlock(BaseModel):
     # Efficiency & Drift
     pa_hr_ratio: Optional[float] = Field(None, description="Power/HR or Speed/HR ratio")
     decoupling: Optional[float] = Field(None, description="Aerobic Decoupling within interval")
+    respect_score: Optional[float] = Field(None, description="Intensity respect score (%)")
     
     @property
     def duration(self) -> float:

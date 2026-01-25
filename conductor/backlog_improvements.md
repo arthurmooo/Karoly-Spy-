@@ -45,4 +45,4 @@
 - [ ] **Swimming Fallback**: For swimming activities without speed/power data, implement a fallback using LAP messages or internal device distance calculations.
 - [ ] **Confidence Scoring**: Refine the `respect_score` to also include a "Signal Quality" metric (e.g., standard deviation of signal during plateau).
 - [ ] **Adaptive Trimming**: Adjust the plateau trim duration based on the signal's second derivative (detecting when it actually stabilizes) rather than fixed seconds.
-- [ ] **HRV/rMSSD Integration**: Add support for physiological metrics (RMSSD) from Nolio's `get/user/meta/` endpoint to enhance training load and readiness analysis. confirmed available in API.
+- [ ] **HRV/rMSSD Integration**: Add support for physiological metrics (RMSSD) from Nolio's `get/user/meta/` endpoint to enhance training load and readiness analysis. confirmed available in API.### 2026-01-25: Interval Engine Fixes & Robustness\n- Fix: calculator.py missing laps pass to matcher.\n- Improvement: Dynamic intensity thresholds in IntervalMatcher (CP-based or session-mean fallback).\n- Feature: Persistence of activity_intervals in DB.
