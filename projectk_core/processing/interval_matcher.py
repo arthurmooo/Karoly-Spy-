@@ -272,7 +272,11 @@ class IntervalMatcher:
                     detected_intervals.append(result)
                     
                     # Advance pointer
-                    current_ptr = end_idx + 5
+                    # PLAN TEMPO SYNC: Use expected duration to keep rhythm for tight intervals (30/30)
+                    # This prevents 1-2s drift from accumulating over 40 reps.
+                    # We use the later of detected end or theoretical end.
+                    theoretical_end = start_idx + duration_s
+                    current_ptr = max(end_idx, theoretical_end)
                     
                 else:
                     detected_intervals.append(self._create_not_found_result(target, target_idx))

@@ -96,9 +96,15 @@ class PureSignalMatcher:
         peaks, _ = find_peaks(dom_signed, height=threshold, distance=10)
         
         candidates = []
-        for p in peaks:
+        
+        # ALWAYS add the start_search_idx as a candidate (Trust the sequence!)
+        # This is crucial for Warmup (T=0) or tight intervals where edge might be subtle
+        initial_candidates = [0] + peaks.tolist()
+        
+        for p in initial_candidates:
             abs_start = w_start + p
-            if abs_start < start_search_idx: continue
+            # Allow slight lookback (15s) to handle pointer drift/buffer
+            if abs_start < start_search_idx - 15: continue
             
             # Snap to Cadence
             refined_start = self.snap_to_cadence(p, local_cad) if local_cad is not None else p
@@ -132,10 +138,12 @@ class PureSignalMatcher:
             avg_int = np.mean(plateau_seg) if len(plateau_seg) > 0 else 0
             int_err = abs(avg_int - target_min) / target_min if target_min > 0 else 1.0
             
-            # Proximity Penalty (Wait 120s => ~20 score penalty)
-            prox_penalty = (abs_refined_start - start_search_idx) / search_window * 20.0
+            # Proximity Penalty (Wait 120s => ~400 score penalty)
+            # EXTREME PENALTY: We trust the sequence. 
+            # 1s delay = 3.3 score points.
+            prox_penalty = (abs_refined_start - start_search_idx) / search_window * 2000.0
             
-            score = (dur_err * 1.0) + (int_err * 100) + (cv * 100) + prox_penalty
+            score = (dur_err * 2.0) + (int_err * 100) + (cv * 50) + prox_penalty
             
             candidates.append({
                 "start": abs_refined_start,

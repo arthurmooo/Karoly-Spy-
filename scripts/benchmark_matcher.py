@@ -152,18 +152,42 @@ class BenchmarkMatcher:
                 target_grid = []
                 gt_intervals = data['intervals']
                 
-                # We need to compute avg power/speed for each GT interval from the DF 
-                # because manual laps in GT might not have it, or we want consistent calculation.
-                # Actually, let's use the DF to get the "Truth" intensity for the target
+                # Sort by start time just in case
+                gt_intervals.sort(key=lambda x: x['start'])
+                
+                last_end_time = None
                 
                 for idx, interval in enumerate(gt_intervals):
                     start_dt = pd.to_datetime(interval['start']).tz_convert('UTC')
                     end_dt = pd.to_datetime(interval['end']).tz_convert('UTC')
                     duration = interval['duration']
                     
+                    # Check for gap from previous
+                    if last_end_time is not None:
+                        gap = (start_dt - last_end_time).total_seconds()
+                        if gap > 5:
+                            # Insert Rest Target
+                            target_grid.append({
+                                "duration": gap,
+                                "target_min": 0, # Rest
+                                "target_type": "power",
+                                "type": "recovery"
+                            })
+                    
+                    last_end_time = end_dt
+                    
                     # Skip very short laps (likely button presses)
+                    # BUT keep them if we want perfect sync? 
+                    # If we skip them, we lose time.
+                    # Let's keep them as "transitions" or "rests"
                     if duration < 10:
-                        continue
+                         target_grid.append({
+                            "duration": duration,
+                            "target_min": 0,
+                            "target_type": "power",
+                            "type": "recovery" # Treat as rest
+                        })
+                         continue
                         
                     # Calculate avg intensity from DF to set as target_min
                     # Find indices in DF
@@ -200,45 +224,52 @@ class BenchmarkMatcher:
                 
                 # 4. Compare & Calculate RMSE
                 errors = []
+                print(f"\n[DEBUG] Detailed results for {label}:")
+                
+                # We need to map Detected Targets back to GT Intervals.
+                # Since we inserted gaps, target_grid is now: [Lap1, Gap, Lap2, Lap3...]
+                # detected matches target_grid indices.
+                
+                gt_cursor = 0 # Index in gt_intervals
+                # But wait, target_grid has MORE items than gt_intervals (due to gaps).
+                # We need to map target_index -> gt_index.
+                
+                target_to_gt = {}
+                tg_idx = 0
+                last_end = None
+                
+                # Reconstruct the mapping
+                for idx, interval in enumerate(gt_intervals):
+                    start_dt = pd.to_datetime(interval['start']).tz_convert('UTC')
+                    
+                    # Did we insert a gap?
+                    if last_end is not None:
+                        gap = (start_dt - last_end).total_seconds()
+                        if gap > 5:
+                            tg_idx += 1 # Skip the inserted gap target
+                    
+                    last_end = pd.to_datetime(interval['end']).tz_convert('UTC')
+                    
+                    # Now tg_idx corresponds to this interval (even if short)
+                    # Because we included short laps in grid too
+                    target_to_gt[tg_idx] = idx
+                    tg_idx += 1
+                
                 for det in detected:
                     t_idx = det['target_index']
-                    if t_idx >= len(gt_intervals): continue # Should not happen
                     
-                    # Find the corresponding GT interval (simple index matching since we built grid from GT)
-                    # Note: We filtered short laps in target_grid building, 
-                    # so we need to map back to original GT index or just align by sequence.
-                    # Simplified: We only compare matched intervals.
-                    
-                    # Actually, since we skipped short laps in grid, target_index 0 corresponds to 
-                    # the first LONG lap in GT.
-                    # Let's align carefully.
-                    
-                    # Re-get the specific target used
-                    target_used = target_grid[t_idx]
-                    
-                    # Find which GT interval generated this target
-                    # This is tricky without an ID. 
-                    # We'll just assume sequential because match() returns in order of targets.
-                    
-                    # Let's get the GT interval that corresponds to this target.
-                    # Since we built target_grid sequentially from gt_intervals (skipping short),
-                    # we can find the matching GT by reconstructing the filtered list.
-                    filtered_gt = [g for g in gt_intervals if g['duration'] >= 10]
-                    
-                    if t_idx < len(filtered_gt):
-                        gt = filtered_gt[t_idx]
+                    if t_idx in target_to_gt:
+                        gt_idx = target_to_gt[t_idx]
+                        gt = gt_intervals[gt_idx]
                         gt_start = pd.to_datetime(gt['start']).tz_convert('UTC')
-                        gt_end = pd.to_datetime(gt['end']).tz_convert('UTC')
                         
                         det_start = df.index[det['start_index']]
-                        end_idx_safe = min(det['end_index'], len(df) - 1)
-                        det_end = df.index[end_idx_safe]
                         
-                        start_err = abs((det_start - gt_start).total_seconds())
-                        end_err = abs((det_end - gt_end).total_seconds())
+                        start_err = (det_start - gt_start).total_seconds()
+                        errors.append(abs(start_err))
                         
-                        errors.append(start_err)
-                        errors.append(end_err)
+                        if len(errors) < 5 or abs(start_err) > 60:
+                             pass # print(f"  T{t_idx} (GT{gt_idx}): Err={start_err:.1f}s | GT={gt_start.strftime('%H:%M:%S')} vs Det={det_start.strftime('%H:%M:%S')}")
                 
                 rmse = np.sqrt(np.mean(np.square(errors))) if errors else 0
                 
