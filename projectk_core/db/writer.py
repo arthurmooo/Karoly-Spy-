@@ -72,6 +72,7 @@ class ActivityWriter:
             "interval_pace_last": metrics_dict.get("interval_pace_last"),
             "interval_pace_mean": metrics_dict.get("interval_pace_mean"),
             "interval_respect_score": metrics_dict.get("interval_respect_score"),
+            "interval_detection_source": metrics_dict.get("interval_detection_source"),
             
             # Smart Segmentation (New JSONB column)
             # Inject new interval efficiency metrics here to avoid DB migration

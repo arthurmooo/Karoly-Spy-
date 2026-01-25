@@ -130,6 +130,7 @@ class ActivityMetrics(BaseModel):
     interval_pace_last: Optional[float] = None
     interval_pace_mean: Optional[float] = None
     interval_respect_score: Optional[float] = None
+    interval_detection_source: Optional[str] = Field(None, description="plan, lap, or algo")
     
     # Smart Segmentation Metrics
     segmented_metrics: Optional[SegmentationOutput] = None

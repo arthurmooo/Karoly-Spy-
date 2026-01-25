@@ -239,6 +239,7 @@ class MetricsCalculator:
         last_interval_hr = 0.0
         last_interval_pace = None
         global_respect_score = None
+        interval_detection_source = None
         
         # New Pa:HR (or Speed:HR) metrics
         interval_pahr_mean = None
@@ -257,6 +258,13 @@ class MetricsCalculator:
                 valid_s = [d['avg_speed'] for d in detections if d['avg_speed'] is not None]
                 valid_h = [d['avg_hr'] for d in detections if d['avg_hr'] is not None]
                 valid_r = [d['respect_score'] for d in detections if d['respect_score'] is not None]
+                
+                # Determine source from majority of detections
+                sources = [d.get('source') for d in detections if d.get('source')]
+                if sources:
+                    interval_detection_source = max(set(sources), key=sources.count)
+                else:
+                    interval_detection_source = "plan" # Default fallback if status was matched
                 
                 # Efficiency Calculation (Surgical)
                 efficiencies = []
@@ -327,6 +335,8 @@ class MetricsCalculator:
                 
                 # If we filtered everything, keep everything to avoid 0
                 work_laps = filtered_laps if filtered_laps else clean_laps
+                if work_laps:
+                    interval_detection_source = "lap"
             else:
                 work_laps = []
 
@@ -407,6 +417,7 @@ class MetricsCalculator:
             "interval_respect_score": round(float(global_respect_score), 1) if global_respect_score else None,
             "interval_pahr_mean": round(float(interval_pahr_mean), 3) if interval_pahr_mean else None,
             "interval_pahr_last": round(float(interval_pahr_last), 3) if interval_pahr_last else None,
+            "interval_detection_source": interval_detection_source,
             "energy_kj": round(energy_kj, 1) if energy_kj is not None else None,
             "intensity_factor": round(if_mean, 3),
             "mec": round(mec, 1) if mec is not None else None,
