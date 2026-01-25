@@ -273,13 +273,17 @@ class GlobalCandidateMatcher:
         start_hint: int = 0
     ) -> List[Dict]:
         """
-        Main entry point: Match target intervals using Global Candidate Scan.
+        V4.1 ZERO-DEFECT: Match target intervals using Global Candidate Scan
+        with Dynamic Floor Decay, Rhythm Prediction, and Gap Scanning.
         
         Algorithm:
-        1. Calculate intensity floor from targets
-        2. Find ALL regions above floor
-        3. For each target, find best-scoring region that maintains temporal order
-        4. Refine boundaries with DoM + Cadence
+        1. Calculate initial intensity floor from targets
+        2. Find ALL regions above floor (with Main Set Detection)
+        3. For each target:
+           a. Apply Dynamic Floor Decay (fatigue model)
+           b. Use Rhythm Prediction if sequence established
+           c. Find best-scoring region or use temporal prior
+        4. Gap Scan: Re-process missed intervals with relaxed thresholds
         5. Calculate plateau metrics
         
         Returns list of matched intervals with metrics.
@@ -287,77 +291,104 @@ class GlobalCandidateMatcher:
         if not target_grid or len(self.signal) == 0:
             return []
         
-        # 1. Calculate intensity floor
+        # 1. Calculate initial intensity floor
         target_intensities = [float(t.get('target_min', 0) or 0) for t in target_grid]
         max_target = max(target_intensities) if target_intensities else self.session_mean
+        target_duration = int(target_grid[0].get('duration', 120))
         
-        # Floor = 85% of max target AND 75% of session max (stricter)
-        intensity_floor = max(
+        # Initial floor: 85% of target, but at least 70% of session max
+        initial_floor = max(
             max_target * self.INTENSITY_FLOOR_RATIO,
-            self.session_max * 0.75  # Raised from 0.65 to 0.75
+            self.session_max * 0.70
         )
         
         # For low-intensity targets (endurance), adjust floor down
         if max_target < self.session_mean * 0.8:
-            intensity_floor = max_target * 0.7
+            initial_floor = max_target * 0.65
         
-        # 2. Find all high-intensity regions
+        # 2. Find all high-intensity regions (using lower floor to capture fatigued reps)
+        # Use 70% floor for discovery, we'll validate with dynamic floor later
+        discovery_floor = initial_floor * 0.80
         regions = self.find_high_intensity_regions(
-            intensity_floor=intensity_floor,
-            min_duration=self.MIN_SEGMENT_DURATION
+            intensity_floor=discovery_floor,
+            min_duration=max(10, target_duration // 4)
         )
         
         if not regions:
-            # Fallback: lower floor and retry
-            intensity_floor *= 0.7
+            discovery_floor *= 0.7
             regions = self.find_high_intensity_regions(
-                intensity_floor=intensity_floor,
-                min_duration=self.MIN_SEGMENT_DURATION
+                intensity_floor=discovery_floor,
+                min_duration=10
             )
         
-        # --- MAIN SET DETECTION ---
-        # Look for where consistent work patterns begin by analyzing gaps
-        # The main set will have consistent rest durations between work blocks
-        # Warm-up will have irregular gaps or different durations
+        # --- MAIN SET DETECTION (V4.2) ---
+        # Key insight: Main set has BOTH consistent gaps AND high intensity
+        # Warm-up might have consistent-ish gaps but lower intensity
+        expected_rest = 60  # Default
+        main_set_start_idx = 0
+        detected_median_rest = None
         
-        expected_rest = 60  # Default expected rest (most interval sets use 60s or 30s)
-        expected_work = target_grid[0].get('duration', 120) if target_grid else 120
-        
-        # Try to infer expected rest from target grid pattern
-        # (Future: could come from Nolio plan parsing)
+        # Intensity threshold for main set: must be > 80% of session max
+        main_set_intensity_threshold = self.session_max * 0.80
         
         if len(regions) >= 3:
-            # Calculate gaps between all regions
             gaps = []
             for i in range(1, len(regions)):
                 gap = regions[i]['start'] - regions[i-1]['end']
                 gaps.append((i, gap))
             
-            # Find first region that starts a "consistent gap" sequence
-            # A consistent sequence has 3+ consecutive gaps within 20% of each other
-            main_set_start_idx = 0
+            # Find consistent gap sequence where:
+            # 1. 3+ consecutive gaps within 20% of each other
+            # 2. Gaps are "rest-like" (20s to 180s for typical intervals)
+            # 3. Regions have HIGH intensity (> 80% of session max)
             for i in range(len(gaps) - 2):
-                g1 = gaps[i][1]
-                g2 = gaps[i+1][1]
+                g1, g2 = gaps[i][1], gaps[i+1][1]
                 g3 = gaps[i+2][1] if i+2 < len(gaps) else g2
                 
-                # Check if these 3 gaps are similar (within 20%)
                 avg_gap = (g1 + g2 + g3) / 3
-                if avg_gap > 10:  # Must be meaningful gaps (not fused regions)
-                    variation = max(abs(g1 - avg_gap), abs(g2 - avg_gap), abs(g3 - avg_gap))
-                    if variation / avg_gap < 0.25:  # Within 25% of average
-                        # Found start of main set
-                        main_set_start_idx = gaps[i][0] - 1  # Convert from gap index to region index
-                        break
+                
+                # Skip if gaps are too short (<20s) or too long (>180s)
+                if not (20 <= avg_gap <= 180):
+                    continue
+                
+                # Check gap consistency
+                variation = max(abs(g1 - avg_gap), abs(g2 - avg_gap), abs(g3 - avg_gap))
+                gap_consistent = avg_gap > 0 and variation / avg_gap < 0.20
+                
+                if not gap_consistent:
+                    continue
+                
+                # Check intensity of the regions AFTER this gap sequence starts
+                # The regions at gaps[i], gaps[i+1], gaps[i+2] indices
+                region_indices = [gaps[i][0] - 1, gaps[i][0], gaps[i+1][0], gaps[i+2][0] if i+2 < len(gaps) else gaps[i+1][0]]
+                region_intensities = [regions[j]['mean_intensity'] for j in region_indices if j < len(regions)]
+                
+                # All regions must be high intensity
+                all_high_intensity = all(
+                    intensity >= main_set_intensity_threshold 
+                    for intensity in region_intensities
+                )
+                
+                if all_high_intensity:
+                    main_set_start_idx = gaps[i][0] - 1  # Region before first gap
+                    detected_median_rest = avg_gap
+                    break
             
             if main_set_start_idx > 0:
-                # Skip warm-up regions
                 regions = regions[main_set_start_idx:]
         
-        # 3. Match each target in sequence
+        # 3. Match each target with Dynamic Floor Decay and Rhythm Prediction
         results = []
         current_end = start_hint
         region_idx = 0
+        
+        # Rhythm tracking
+        detected_rests = []
+        cycle_period = None  # work + rest duration
+        
+        # Constants for Zero-Defect
+        FLOOR_DECAY_PER_REP = 0.015  # 1.5% decay per rep
+        RHYTHM_SEARCH_WINDOW = 20    # ±20s around predicted timestamp
         
         for target_idx, target in enumerate(target_grid):
             target_duration = int(target.get('duration', 0))
@@ -366,73 +397,139 @@ class GlobalCandidateMatcher:
             if target_duration <= 0:
                 continue
             
-            # Get planned rest from previous target (if any)
-            planned_rest = None
-            if target_idx > 0 and len(results) > 0:
-                # Check if previous target had a rest component
-                prev_target = target_grid[target_idx - 1]
-                # Nolio often encodes rest in the following target's offset
-                # For now, use the gap between consecutive work in the plan
-                planned_rest = target.get('planned_rest', None)
+            # --- DYNAMIC FLOOR DECAY ---
+            # After first few reps, lower the floor to account for fatigue
+            reps_done = len(results)
+            dynamic_floor = initial_floor * (1.0 - FLOOR_DECAY_PER_REP * reps_done)
+            dynamic_floor = max(dynamic_floor, initial_floor * 0.70)  # Never below 70% of initial
             
-            # Find best candidate region
+            # --- RHYTHM PREDICTION ---
+            # If we have established a rhythm, predict next work block
+            predicted_start = None
+            if len(results) >= 2:
+                # Calculate median rest from detected intervals
+                if len(detected_rests) >= 2:
+                    median_rest = sorted(detected_rests)[len(detected_rests)//2]
+                elif detected_median_rest:
+                    median_rest = detected_median_rest
+                else:
+                    median_rest = 60  # Default
+                
+                # Predict next start = last_end + median_rest
+                last_end = results[-1]['end_index']
+                predicted_start = int(last_end + median_rest)
+                
+                # Also track cycle period for better prediction
+                if len(results) >= 3:
+                    recent_starts = [r['start_index'] for r in results[-3:]]
+                    cycle_gaps = [recent_starts[i+1] - recent_starts[i] for i in range(len(recent_starts)-1)]
+                    cycle_period = sum(cycle_gaps) / len(cycle_gaps) if cycle_gaps else None
+            
+            # Get planned rest from target
+            planned_rest = target.get('planned_rest', None)
+            
+            # --- CANDIDATE SEARCH ---
             best_region = None
             best_score = float('inf')
             best_region_idx = region_idx
             
-            # Search forward from current position
+            # Strategy 1: Standard region search with dynamic floor
             for i in range(region_idx, len(regions)):
                 region = regions[i]
                 
-                # Must start after current position (temporal order)
                 if region['end'] <= current_end:
                     continue
                 
-                # Hard filter: intensity floor
-                if region['mean_intensity'] < intensity_floor:
+                # Dynamic floor check (not static initial_floor)
+                if region['mean_intensity'] < dynamic_floor:
                     continue
                 
-                # Hard filter: duration sanity (at least 50% of target)
-                if region['duration'] < target_duration * 0.5:
+                if region['duration'] < target_duration * 0.4:
                     continue
                 
-                # Score this candidate
                 prev_end = results[-1]['end_index'] if results else None
                 score = self.score_candidate(region, target, prev_end, planned_rest)
+                
+                # Bonus for being close to predicted start (rhythm coherence)
+                if predicted_start and abs(region['start'] - predicted_start) < RHYTHM_SEARCH_WINDOW:
+                    score -= 0.2  # Strong bonus
                 
                 if score < best_score:
                     best_score = score
                     best_region = region
                     best_region_idx = i
                 
-                # Stop searching if we're too far ahead (optimization)
-                if region['start'] > current_end + target_duration * 3:
+                if region['start'] > current_end + target_duration * 4:
                     break
             
+            # Strategy 2: Rhythm-Forced Local Search (if no region found but we have rhythm)
+            if best_region is None and predicted_start is not None:
+                # Force a local scan around predicted_start with even lower floor
+                forced_floor = dynamic_floor * 0.85  # 15% more lenient
+                search_start = max(0, predicted_start - RHYTHM_SEARCH_WINDOW)
+                search_end = min(len(self.signal), predicted_start + target_duration + RHYTHM_SEARCH_WINDOW)
+                
+                # Look for any above-floor segment in this window
+                local_segment = self.signal[search_start:search_end]
+                if len(local_segment) > 0:
+                    above_forced = local_segment >= forced_floor
+                    if np.any(above_forced):
+                        # Find the longest run above forced floor
+                        runs = []
+                        in_run = False
+                        run_start = 0
+                        for j in range(len(above_forced)):
+                            if above_forced[j] and not in_run:
+                                in_run = True
+                                run_start = j
+                            elif not above_forced[j] and in_run:
+                                in_run = False
+                                runs.append((run_start, j))
+                        if in_run:
+                            runs.append((run_start, len(above_forced)))
+                        
+                        if runs:
+                            # Pick longest run
+                            best_run = max(runs, key=lambda r: r[1] - r[0])
+                            run_len = best_run[1] - best_run[0]
+                            if run_len >= target_duration * 0.5:
+                                seg = local_segment[best_run[0]:best_run[1]]
+                                best_region = {
+                                    'start': search_start + best_run[0],
+                                    'end': search_start + best_run[1],
+                                    'duration': run_len,
+                                    'mean_intensity': float(np.mean(seg)),
+                                    'stability_cv': float(np.std(seg) / np.mean(seg)) if np.mean(seg) > 0 else 1.0
+                                }
+                                best_score = 0.5  # Moderate confidence for forced match
+            
             if best_region is None:
-                # No matching region found
-                current_end += target_duration  # Advance pointer blindly
+                # Record gap for later scanning
+                current_end += target_duration
                 continue
             
-            # 4. Refine boundaries with DoM + Cadence
+            # Refine boundaries
             refined_start, refined_end = self.refine_boundaries_dom(best_region, target_duration)
             
-            # Clamp duration to reasonable range
+            # Clamp duration
             actual_duration = refined_end - refined_start
             if actual_duration > target_duration * 1.5:
                 refined_end = refined_start + int(target_duration * 1.2)
-            elif actual_duration < target_duration * 0.7:
+            elif actual_duration < target_duration * 0.6:
                 refined_end = min(refined_start + target_duration, len(self.signal))
             
-            # Check if this region can contain MORE intervals (sub-segmentation)
-            # If so, don't advance region_idx - let next target try the same region
-            remaining_region_duration = best_region['end'] - refined_end
-            can_hold_another = remaining_region_duration >= target_duration * 0.6
+            # Track rest duration for rhythm
+            if results:
+                rest_gap = refined_start - results[-1]['end_index']
+                if 5 < rest_gap < target_duration * 3:
+                    detected_rests.append(rest_gap)
             
-            # 5. Calculate plateau metrics (with lag correction)
+            # Sub-segmentation check
+            remaining = best_region['end'] - refined_end
+            can_hold_another = remaining >= target_duration * 0.5
+            
+            # Calculate metrics
             plateau_metrics = self._calculate_plateau_metrics(refined_start, refined_end)
-            
-            # Build result
             realized = plateau_metrics.get(f'avg_{self.signal_col}', 0)
             respect_score = (realized / target_min * 100) if target_min > 0 else None
             
@@ -457,21 +554,157 @@ class GlobalCandidateMatcher:
             }
             results.append(result)
             
-            # Update pointers - CRITICAL: Handle sub-segmentation
             current_end = refined_end
             if can_hold_another:
-                # Large region: update the region's start to point past this match
-                # but don't advance region_idx so we can reuse it
                 regions[best_region_idx] = {
                     **best_region,
                     'start': refined_end,
-                    'duration': best_region['end'] - refined_end
+                    'duration': remaining
                 }
             else:
-                # Region fully consumed, move to next
                 region_idx = best_region_idx + 1
         
+        # --- RECURSIVE GAP SCANNING ---
+        # If we're missing targets, scan the gaps between detected intervals
+        if len(results) < len(target_grid):
+            results = self._gap_scan_recovery(
+                target_grid, results, initial_floor, target_duration
+            )
+        
+        # Sort results by target_index
+        results.sort(key=lambda r: r['target_index'])
+        
         return results
+    
+    def _gap_scan_recovery(
+        self,
+        target_grid: List[Dict],
+        current_results: List[Dict],
+        initial_floor: float,
+        target_duration: int
+    ) -> List[Dict]:
+        """
+        Recursive Gap Scanning: Find missed intervals in gaps between detected ones.
+        Uses very low floor (60% of initial) and relies on temporal position.
+        """
+        if not current_results:
+            return current_results
+        
+        # Sort by start_index to find gaps
+        sorted_results = sorted(current_results, key=lambda r: r['start_index'])
+        
+        # Find which target indices are missing
+        matched_indices = {r['target_index'] for r in sorted_results}
+        missing_indices = [i for i in range(len(target_grid)) if i not in matched_indices]
+        
+        if not missing_indices:
+            return current_results
+        
+        # Very low floor for gap recovery (60% of initial)
+        gap_floor = initial_floor * 0.60
+        
+        for missing_idx in missing_indices:
+            target = target_grid[missing_idx]
+            target_dur = int(target.get('duration', 0))
+            
+            # Find temporal bounds for this missing interval
+            # It should be between the previous and next matched intervals
+            prev_result = None
+            next_result = None
+            
+            for r in sorted_results:
+                if r['target_index'] < missing_idx:
+                    prev_result = r
+                elif r['target_index'] > missing_idx and next_result is None:
+                    next_result = r
+                    break
+            
+            # Define search window
+            if prev_result and next_result:
+                search_start = prev_result['end_index']
+                search_end = next_result['start_index']
+            elif prev_result:
+                search_start = prev_result['end_index']
+                search_end = min(len(self.signal), search_start + target_dur * 3)
+            elif next_result:
+                search_end = next_result['start_index']
+                search_start = max(0, search_end - target_dur * 3)
+            else:
+                continue
+            
+            # Search for any qualifying segment in this gap
+            if search_end <= search_start:
+                continue
+            
+            gap_signal = self.signal[search_start:search_end]
+            above_floor = gap_signal >= gap_floor
+            
+            # Find runs
+            runs = []
+            in_run = False
+            run_start = 0
+            for j in range(len(above_floor)):
+                if above_floor[j] and not in_run:
+                    in_run = True
+                    run_start = j
+                elif not above_floor[j] and in_run:
+                    in_run = False
+                    if j - run_start >= target_dur * 0.4:
+                        runs.append((run_start, j))
+            if in_run and len(above_floor) - run_start >= target_dur * 0.4:
+                runs.append((run_start, len(above_floor)))
+            
+            if runs:
+                # Pick the run closest to expected position (based on rhythm)
+                if prev_result:
+                    expected_pos = prev_result['end_index'] + 60 - search_start
+                else:
+                    expected_pos = 0
+                
+                best_run = min(runs, key=lambda r: abs(r[0] - expected_pos))
+                
+                seg = gap_signal[best_run[0]:best_run[1]]
+                start_idx = search_start + best_run[0]
+                end_idx = search_start + best_run[1]
+                
+                # Refine boundaries
+                temp_region = {
+                    'start': start_idx,
+                    'end': end_idx, 
+                    'duration': end_idx - start_idx,
+                    'mean_intensity': float(np.mean(seg)),
+                    'stability_cv': float(np.std(seg) / np.mean(seg)) if np.mean(seg) > 0 else 1.0
+                }
+                refined_start, refined_end = self.refine_boundaries_dom(temp_region, target_dur)
+                
+                plateau_metrics = self._calculate_plateau_metrics(refined_start, refined_end)
+                target_min = float(target.get('target_min', 0) or 0)
+                realized = plateau_metrics.get(f'avg_{self.signal_col}', 0)
+                respect_score = (realized / target_min * 100) if target_min > 0 else None
+                
+                result = {
+                    "status": "matched",
+                    "source": "gap_scan",
+                    "confidence": 0.6,  # Lower confidence for gap-recovered intervals
+                    "lap_index": None,
+                    "target_index": missing_idx,
+                    "start_index": refined_start,
+                    "end_index": refined_end,
+                    "duration_sec": refined_end - refined_start,
+                    "expected_duration": target_dur,
+                    "avg_power": plateau_metrics.get('avg_power'),
+                    "avg_speed": plateau_metrics.get('avg_speed'),
+                    "avg_hr": plateau_metrics.get('avg_hr'),
+                    "plateau_avg_power": plateau_metrics.get('plateau_avg_power'),
+                    "plateau_avg_speed": plateau_metrics.get('plateau_avg_speed'),
+                    "respect_score": respect_score,
+                    "match_score": 0.4,
+                    "target": target
+                }
+                current_results.append(result)
+                sorted_results = sorted(current_results, key=lambda r: r['start_index'])
+        
+        return current_results
 
     def _calculate_plateau_metrics(self, start_idx: int, end_idx: int) -> Dict:
         """
