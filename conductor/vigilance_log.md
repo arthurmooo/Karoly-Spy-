@@ -59,7 +59,7 @@
 ### 🔭 Watchlist (Sujets à Surveiller)
 - **Performance sur gros volumes :** Comment se comporte le parser sur un historique de 5 ans (1000+ fichiers) d'un coup ? (Memory leak ?).
 - **Variabilité des formats FIT :** Attention aux nouveaux appareils (ex: Suunto, Apple Watch via export tiers) qui pourraient introduire de nouveaux bugs de parsing.
-- **Nouveaux Champs Coros :** `Effort Pace` est extrait mais pas encore utilisé dans le calcul de charge (on utilise `Speed` ou `Power`). C'est une opportunité manquée pour l'instant.
+- **Nouveaux Champs Coros :** `Effort Pace` est extrait mais pas encore utilisé dans le calcul de charge (on utilise `Speed` or `Power`). C'est une opportunité manquée pour l'instant.
 
 ---
 
@@ -277,3 +277,24 @@
 ### 🔭 Watchlist
 
 - **Sessions Complexes (Pyo) :** Surveiller les séances avec énormément de répétitions très courtes (ex: 30x10/10) pour vérifier si le seeker ne "glisse" pas sur la mauvaise répétition.
+
+---
+
+## [Track: Classification Maintenance - Competition & Generic Bike]
+**Date:** 25 Janvier 2026
+**Statut:** ✅ Terminé & Déployé
+
+### 🟢 Points de Succès
+1.  **Support Compétition "Run and Bike" :** Ajout explicite de "run and bike" et "run & bike" dans les mots-clés de compétition. La séance "Run and Bike La Wantzenau" est désormais correctement classée.
+2.  **Filtrage "Sortie Vélo" :** Ajout de patterns génériques Nolio ("Sortie vélo le matin", "Course à pied dans l'après-midi") dans les `ENDURANCE_KEYWORDS`. Cela permet d'outrepasser la détection par variabilité (Strategy 7) pour ces titres très fréquents qui sont presque toujours de l'endurance.
+3.  **Correction Matthieu Poulain :** 5 séances de Matthieu Poulain qui étaient faussement classées en `intervals` ont été rétrogradées en `endurance` après reprocessing, tout en préservant les vraies séances "Tempo" grâce à la priorité des mots-clés d'intervalles.
+4.  **Non-Régression :** Vérification que les séances contenant "Tempo" restent bien classées en `intervals` (27 sessions confirmées en base).
+
+### 🟠 Points Bancales (Risques)
+1.  **Équilibre Endurance/Intervalles :** Si une séance s'appelle "Sortie vélo le matin" mais contient un bloc de 20 minutes au seuil *sans* plan Nolio et *sans* mot-clé dans le titre, elle sera maintenant classée en endurance (auparavant, la variabilité du signal l'aurait peut-être classée en intervalles).
+    *   *Mitigation :* Karoly privilégie la pureté des séances d'endurance ; les séances d'intervalles importantes ont généralement un plan ou un titre explicite.
+
+### 🔭 Watchlist
+- **Titres Nolio multilingues :** Si des athlètes utilisent Nolio en anglais ("Morning ride"), il faudra enrichir la liste.
+
+---
