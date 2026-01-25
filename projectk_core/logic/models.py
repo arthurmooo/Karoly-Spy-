@@ -84,6 +84,7 @@ class ActivityMetadata(BaseModel):
     temp_avg: Optional[float] = None
     humidity_avg: Optional[float] = None
     weather_source: Optional[str] = Field(None, description="device, openweathermap")
+    source_json: Optional[Dict] = Field(None, description="Raw JSON from Nolio")
 
 class SegmentData(BaseModel):
     """

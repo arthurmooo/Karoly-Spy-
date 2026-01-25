@@ -541,7 +541,8 @@ class IngestionRobot:
             duration_sec=max(1.0, duration_sec), # Pydantic gt=0
             distance_m=float(distance_m),
             elevation_gain=elevation_gain,
-            rpe=rpe
+            rpe=rpe,
+            source_json=nolio_act
         )
         
         if distance_raw > 0:

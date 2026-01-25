@@ -298,3 +298,22 @@
 - **Titres Nolio multilingues :** Si des athlètes utilisent Nolio en anglais ("Morning ride"), il faudra enrichir la liste.
 
 ---
+
+## [Track: Raw Data Persistence & Nolio JSON]
+**Date:** 25 Janvier 2026
+**Statut:** ✅ Terminé & Déployé
+
+### 🟢 Points de Succès
+1.  **Traçabilité Totale :** L'intégralité du JSON renvoyé par l'API Nolio est désormais stockée de manière permanente dans la colonne `source_json` de la table `activities`. 
+2.  **Zéro Perte d'Info :** Les commentaires, les tags personnalisés, les scores RPE d'origine et surtout les Laps manuels édités sur Nolio sont maintenant accessibles directement en SQL pour des analyses futures.
+3.  **Auditabilité :** Permet de vérifier a posteriori si un bug de calcul MLS provenait d'une mauvaise donnée source ou d'une erreur de logique interne.
+
+### 🔴 Points Bancales (Risques)
+1.  **Volume de Données :** Le stockage de gros objets JSON pour chaque activité (1300+ lignes actuellement) augmente la taille de la base de données. 
+    *   *Mitigation :* Supabase gère très bien le JSONB et le volume reste négligeable par rapport aux streams FIT/TCX (qui eux sont stockés en Storage).
+2.  **Rate Limit Nolio :** L'ingestion initiale pour remplir ce champ sur l'historique peut être freinée par les quotas API.
+    *   *Action :* Le champ se remplira organiquement au fil des synchronisations quotidiennes.
+
+### 🔭 Watchlist
+- **Exploitation (Strategy C) :** Surveiller les cas où les Laps de Nolio (`source_json -> 'laps'`) sont plus précis que notre détection algorithmique, pour basculer sur une classification "User-Driven".
+- **Structure JSON variable :** Nolio pourrait modifier la structure de son JSON sans préavis, ce qui rendrait l'extraction de certains sous-champs instable (mais le stockage brut reste garanti).

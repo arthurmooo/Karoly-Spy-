@@ -40,6 +40,11 @@
 - [x] **Active Recovery Separation**: Successfully isolated efforts from active recoveries (e.g. 1'30/3'30) by using plan as a template.
 - [x] **Sequential Matcher Re-sync**: Improved sequential pointer management to handle missed intervals or early starts.
 
+### 2026-01-25: Raw Data Persistence & Metadata Enhancement
+- [x] **Permanent Nolio JSON Storage**: Added `source_json` column to `activities` table. All raw metadata (RPE, comments, manual laps) is now permanently stored in the DB, ensuring total data traceability.
+- [ ] **Strategy C (User-Driven Intervals)**: Implement a classification strategy that uses the manually edited laps in Nolio (found in `source_json`) when both Plan and Algo strategies fail or have low confidence.
+- [ ] **Rate Limit Buffer**: Implement a more robust retry/backoff mechanism for the Nolio API in `NolioClient` to handle `NolioRateLimitError` gracefully during bulk ingestion.
+
 - [ ] **Blind Gradient Refinement**: Port the `PlanDrivenSeeker`'s edge refinement logic to the blind `AlgoDetector` to improve precision even when no plan is available.
 - [ ] **TCX Support**: The current parser only handles binary .fit files. One of the test files (Baptiste 01/08) is a TCX, causing a crash. Need a TCX/XML parser layer.
 - [ ] **Swimming Fallback**: For swimming activities without speed/power data, implement a fallback using LAP messages or internal device distance calculations.

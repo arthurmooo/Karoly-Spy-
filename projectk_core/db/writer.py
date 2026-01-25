@@ -88,7 +88,8 @@ class ActivityWriter:
             
             # File Info
             "fit_file_path": file_path,
-            "fit_file_hash": file_hash
+            "fit_file_hash": file_hash,
+            "source_json": meta.source_json
         }
         
         # DEBUG WEATHER
