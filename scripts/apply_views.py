@@ -33,5 +33,20 @@ def apply_migration(file_path: str):
     # (Simplified for now, I'll provide the SQL to the user if this fails)
 
 if __name__ == "__main__":
-    migration_file = "projectk_core/db/migrations/006_create_coach_views.sql"
-    apply_migration(migration_file)
+    db = DBConnector()
+    migrations_dir = Path("supabase/migrations")
+    
+    # Files to apply in order
+    view_files = [
+        "006_create_coach_views.sql",
+        "009_view_intervals_karo.sql",
+        "010_view_weekly_monitoring.sql",
+        "011_view_intervals_deep_dive.sql"
+    ]
+    
+    for filename in view_files:
+        file_path = migrations_dir / filename
+        if file_path.exists():
+            apply_migration(str(file_path))
+        else:
+            print(f"⚠️  File not found: {file_path}")

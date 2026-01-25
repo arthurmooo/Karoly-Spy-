@@ -1,19 +1,20 @@
 """
-Interval Matcher V3 - Hybrid LAP + Signal Detection
+Interval Matcher V4 - Hybrid LAP + Global Candidate Scan
 
 This module provides surgical alignment of planned intervals (Target Grid)
 with actual data streams from FIT files, using a hybrid approach:
 1. First, try to match using LAP data (if athlete marked intervals correctly)
-2. Fall back to signal-based detection if LAPs don't match the plan
+2. Fall back to Global Candidate Scan if LAPs don't match the plan
 
 Key Features:
 - LAP-first matching with confidence scoring
-- Hysteresis-based signal detection as fallback
+- Global Candidate Scan with intensity floor enforcement
+- Recovery coherence scoring (gap matches planned rest)
 - Plateau centering for accurate metrics
 - Source traceability (lap vs signal)
 
 Author: Project K Team
-Version: 3.0.0
+Version: 4.0.0
 """
 
 import pandas as pd
@@ -22,7 +23,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 from projectk_core.logic.step_detector import StepDetector
-from projectk_core.processing.pure_signal_matcher import PureSignalMatcher
+from projectk_core.processing.global_matcher import GlobalCandidateMatcher
 
 
 class MatchStatus(Enum):
@@ -194,7 +195,7 @@ class IntervalMatcher:
         lap_idx = 0      # Index into work_laps
         current_ptr = 0  # Current position in signal for fallback
         
-        psm = PureSignalMatcher(df)
+        psm = GlobalCandidateMatcher(df, sport=sport)
         
         for target_idx, target in enumerate(target_grid):
             duration_s = int(target.get('duration', 0))
