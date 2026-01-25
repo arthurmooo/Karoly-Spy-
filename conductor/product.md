@@ -35,7 +35,7 @@ To transform Karoly Spy's coaching methodology into a scalable, automated, and s
 
 ### 2. The "Intelligence Engine" (Python Core)
 - **Physiological Brain:** High-precision calculation of Load (MLS), Durability, and Decoupling. **100% certified alignment** with Karoly's original mathematical models (strict exclusion of pauses, precise split-halves by time). Note: MLS calculation is strictly restricted to Running and Cycling activities to ensure scientific validity.
-- **Hybrid Interval Engine:** Surgical segmentation of complex workouts using a four-tier fusion strategy: theoretical plan correlation, manual/automatic lap analysis, ULTRA signal analysis (Histogram Valley), and **Meta-Precision Seeker** (Sub-second resolution via Cubic Spline Interpolation and Hardware Lag Compensation).
+- **Hybrid Interval Engine:** Surgical segmentation of complex workouts using a four-tier fusion strategy: theoretical plan correlation, manual/automatic lap analysis, ULTRA signal analysis (Histogram Valley), and **PureSignalMatcher** (DoM edge detection, Cadence Snap alignment, and Plateau Validation).
 - **Interval-Specific Metrics:** Automated extraction of physiological markers (Avg Speed/Power, HR, Pa:Hr Ratio, internal Decoupling) for every detected effort block.
 -   **Magnitude Rule:** Automatic intelligence to switch between Stryd Power (Watts) and Critical Speed (m/s) based on threshold magnitudes (CP > 100 vs CS < 20), ensuring scientific validity across different sensor setups.
 -   **Readiness Calculator:** Automated 30-day baseline computation for health markers to detect significant physiological deviations.
