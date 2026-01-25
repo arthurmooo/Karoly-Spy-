@@ -120,7 +120,3 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [x] **Track: Signal Processing & Interval Engine Calibration**
-    - **Status:** 🟢 Completed. Implemented `PureSignalMatcher` with DoM, Cadence Snap, and Plateau Validation. Integrated into `IntervalMatcher`.
-    - **Link:** [./tracks/signal_processing_20260125/](./tracks/signal_processing_20260125/)
-
