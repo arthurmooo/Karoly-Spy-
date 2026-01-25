@@ -22,7 +22,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 from projectk_core.logic.step_detector import StepDetector
-from projectk_core.logic.meta_seeker import MetaSeeker
+from projectk_core.processing.pure_signal_matcher import PureSignalMatcher
 
 
 class MatchStatus(Enum):
@@ -194,6 +194,8 @@ class IntervalMatcher:
         lap_idx = 0      # Index into work_laps
         current_ptr = 0  # Current position in signal for fallback
         
+        psm = PureSignalMatcher(df)
+        
         for target_idx, target in enumerate(target_grid):
             duration_s = int(target.get('duration', 0))
             if duration_s <= 0:
@@ -228,28 +230,52 @@ class IntervalMatcher:
                 lap_idx = matched_idx + 1
                 current_ptr = result['end_index'] + 5 # Sync pointer
             else:
-                # No matching LAP - fall back to Step Detection + Correlation
-                result = self._match_by_signal_refined(
-                    df=df,
+                # No matching LAP - fall back to Pure Signal Matcher (DoM + Cadence)
+                ps_match = psm.find_best_match(
                     signal=signal,
-                    signal_col=signal_col,
-                    segments=signal_segments,
-                    start_ptr=current_ptr,
-                    target=target,
-                    target_grid=target_grid,
-                    detected_intervals=detected_intervals,
+                    cadence=df['cadence'].fillna(0).values if 'cadence' in df.columns else None,
+                    target_duration=duration_s,
                     target_min=target_min,
-                    duration_s=duration_s,
-                    sport=sport,
-                    target_idx=target_idx,
-                    is_resync=(target_idx > 0 and len(detected_intervals) > 0 and detected_intervals[-1]['status'] == MatchStatus.NOT_FOUND.value)
+                    start_search_idx=current_ptr,
+                    search_window=self.config.max_search_gap
                 )
-                detected_intervals.append(result)
                 
-                # Advance pointer based on result
-                if result['status'] == MatchStatus.MATCHED.value:
-                    current_ptr = result['end_index'] + 5
+                if ps_match:
+                    start_idx = ps_match['start']
+                    end_idx = ps_match['end']
+                    
+                    plateau_metrics = self._calculate_plateau_metrics(
+                        df, signal_col, start_idx, end_idx, duration_s
+                    )
+                    
+                    realized = plateau_metrics.get(f'avg_{signal_col}', 0)
+                    respect_score = (realized / target_min * 100) if target_min > 0 else None
+                    
+                    result = {
+                        "status": MatchStatus.MATCHED.value,
+                        "source": MatchSource.SIGNAL.value,
+                        "confidence": 1.0 / (1.0 + (ps_match['score'] / 100.0)), # Mock confidence 0-1
+                        "lap_index": None,
+                        "target_index": target_idx,
+                        "start_index": start_idx,
+                        "end_index": end_idx,
+                        "duration_sec": end_idx - start_idx,
+                        "expected_duration": duration_s,
+                        "avg_power": plateau_metrics.get('avg_power'),
+                        "avg_speed": plateau_metrics.get('avg_speed'),
+                        "avg_hr": plateau_metrics.get('avg_hr'),
+                        "plateau_avg_power": plateau_metrics.get('plateau_avg_power'),
+                        "plateau_avg_speed": plateau_metrics.get('plateau_avg_speed'),
+                        "respect_score": respect_score,
+                        "target": target
+                    }
+                    detected_intervals.append(result)
+                    
+                    # Advance pointer
+                    current_ptr = end_idx + 5
+                    
                 else:
+                    detected_intervals.append(self._create_not_found_result(target, target_idx))
                     # SMART RESYNC: If target not found, the sequence might be broken.
                     current_ptr += duration_s // 2 # Small advance to avoid loop
         
