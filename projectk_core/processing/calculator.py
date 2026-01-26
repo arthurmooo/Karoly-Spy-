@@ -300,6 +300,41 @@ class MetricsCalculator:
                 valid_s = [d['avg_speed'] for d in perf_detections if d['avg_speed'] is not None]
                 valid_h = [d['avg_hr'] for d in perf_detections if d['avg_hr'] is not None]
                 valid_r = [d['respect_score'] for d in perf_detections if d['respect_score'] is not None]
+                
+                # ========== FIX: Populate aggregate metrics from SURGICAL detections ==========
+                # Calculate averages
+                if valid_p:
+                    avg_intervals_power = sum(valid_p) / len(valid_p)
+                if valid_h:
+                    avg_intervals_hr = sum(valid_h) / len(valid_h)
+                if valid_s:
+                    avg_speed = sum(valid_s) / len(valid_s)
+                    avg_intervals_pace = 1000.0 / avg_speed / 60.0 if avg_speed > 0 else None
+                if valid_r:
+                    global_respect_score = sum(valid_r) / len(valid_r)
+                
+                # Get last interval values
+                if perf_detections:
+                    last_det = perf_detections[-1]
+                    last_interval_power = last_det.get('avg_power') or 0.0
+                    last_interval_hr = last_det.get('avg_hr') or 0.0
+                    last_speed = last_det.get('avg_speed')
+                    if last_speed and last_speed > 0:
+                        last_interval_pace = 1000.0 / last_speed / 60.0
+                
+                # Calculate efficiency (Pa:HR or Speed:HR) for SURGICAL mode
+                efficiencies = []
+                for d in perf_detections:
+                    val = d.get('avg_power') if sport == 'bike' else d.get('avg_speed')
+                    hr = d.get('avg_hr')
+                    if val is not None and hr is not None and hr > 0:
+                        efficiencies.append(val / hr)
+                
+                if efficiencies:
+                    interval_pahr_mean = sum(efficiencies) / len(efficiencies)
+                    interval_pahr_last = efficiencies[-1]
+                # ================================================================================
+                
         else:
             # LAP-BASED MODE (Fallback)
             # Weighted averages for all intervals (laps) using Recalculated Durations
