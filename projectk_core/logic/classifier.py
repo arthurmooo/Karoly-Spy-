@@ -27,7 +27,7 @@ class ActivityClassifier:
         r"échauffement", r"récupération", r"récup\b", r"cool\s*down", r"décrassage",
         r"footing", r"endurance\s+fondamentale", r"ef\b", r"\blit\b",
         r"tapis", r"roulant",
-        r"sortie vélo", r"course à pied (matinale|matin|après-midi|soir)", r"natation (matinale|matin|après-midi|soir)"
+        r"sortie vélo", r"course à pied.*(matinale|matin|après-midi|soir)", r"natation (matinale|matin|après-midi|soir)"
     ]
 
     def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, sport_name: str = "", target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
