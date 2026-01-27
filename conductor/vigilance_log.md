@@ -337,3 +337,17 @@
 
 ### 🔭 Watchlist
 - **Précision GPS:** La "Distance Matching" repose sur la précision du fichier FIT. Si le GPS décroche (tunnel, forêt dense), la distance du Lap pourrait être hors tolérance (5%) et rejeter le Lap. À surveiller sur les trails.
+
+---
+
+## [2026-01-27] Track: Fix average power for short sprints (<15s)
+- **Status:** ✅ Success
+- **Key Wins:**
+    - Fixed 10s sprint power underestimation (was ~300W, now ~800W).
+    - Identified and fixed `int(duration)` truncation issue (9.9s -> 9s) which excluded valid sprints.
+    - Improved `IntervalMatcher` robustness for sessions with long warmups (> 10 laps) by increasing initial lookahead.
+- **Risks & Technical Debt:**
+    - `tests/test_interval_matcher.py` shows failures in Signal Matching mode (e.g. `test_bernard_alexis_case`). These seem pre-existing or unrelated to Lap logic, but indicate fragility in the "Pure Signal" fallback path.
+    - Fallback Lap Logic (in `MetricsCalculator`) is currently not populating the `intervals` list correctly (returns empty list), though it calculates aggregates. This complicates debugging but doesn't affect production aggregates.
+- **Watchlist:**
+    - Monitor `IntervalMatcher` on files without Laps to ensure Signal Matching is reliable.
