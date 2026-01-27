@@ -670,7 +670,9 @@ class IngestionRobot:
             activity_title, 
             nolio_sport, 
             sport_name=internal_sport, 
-            is_competition_nolio=is_comp
+            target_grid=target_grid, 
+            is_competition_nolio=is_comp,
+            laps=laps
         )
 
         # 5. Create Activity Object

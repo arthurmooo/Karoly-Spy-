@@ -30,7 +30,7 @@ class ActivityClassifier:
         r"sortie vélo", r"course à pied.*(matinale|matin|après-midi|soir)", r"natation (matinale|matin|après-midi|soir)"
     ]
 
-    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, sport_name: str = "", target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False) -> str:
+    def detect_work_type(self, df: pd.DataFrame, title: str, nolio_type: str, sport_name: str = "", target_grid: Optional[List[Dict[str, Any]]] = None, is_competition_nolio: bool = False, laps: Optional[List[Dict[str, Any]]] = None) -> str:
         """
         Classifies activity as 'endurance', 'intervals', or 'competition'.
         """
@@ -52,7 +52,25 @@ class ActivityClassifier:
 
         # 2. Intervals (Strategy A: Plan-Driven)
         if target_grid and len(target_grid) > 0:
-            return "intervals"
+            # If there's only one block, check if it's really an interval block
+            # (e.g. name contains interval keywords) or if it's just one big endurance block.
+            if len(target_grid) > 1:
+                return "intervals"
+            
+            # Single block case: check name for interval keywords
+            single_block_name = target_grid[0].get("name", "").lower()
+            is_single_block_interval = False
+            for kw in self.INTERVAL_KEYWORDS:
+                if re.search(kw, single_block_name):
+                    is_single_block_interval = True
+                    break
+            
+            if is_single_block_interval:
+                return "intervals"
+            
+            # If single block and NO interval keywords in its name, 
+            # we don't automatically return "intervals". 
+            # We continue to other checks (keywords in title, CV, etc.)
 
         # 3. Check for Generic Title (e.g. Title contains only the sport name)
         # If the title is just the sport and there's no plan, it's very likely generic endurance
@@ -98,7 +116,13 @@ class ActivityClassifier:
             if re.search(kw, combined_text):
                 return "competition"
 
-        # 7. Signal Variability (LAST RESORT, more conservative)
+        # 7. Intelligent Lap Filtering (Strategy B)
+        if laps and len(laps) > 1:
+            is_endurance_by_laps = self._check_auto_laps(laps, sport_name)
+            if is_endurance_by_laps:
+                return "endurance"
+
+        # 8. Signal Variability (LAST RESORT, more conservative)
         signal = None
         if df is not None and not df.empty:
             if 'power' in df.columns and df['power'].mean() > 0:
@@ -120,6 +144,53 @@ class ActivityClassifier:
                     return "intervals"
         
         return "endurance"
+
+    def _check_auto_laps(self, laps: List[Dict[str, Any]], sport_name: str) -> bool:
+        """
+        Returns True if laps look like device Auto-Laps (Endurance).
+        """
+        if not laps:
+            return False
+            
+        sport = sport_name.lower()
+        technical_distances = []
+        if any(s in sport for s in ["run", "bike", "vélo", "cyclisme", "trail"]):
+            technical_distances = [1000, 5000]
+        elif any(s in sport for s in ["swim", "natation"]):
+            technical_distances = [50, 100, 200, 400]
+            
+        if not technical_distances:
+            return False
+            
+        remaining_laps = []
+        for lap in laps:
+            dist = lap.get("total_distance") or 0
+            is_tech = False
+            for td in technical_distances:
+                if abs(dist - td) <= td * 0.015: # 1.5% tolerance
+                    is_tech = True
+                    break
+            if not is_tech:
+                remaining_laps.append(lap)
+        
+        # If all laps were technical -> Endurance
+        if not remaining_laps:
+            return True
+            
+        # If some laps remain, check their duration variance
+        # If variance is very low, it's likely still endurance with weird lap distances
+        durations = [l.get("total_timer_time") or l.get("duration") or 0 for l in laps]
+        durations = [d for d in durations if d > 0]
+        
+        if len(durations) > 1:
+            mean_dur = sum(durations) / len(durations)
+            std_dur = (sum((d - mean_dur) ** 2 for d in durations) / len(durations)) ** 0.5
+            cv = std_dur / mean_dur if mean_dur > 0 else 0
+            
+            if cv < 0.05: # 5% variance threshold
+                return True
+                
+        return False
 
     def is_competition(self, title: str, nolio_type: str, is_competition_nolio: bool = False) -> bool:
         """

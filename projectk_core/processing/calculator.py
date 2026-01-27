@@ -226,7 +226,8 @@ class MetricsCalculator:
             nolio_type or "", 
             sport_name=meta.activity_type or "",
             target_grid=target_grid, 
-            is_competition_nolio=is_competition_nolio
+            is_competition_nolio=is_competition_nolio,
+            laps=activity.laps
         )
 
         # 10. Interval Metrics (Requested by Karoly)

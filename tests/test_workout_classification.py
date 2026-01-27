@@ -10,8 +10,11 @@ class TestWorkoutClassifier(unittest.TestCase):
         self.classifier = ActivityClassifier()
 
     def test_classify_by_plan_success(self):
-        """Should classify as 'intervals' if a valid target grid is provided."""
-        target_grid = [{"type": "active", "duration": 30}]
+        """Should classify as 'intervals' if multiple work blocks are provided."""
+        target_grid = [
+            {"type": "active", "duration": 30},
+            {"type": "active", "duration": 30}
+        ]
         # We'll need to update ActivityClassifier to accept target_grid or similar
         res = self.classifier.detect_work_type(pd.DataFrame(), "Normal Title", "Training", target_grid=target_grid)
         self.assertEqual(res, "intervals")
