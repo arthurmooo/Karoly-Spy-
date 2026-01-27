@@ -124,4 +124,7 @@ This file tracks the master plan, strictly aligned with the contract phases.
 *Archived in conductor/archive/shift_logic_stabilization_20260127/*
     - **Status:** 🟢 Completed & Validated. Implemented "Distance Matching" (±5% tolerance) and "Smart Aggregation" (Lap Merging) to prioritize Laps over Signal when distance targets are met. Fixed specific bug with Louis Richard's 7x2km session.
 
+---
 
+- [x] **Track: Fix average power calculation for short neuromuscular sprints (<15s)**
+*Link: [./tracks/sprint_power_fix_20260127/](./tracks/sprint_power_fix_20260127/)*
