@@ -132,5 +132,5 @@ This file tracks the master plan, strictly aligned with the contract phases.
 ---
 
 - [x] **Track: Fix Classification Over-Sensitivity (Auto-Laps)**
-*Link: [./tracks/fix_classification_20260127/](./tracks/fix_classification_20260127/)*
+*Archived in [./archive/fix_classification_20260127/](./archive/fix_classification_20260127/)*
     - **Status:** 🟢 Completed & Validated. Implemented Strategy A (Strict Plan Priority) and Strategy B (Intelligent Lap Filtering for 1km/5km laps). Reprocessed target sessions in production.

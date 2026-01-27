@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_classification_20260127",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-27T10:00:00Z",
+  "updated_at": "2026-01-27T10:00:00Z",
+  "description": "Corriger la mauvaise classification (Intervalles vs Endurance) de 3 séances spécifiques (Matthieu, Ludovic) causée par les Auto-Laps ou un plan mal interprété."
+}
