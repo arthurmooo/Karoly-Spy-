@@ -187,9 +187,9 @@ class IntervalMatcher:
         pause_mask = self._detect_pauses(signal, sport)
         
         # 5. Filter LAPs to keep all potentially useful laps
-        # ROBUSTNESS: We only exclude very short artifacts (<10s) or confirmed recovery 
+        # ROBUSTNESS: We only exclude very short artifacts (<5s) or confirmed recovery 
         # ONLY IF the plan target is clearly 'active'.
-        work_laps = [l for l in processed_laps if l.get('duration', 0) >= 10]
+        work_laps = [l for l in processed_laps if l.get('duration', 0) >= 5]
         
         # 6. Simple sequential matching: consume LAPs in order, fallback to signal
         detected_intervals = []
@@ -211,8 +211,13 @@ class IntervalMatcher:
             # Try to find a matching LAP
             matched_lap = None
             matched_idx = None
+            
             # Look ahead slightly more for LAPs (skip up to 5)
-            search_limit = min(lap_idx + 6, len(work_laps))
+            # FIX: If we haven't matched anything yet (lap_idx=0), look deeper (e.g. 20 laps)
+            # to handle long warmups split into multiple manual laps.
+            lookahead = 20 if lap_idx == 0 else 6
+            
+            search_limit = min(lap_idx + lookahead, len(work_laps))
             
             for i in range(lap_idx, search_limit):
                 lap = work_laps[i]
@@ -301,14 +306,18 @@ class IntervalMatcher:
         cumulative_offset = 0
         
         for lap in laps:
-            duration = lap.get('total_elapsed_time', 0)
+            # Use timer_time (active) if available, else elapsed
+            duration = lap.get('total_timer_time', lap.get('total_elapsed_time', 0))
             if duration <= 0:
                 continue
             
+            # Round to nearest second to avoid 9.99s -> 9s truncation issues
+            duration_int = int(round(duration))
+            
             processed.append({
                 'start_offset': cumulative_offset,
-                'end_offset': cumulative_offset + int(duration),
-                'duration': int(duration),
+                'end_offset': cumulative_offset + duration_int,
+                'duration': duration_int,
                 'avg_power': lap.get('avg_power', 0),
                 'avg_speed': lap.get('enhanced_avg_speed') or lap.get('avg_speed', 0),
                 'avg_hr': lap.get('avg_heart_rate', 0),
@@ -317,7 +326,7 @@ class IntervalMatcher:
                 'raw': lap
             })
             
-            cumulative_offset += int(duration)
+            cumulative_offset += duration_int
         
         return processed
     
