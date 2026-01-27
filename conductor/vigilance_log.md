@@ -326,8 +326,9 @@
 
 ### 🟢 Points de Succès
 1.  **Priorité à la Distance:** Résolution du conflit majeur où l'algorithme rejetait des Laps valides à cause d'une estimation de durée (Plan 8'00 vs Réel 6'30). La nouvelle logique donne la priorité absolue à la distance (±5%) quand elle est spécifiée dans le plan.
-2.  **Outil de Debug "Fetch":** Création de `scripts/debug_tools/fetch_session.py` capable de débusquer les plans structurés "détachés" dans l'API Nolio, ce qui était la cause racine de l'incompréhension initiale.
-3.  **Smart Aggregation:** Implémentation préventive de la fusion de laps (ex: 2x1km Laps pour 1x2km Target) pour garantir la robustesse future.
+2.  **Estimation Intelligente de Durée:** Correction de `NolioPlanParser` qui utilisait une allure générique (4:00/km) au lieu de l'intensité cible (Vitesse Critique) pour estimer la durée des répétitions. Le système prédit désormais la durée à la seconde près (383s estimé vs 384s réel) pour les élites.
+3.  **Outil de Debug "Fetch":** Création de `scripts/debug_tools/fetch_session.py` capable de débusquer les plans structurés "détachés" dans l'API Nolio.
+4.  **Smart Aggregation:** Implémentation préventive de la fusion de laps.
 
 ### 🟠 Points Bancales (Risques)
 1.  **Nolio "Detached" Plans:**

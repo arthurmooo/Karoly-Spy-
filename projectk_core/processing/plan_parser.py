@@ -59,29 +59,8 @@ class NolioPlanParser:
 
     def _extract_interval_data(self, step: Dict[str, Any]) -> Dict[str, Any]:
         """Extracts standardized data from a step."""
-        # Duration
-        duration = 0
-        dur_type = step.get("step_duration_type", "duration")
         
-        if dur_type == "duration":
-            duration = float(step.get("step_duration_value", 0))
-        elif dur_type == "distance":
-            # Estimate duration based on sport default pace
-            distance_m = float(step.get("step_duration_value", 0))
-            factor = 0.24 # Default Run (4:00/km)
-            
-            # Refine factor based on sport or step name
-            step_name = step.get("name", "").lower()
-            s_type = getattr(self, 'sport_type', 'run')
-            
-            if any(kw in step_name for kw in ["natation", "swimming", "swim"]) or "swim" in s_type:
-                factor = 0.9 # 1:30/100m
-            elif any(kw in step_name for kw in ["vélo", "bike", "cyclisme"]) or "bike" in s_type:
-                factor = 0.12 # 30km/h
-            
-            duration = distance_m * factor
-            
-        # Target
+        # 1. Extract Target First (needed for Duration estimation)
         target_min = step.get("target_value_min")
         target_max = step.get("target_value_max")
         target_type = step.get("target_type") 
@@ -101,30 +80,124 @@ class NolioPlanParser:
             def convert_kmh_to_speed(val):
                 return val / 3.6
             
+            # Logic to disambiguate Pace (min/km) vs Speed (km/h)
+            # 1. Check magnitudes
             if t_min_val > 10.0:
+                # Likely km/h (e.g. 12 km/h)
                 target_min = convert_kmh_to_speed(t_min_val)
                 target_max = convert_kmh_to_speed(t_max_val) if t_max_val else None
             elif t_min_val < 2.0:
+                # Likely m/s (rare in UI but possible in backend) or weird pace
+                target_min = convert_pace_to_speed(t_min_val) # Treat as pace 1.5? Unlikely.
+                # Actually if < 2.0 it's likely already m/s if type was speed, but here type is pace.
+                # Nolio usually sends pace in float minutes (4.5 = 4:30).
+                # 4:30/km = 4.5.
+                # 0.5 min/km? Impossible.
+                # Let's assume standard Nolio Pace float (minutes).
                 target_min = convert_pace_to_speed(t_min_val)
                 target_max = convert_pace_to_speed(t_max_val) if t_max_val else None
-            elif is_realistic_speed(t_min_val):
-                pass
+            if t_min_val > 10.0:
+                # Likely km/h (e.g. 12 km/h)
+                target_min = convert_kmh_to_speed(t_min_val)
+                target_max = convert_kmh_to_speed(t_max_val) if t_max_val else None
+            elif t_min_val < 2.0:
+                # Likely m/s (rare in UI but possible in backend) or weird pace
+                target_min = convert_pace_to_speed(t_min_val)
+                target_max = convert_pace_to_speed(t_max_val) if t_max_val else None
             else:
-                converted = convert_pace_to_speed(t_min_val)
-                if is_realistic_speed(converted):
-                    target_min = converted
+                # Ambiguous Range (2.0 - 10.0)
+                # Could be Pace (min/km) or Speed (m/s).
+                # Heuristic: Speed increases (Min < Max), Pace decreases (Min > Max in intensity, but Nolio sends numeric Min/Max)
+                # Actually Nolio sends numeric Min and Max.
+                # If Speed: [15 km/h, 20 km/h] -> [4.16 m/s, 5.55 m/s]. Min=4.16, Max=5.55.
+                # If Pace: [4:00/km, 3:00/km] -> [4.0 min, 3.0 min].
+                # Does Nolio send Min=3.0, Max=4.0? Or Min=4.0, Max=3.0?
+                # Usually APIs send Min numeric value as Min.
+                
+                # Let's verify with the specific case:
+                # JSON: min=4.84, max=5.58.
+                # User says: 17.39 km/h (4.83 m/s) - 20.11 km/h (5.58 m/s).
+                # So Min=4.84 is the Low Intensity (17kmh). Max=5.58 is High Intensity (20kmh).
+                # So Speed follows Min < Max.
+                
+                # If it were Pace: 4.84 min/km (12.4 km/h) to 5.58 min/km (10.7 km/h).
+                # So Min would be Higher Intensity? No, Min numeric (4.84) is Faster (Higher Intensity).
+                # Max numeric (5.58) is Slower (Lower Intensity).
+                # So for Pace, the "High Intensity Bound" is the LOWER numeric value.
+                
+                # BUT, usually Nolio steps have `step_percent_low` and `high`.
+                # If `target_value_min` corresponds to `percent_low` (91%), and `max` to `high` (105%).
+                # 91% -> 4.84. 105% -> 5.58.
+                # Higher % = Higher Value. This confirms it varies directly with Intensity.
+                # Speed varies directly with Intensity. Pace varies inversely.
+                # THEREFORE: If Min < Max, it MUST be Speed (or Power).
+                # If it were Pace, 91% would be a SLOWER pace (higher number) than 105%?
+                # Wait. 105% of Critical Speed is FASTER. 
+                # If expressed as Pace: 105% -> 3:00/km. 91% -> 3:30/km.
+                # So 105% (High Intensity) would have a LOWER numeric value.
+                
+                # Conclusion:
+                # If target_min (linked to low %) < target_max (linked to high %), it is SPEED.
+                # If target_min (linked to low %) > target_max (linked to high %), it is PACE.
+                
+                # However, we only have min/max values here, not strictly linked to % in this scope (unless we passed step).
+                # But Nolio names them "min" and "max".
+                # If t_min < t_max, and it's in realistic range, assume Speed (m/s) IF type is ambiguous.
+                
+                if t_max_val and t_min_val < t_max_val:
+                    # Min < Max -> Likely Speed (m/s)
+                    # But verify if converted Pace is also realistic?
+                    # 4.84 m/s is realistic.
+                    target_min = t_min_val
+                    target_max = t_max_val
+                    target_type = "speed" # Correct the type
+                else:
+                    # Min > Max (or only Min provided), assume Pace
+                    target_min = convert_pace_to_speed(t_min_val)
                     target_max = convert_pace_to_speed(t_max_val) if t_max_val else None
-            
-            target_type = "speed"
-            
+                    target_type = "speed"
+
+            # Ensure Min < Max (Speed is inverse of Pace)
             if target_min and target_max and float(target_min) > float(target_max):
                 target_min, target_max = target_max, target_min
+        
+        # 2. Extract Duration (using Target Speed if available)
+        duration = 0
+        dur_type = step.get("step_duration_type", "duration")
+        distance_m = 0
+        
+        if dur_type == "duration":
+            duration = float(step.get("step_duration_value", 0))
+        elif dur_type == "distance":
+            distance_m = float(step.get("step_duration_value", 0))
+            
+            # Smart Estimation using Target Speed
+            estimated_speed = 0
+            if target_type == "speed" and target_min:
+                t_min = float(target_min)
+                t_max = float(target_max) if target_max else t_min
+                estimated_speed = (t_min + t_max) / 2.0
+            
+            if estimated_speed > 0:
+                duration = distance_m / estimated_speed
+            else:
+                # Fallback to defaults
+                factor = 0.24 # Default Run (4:00/km)
+                step_name = step.get("name", "").lower()
+                s_type = getattr(self, 'sport_type', 'run')
+                
+                if any(kw in step_name for kw in ["natation", "swimming", "swim"]) or "swim" in s_type:
+                    factor = 0.9 # 1:30/100m
+                elif any(kw in step_name for kw in ["vélo", "bike", "cyclisme"]) or "bike" in s_type:
+                    factor = 0.12 # 30km/h
+                
+                duration = distance_m * factor
         
         return {
             "type": step.get("intensity_type", "active"),
             "name": step.get("name", ""),
             "duration": duration,
-            "distance_m": float(step.get("step_duration_value", 0)) if dur_type == "distance" else 0,
+            "distance_m": distance_m,
             "target_min": target_min,
             "target_max": target_max,
             "target_type": target_type
