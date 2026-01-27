@@ -44,6 +44,7 @@ class MatchConfig:
     """Configuration parameters for interval matching."""
     # LAP matching thresholds
     lap_duration_tolerance: float = 0.30     # ±30% duration tolerance
+    lap_distance_tolerance: float = 0.05     # ±5% distance tolerance
     lap_intensity_tolerance: float = 0.35    # ±35% power/speed tolerance
     lap_confidence_threshold: float = 0.70   # Min confidence to use LAP
     
@@ -216,7 +217,8 @@ class IntervalMatcher:
             for i in range(lap_idx, search_limit):
                 lap = work_laps[i]
                 confidence = self._calculate_lap_confidence(
-                    lap, target_min, duration_s, signal_col
+                    lap, target_min, duration_s, signal_col,
+                    target_distance=float(target.get('distance_m', 0))
                 )
                 if confidence >= self.config.lap_confidence_threshold:
                     matched_lap = {**lap, 'lap_index': i, 'confidence': confidence}
@@ -404,20 +406,46 @@ class IntervalMatcher:
             if lap['start_offset'] > search_end_time:
                 break
             
-            # Skip recovery LAPs when looking for work intervals
-            target_type = target.get('type', 'active')
-            if target_type in ['active', 'ramp_up'] and lap.get('intensity') == 'recovery':
-                continue
+            # --- SMART AGGREGATION: Try Merging Laps ---
+            # Try single lap, then merge 2, then merge 3
+            candidates = []
             
-            # Calculate confidence score
-            confidence = self._calculate_lap_confidence(
-                lap, target_min, duration_s, signal_col
-            )
+            # Candidate 1: Single Lap
+            candidates.append((lap, [i]))
             
-            if confidence > best_confidence:
-                best_confidence = confidence
-                best_match = {**lap, 'confidence': confidence, 'lap_index': i}
-                best_idx = i + 1
+            # Candidate 2: Merge with next lap (if available and unused)
+            if i + 1 < len(laps) and (i + 1) not in used_laps:
+                next_lap = laps[i+1]
+                # Only merge if contiguous (gap < 10s)
+                if next_lap['start_offset'] - lap['end_offset'] < 10:
+                    merged_2 = self._merge_laps([lap, next_lap])
+                    candidates.append((merged_2, [i, i+1]))
+                    
+                    # Candidate 3: Merge with next next lap
+                    if i + 2 < len(laps) and (i + 2) not in used_laps:
+                        next_next = laps[i+2]
+                        if next_next['start_offset'] - next_lap['end_offset'] < 10:
+                            merged_3 = self._merge_laps([lap, next_lap, next_next])
+                            candidates.append((merged_3, [i, i+1, i+2]))
+
+            # Evaluate candidates
+            for cand_lap, cand_indices in candidates:
+                # Skip recovery LAPs when looking for work intervals (check first lap intensity)
+                target_type = target.get('type', 'active')
+                if target_type in ['active', 'ramp_up'] and cand_lap.get('intensity') == 'recovery':
+                    continue
+                
+                # Calculate confidence score
+                confidence = self._calculate_lap_confidence(
+                    cand_lap, target_min, duration_s, signal_col,
+                    target_distance=float(target.get('distance_m', 0))
+                )
+                
+                if confidence > best_confidence:
+                    best_confidence = confidence
+                    # Store the merged lap and the index of the LAST used lap to advance pointer
+                    best_match = {**cand_lap, 'confidence': confidence, 'lap_index': cand_indices} 
+                    best_idx = cand_indices[-1] + 1
         
         print(f"DEBUG LAP MATCH: Target {target.get('duration')}s | Best Conf: {best_confidence:.2f}")
         
@@ -425,35 +453,85 @@ class IntervalMatcher:
             return best_match, best_idx
         
         return None, start_lap_idx
+
+    def _merge_laps(self, laps_to_merge: List[Dict]) -> Dict:
+        """Helper to merge multiple lap dicts into one."""
+        if not laps_to_merge: return {}
+        first = laps_to_merge[0]
+        last = laps_to_merge[-1]
+        
+        total_dur = sum(l['duration'] for l in laps_to_merge)
+        total_dist = sum(l.get('total_distance', 0) for l in laps_to_merge)
+        
+        # Weighted averages
+        w_pwr = sum(l.get('avg_power', 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+        w_spd = sum(l.get('avg_speed', 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+        w_hr = sum(l.get('avg_hr', 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+        
+        return {
+            'start_offset': first['start_offset'],
+            'end_offset': last['end_offset'],
+            'duration': total_dur,
+            'total_distance': total_dist,
+            'avg_power': w_pwr,
+            'avg_speed': w_spd,
+            'avg_hr': w_hr,
+            'intensity': first.get('intensity', 'unknown'), # Assume intent matches start
+            'raw': first['raw'] # Keep ref
+        }
     
     def _calculate_lap_confidence(
         self,
         lap: Dict[str, Any],
         target_min: float,
         target_duration: int,
-        signal_col: str
+        signal_col: str,
+        target_distance: float = 0
     ) -> float:
         """
         Calculate confidence score for LAP ↔ Target match.
         
         Score components:
-        - Duration match (50%): How close is LAP duration to target?
+        - Duration OR Distance match (50%): If distance target exists, prioritize it.
         - Intensity match (30%): How close is LAP power/speed to target?
         - Intensity type (20%): Is this a WORK lap?
         """
         cfg = self.config
         
-        target_duration = float(target_duration)
-        duration_ratio = lap['duration'] / target_duration if target_duration > 0 else 0
+        # --- DURATION / DISTANCE SCORE ---
+        # Priority to Distance if specified in target (e.g. 2000m)
+        duration_score = 0.0
         
-        # Duration Score with 10s absolute tolerance or Config tolerance
-        abs_diff = abs(lap['duration'] - target_duration)
-        if abs_diff <= 10:
-            duration_score = 1.0
-        elif 1 - cfg.lap_duration_tolerance <= duration_ratio <= 1 + cfg.lap_duration_tolerance:
-            duration_score = 1 - abs(1 - duration_ratio) / cfg.lap_duration_tolerance
-        else:
-            duration_score = 0
+        if target_distance > 0 and lap.get('total_distance', 0) > 0:
+            dist_ratio = lap['total_distance'] / target_distance
+            # Strict distance tolerance (e.g. ±5%)
+            if 1 - cfg.lap_distance_tolerance <= dist_ratio <= 1 + cfg.lap_distance_tolerance:
+                # Perfect distance match overrides duration mismatch
+                duration_score = 1.0 
+            else:
+                # If distance matches poorly, check duration (maybe GPS error but time was respected?)
+                # But usually if distance is target, duration is variable.
+                # We give a partial score if distance is close-ish
+                 duration_score = max(0, 1 - abs(1 - dist_ratio) / (cfg.lap_distance_tolerance * 2))
+        
+        # Fallback or Secondary check on Duration
+        # If distance score wasn't perfect (or not applicable), check duration
+        if duration_score < 0.9:
+            target_duration = float(target_duration)
+            if target_duration > 0:
+                duration_ratio = lap['duration'] / target_duration
+                
+                # Duration Score with 10s absolute tolerance or Config tolerance
+                abs_diff = abs(lap['duration'] - target_duration)
+                if abs_diff <= 10:
+                    dur_score_val = 1.0
+                elif 1 - cfg.lap_duration_tolerance <= duration_ratio <= 1 + cfg.lap_duration_tolerance:
+                    dur_score_val = 1 - abs(1 - duration_ratio) / cfg.lap_duration_tolerance
+                else:
+                    dur_score_val = 0
+                
+                # Take the best of Distance vs Duration score
+                duration_score = max(duration_score, dur_score_val)
         
         # Intensity score (0-1)
         # Try to use the same metric as target, fallback to power
