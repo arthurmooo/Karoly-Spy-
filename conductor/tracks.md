@@ -127,4 +127,4 @@ This file tracks the master plan, strictly aligned with the contract phases.
 ---
 
 - [x] **Track: Fix average power calculation for short neuromuscular sprints (<15s)**
-*Link: [./tracks/sprint_power_fix_20260127/](./tracks/sprint_power_fix_20260127/)*
+*Archived in conductor/archive/sprint_power_fix_20260127/*
