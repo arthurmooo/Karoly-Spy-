@@ -1,0 +1,8 @@
+{
+  "track_id": "sprint_power_fix_20260127",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-27T10:00:00Z",
+  "updated_at": "2026-01-27T10:00:00Z",
+  "description": "Fix average power calculation for short neuromuscular sprints (<15s) by ensuring strict lap adherence and verifying 1Hz sampling integrity."
+}
