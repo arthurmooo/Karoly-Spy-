@@ -1,0 +1,8 @@
+{
+  "track_id": "shift_logic_stabilization_20260127",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-27T14:30:00Z",
+  "updated_at": "2026-01-27T14:30:00Z",
+  "description": "Optimisation de la bascule (Shift) Lap vs Signal pour corriger l'instabilité de détection sur les séances structurées (cas Louis Richard)."
+}
