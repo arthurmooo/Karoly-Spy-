@@ -173,7 +173,8 @@ class FitParser:
                             lap_row = {}
                             for field in frame.fields:
                                 # We only care about a few fields for interval analysis
-                                if field.name in ['start_time', 'total_elapsed_time', 'total_timer_time', 'avg_heart_rate', 'avg_power', 'total_distance', 'avg_speed', 'enhanced_avg_speed']:
+                                # Added 'timestamp' (End Time) to help with sync issues
+                                if field.name in ['start_time', 'timestamp', 'total_elapsed_time', 'total_timer_time', 'avg_heart_rate', 'avg_power', 'total_distance', 'avg_speed', 'enhanced_avg_speed']:
                                     lap_row[field.name] = field.value
                             
                             # Fallback for speed if missing or None but dist/dur present
