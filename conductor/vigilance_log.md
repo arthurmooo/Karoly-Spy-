@@ -317,3 +317,22 @@
 ### 🔭 Watchlist
 - **Exploitation (Strategy C) :** Surveiller les cas où les Laps de Nolio (`source_json -> 'laps'`) sont plus précis que notre détection algorithmique, pour basculer sur une classification "User-Driven".
 - **Structure JSON variable :** Nolio pourrait modifier la structure de son JSON sans préavis, ce qui rendrait l'extraction de certains sous-champs instable (mais le stockage brut reste garanti).
+
+---
+
+## [Track: Shift Logic Stabilization (Lap vs Signal)]
+**Date:** 27 Janvier 2026
+**Statut:** ✅ Terminé & Validé (Louis Richard 7x2km)
+
+### 🟢 Points de Succès
+1.  **Priorité à la Distance:** Résolution du conflit majeur où l'algorithme rejetait des Laps valides à cause d'une estimation de durée (Plan 8'00 vs Réel 6'30). La nouvelle logique donne la priorité absolue à la distance (±5%) quand elle est spécifiée dans le plan.
+2.  **Outil de Debug "Fetch":** Création de `scripts/debug_tools/fetch_session.py` capable de débusquer les plans structurés "détachés" dans l'API Nolio, ce qui était la cause racine de l'incompréhension initiale.
+3.  **Smart Aggregation:** Implémentation préventive de la fusion de laps (ex: 2x1km Laps pour 1x2km Target) pour garantir la robustesse future.
+
+### 🟠 Points Bancales (Risques)
+1.  **Nolio "Detached" Plans:**
+    *   *Risque:* Si Nolio change la façon de lier les plans (via `planned_id` ou autre), `TextPlanParser` reprendra le relais et réintroduira l'erreur d'estimation de durée pour les athlètes rapides.
+    *   *Action:* Monitorer les logs pour détecter les fallbacks trop fréquents sur `TextPlanParser`.
+
+### 🔭 Watchlist
+- **Précision GPS:** La "Distance Matching" repose sur la précision du fichier FIT. Si le GPS décroche (tunnel, forêt dense), la distance du Lap pourrait être hors tolérance (5%) et rejeter le Lap. À surveiller sur les trails.
