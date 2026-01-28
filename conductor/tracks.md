@@ -137,5 +137,10 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
+- [x] **Track: Audit holistique de parité des métriques (Logic vs Nolio)**
+*Link: [./tracks/audit_parity_20260128/](./tracks/audit_parity_20260128/)*
+
+---
+
 # 🧠 PHASE 2 : Analyse & Reporting (LOCKED)
 
