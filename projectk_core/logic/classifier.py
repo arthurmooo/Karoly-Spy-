@@ -18,6 +18,7 @@ class ActivityClassifier:
         r"\d+\s*[*x]\s*\d+", r"vma", r"seuil", r"bloc", r"fractionné", r"sprint",
         r"\d+([-]\d+)?\s*%", r"\d+\s*[*x]\s*\(", r"\b30[-/]30\b", r"test\s+\d+",
         r"\d+'/\d+''", r"\d+''/\d+''", r"piste", r"\bhit\b",
+        r"\d+\s*-\s*\d+", # 5-6 or 5 - 6
         r"\d+\s*-\s*\d+\s*-\s*r\s*-\s*\d+", # 6-4-r-2
         r"\d+'\s*-\s*\d+'", # 1'-1'
         r"\btempo\b", r"\bz[345]\b", r"\blt[12]\b", r"allure\s+course", r"travail\s+spé"
