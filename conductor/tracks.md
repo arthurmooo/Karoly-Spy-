@@ -137,5 +137,5 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 ---
 
-- [x] **Track: Correction chirurgicale de la classification (Intervalle vs Endurance)**
-*Link: [./tracks/classification_patch_20260128/](./tracks/classification_patch_20260128/)*
+# 🧠 PHASE 2 : Analyse & Reporting (LOCKED)
+
