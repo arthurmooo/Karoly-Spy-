@@ -302,38 +302,65 @@ class MetricsCalculator:
                 valid_h = [d['avg_hr'] for d in perf_detections if d['avg_hr'] is not None]
                 valid_r = [d['respect_score'] for d in perf_detections if d['respect_score'] is not None]
                 
-                # ========== FIX: Populate aggregate metrics from SURGICAL detections ==========
-                # Calculate averages
-                if valid_p:
-                    avg_intervals_power = sum(valid_p) / len(valid_p)
-                if valid_h:
-                    avg_intervals_hr = sum(valid_h) / len(valid_h)
-                if valid_s:
-                    avg_speed = sum(valid_s) / len(valid_s)
-                    avg_intervals_pace = 1000.0 / avg_speed / 60.0 if avg_speed > 0 else None
-                if valid_r:
-                    global_respect_score = sum(valid_r) / len(valid_r)
+                # ========== STRICT VALIDATION FOR KAROLY (2026-01-28) ==========
+                # Rule: Only populate aggregate metrics if 100% of planned work intervals 
+                # were matched AND all came from the LAP source.
                 
-                # Get last interval values
-                if perf_detections:
-                    last_det = perf_detections[-1]
-                    last_interval_power = last_det.get('avg_power') or 0.0
-                    last_interval_hr = last_det.get('avg_hr') or 0.0
-                    last_speed = last_det.get('avg_speed')
-                    if last_speed and last_speed > 0:
-                        last_interval_pace = 1000.0 / last_speed / 60.0
+                num_planned = len(target_grid)
+                num_matched = len(detections)
+                all_laps = all(d.get('source') == 'lap' for d in detections)
                 
-                # Calculate efficiency (Pa:HR or Speed:HR) for SURGICAL mode
-                efficiencies = []
-                for d in perf_detections:
-                    val = d.get('avg_power') if sport == 'bike' else d.get('avg_speed')
-                    hr = d.get('avg_hr')
-                    if val is not None and hr is not None and hr > 0:
-                        efficiencies.append(val / hr)
+                is_perfect_match = (num_matched >= num_planned) and all_laps
                 
-                if efficiencies:
-                    interval_pahr_mean = sum(efficiencies) / len(efficiencies)
-                    interval_pahr_last = efficiencies[-1]
+                if is_perfect_match:
+                    # Calculate averages
+                    if valid_p:
+                        avg_intervals_power = sum(valid_p) / len(valid_p)
+                    if valid_h:
+                        avg_intervals_hr = sum(valid_h) / len(valid_h)
+                    if valid_s:
+                        avg_speed = sum(valid_s) / len(valid_s)
+                        avg_intervals_pace = 1000.0 / avg_speed / 60.0 if avg_speed > 0 else None
+                    if valid_r:
+                        global_respect_score = sum(valid_r) / len(valid_r)
+                    
+                    # Get last interval values
+                    if perf_detections:
+                        last_det = perf_detections[-1]
+                        last_interval_power = last_det.get('avg_power') or 0.0
+                        last_interval_hr = last_det.get('avg_hr') or 0.0
+                        last_speed = last_det.get('avg_speed')
+                        if last_speed and last_speed > 0:
+                            last_interval_pace = 1000.0 / last_speed / 60.0
+                    
+                    # Calculate efficiency (Pa:HR or Speed:HR)
+                    efficiencies = []
+                    for d in perf_detections:
+                        val = d.get('avg_power') if sport == 'bike' else d.get('avg_speed')
+                        hr = d.get('avg_hr')
+                        if val is not None and hr is not None and hr > 0:
+                            efficiencies.append(val / hr)
+                    
+                    if efficiencies:
+                        interval_pahr_mean = sum(efficiencies) / len(efficiencies)
+                        interval_pahr_last = efficiencies[-1]
+                else:
+                    # NOT A PERFECT LAP MATCH: We keep the individual detected blocks 
+                    # for the detailed view, but we leave the summary metrics at NULL
+                    # so that Karoly can fill them manually if he chooses.
+                    avg_intervals_power = None
+                    avg_intervals_hr = None
+                    avg_intervals_pace = None
+                    last_interval_power = None
+                    last_interval_hr = None
+                    last_interval_pace = None
+                    interval_pahr_mean = None
+                    interval_pahr_last = None
+                    global_respect_score = None
+                    
+                    # Log the reason for NULL metrics
+                    reason = "Partial match" if num_matched < num_planned else "Mixed sources (SIGNAL used)"
+                    print(f"      ⚠️  Interval metrics set to NULL: {reason} ({num_matched}/{num_planned} matched)")
                 # ================================================================================
                 
         else:
