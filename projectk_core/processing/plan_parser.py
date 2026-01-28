@@ -54,35 +54,32 @@ class NolioPlanParser:
     def _is_work_step(self, step: Dict[str, Any]) -> bool:
         """Determines if a step is a 'Work' interval."""
         intensity = step.get("intensity_type", "").lower()
+        name = step.get("name", "").lower()
+        pct_low = step.get("step_percent_low", 0)
         
-        # Explicit work types
-        if intensity in ["active", "ramp_up"]:
-            return True
-            
-        # Explicit recovery types
+        # 1. Explicit recovery types
         if intensity in ["recovery", "cooldown", "warmup"]:
             return False
             
-        # If missing, use heuristic: high intensity % usually means work
-        # Nolio uses step_percent_low/high
-        pct_low = step.get("step_percent_low", 0)
-        if pct_low and int(pct_low) >= 80:
+        # 2. Explicit work types
+        if intensity in ["active", "ramp_up"]:
             return True
             
-        # Fallback: if it's a leaf step with a duration but no type, 
-        # check if it's not explicitly named 'repos' or 'récupération'
-        name = step.get("name", "").lower()
-        if not intensity and any(kw in name for kw in ["échauffement", "récup", "repos", "calme"]):
+        # 3. Heuristic based on Intensity Percentage (Primary fallback)
+        if pct_low:
+            # If percentage is low (< 80%), it's definitely recovery/transition
+            if int(pct_low) < 80:
+                return False
+            # High intensity percentage -> Work
+            if int(pct_low) >= 80:
+                return True
+            
+        # 4. Heuristic based on Name (Secondary fallback)
+        if any(kw in name for kw in ["échauffement", "récup", "repos", "calme", "wu", "cd", "cooldown"]):
             return False
             
-        # Default to TRUE if missing, unless name indicates otherwise
-        # (Nolio often leaves intensity_type empty for work steps)
-        if not intensity:
-            if any(kw in name for kw in ["échauffement", "récup", "repos", "calme", "wu", "cd", "cooldown"]):
-                return False
-            return True
-            
-        return False
+        # Default: if no info, treat as work ONLY if it's not explicitly labeled as rest
+        return intensity == ""
 
     def _extract_interval_data(self, step: Dict[str, Any]) -> Dict[str, Any]:
         """Extracts standardized data from a step."""
