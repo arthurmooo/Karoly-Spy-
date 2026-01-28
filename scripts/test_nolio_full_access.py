@@ -26,13 +26,13 @@ def find_intervals_and_test(nolio_id):
             print(f"Keys in activity: {activities[0].keys()}")
         print(f"Found {len(activities)} activities:")
         for act in activities:
-            print(f" - {act.get('name')} (ID: {act.get('id')})")
+            print(f" - {act.get('name')} (ID: {act.get('nolio_id')})")
         
         for act in activities:
             name = act.get('name', '').lower()
             # On cherche des mots clés typiques d'intervalles
-            if any(k in name for k in ['vma', 'seuil', 'x', 'bloc', 'fractionné']):
-                print(f"🎯 Found potential interval session: {act.get('name')} (ID: {act.get('id')})")
+            if any(k in name for k in ['vma', 'seuil', 'x', 'bloc', 'fractionné', 'hit']):
+                print(f"🎯 Found potential interval session: {act.get('name')} (ID: {act.get('nolio_id')})")
                 print(f"   - Planned ID: {act.get('planned_id')}")
                 print(f"   - Has structure field: {act.get('structure') is not None}")
                 
@@ -51,5 +51,6 @@ def find_intervals_and_test(nolio_id):
         print(f"❌ Failed to fetch activities: {res.status_code}")
 
 if __name__ == "__main__":
-    # Test with Dries Matthys (ID: 138748)
-    find_intervals_and_test(138748)
+    import sys
+    a_id = int(sys.argv[1]) if len(sys.argv) > 1 else 138748
+    find_intervals_and_test(a_id)

@@ -640,17 +640,17 @@ class IntervalMatcher:
 
         end_idx = start_idx + duration
         
-        # --- OPTIMIZATION FOR LAG CORRECTION ---
-        # Device Laps often have 1-2s lag vs Stream Data.
-        # We search nearby (-1s to +4s) for the window with MAX intensity.
-        # This ensures we match the "User Manual" precision.
-        optimized_start, optimized_end = self._optimize_window(
-            df, signal_col, start_idx, duration, search_range=(-1, 4)
-        )
+        # --- SURGICAL PRECISION FOR LAPS (2026-01-28) ---
+        # When an athlete uses LAPs, we must respect their exact boundaries.
+        # We bypass _optimize_window and _calculate_plateau_metrics (trimming)
+        # to ensure the data matches Nolio/Garmin at the second level.
         
-        # Calculate metrics using the OPTIMIZED window
+        final_start = start_idx
+        final_end = end_idx
+        
+        # Calculate metrics using the RAW window (NO TRIMMING)
         plateau_metrics = self._calculate_plateau_metrics(
-            df, signal_col, optimized_start, optimized_end, duration
+            df, signal_col, final_start, final_end, duration, trim=False
         )
         
         # Use recalculated metrics from stream (more precise than Lap average)
@@ -674,9 +674,9 @@ class IntervalMatcher:
             "confidence": lap_match['confidence'],
             "lap_index": lap_match['lap_index'],
             "target_index": target_idx,
-            "start_index": optimized_start,
-            "end_index": optimized_end,
-            "duration_sec": optimized_end - optimized_start,
+            "start_index": final_start,
+            "end_index": final_end,
+            "duration_sec": final_end - final_start,
             "expected_duration": int(target.get('duration', 0)),
             "avg_power": avg_power,
             "avg_speed": avg_speed,
@@ -1084,7 +1084,8 @@ class IntervalMatcher:
         signal_col: str,
         start_idx: int,
         end_idx: int,
-        expected_duration: int
+        expected_duration: int,
+        trim: bool = True
     ) -> Dict[str, Any]:
         """Calculate metrics with plateau-focused averages."""
         cfg = self.config
@@ -1098,27 +1099,35 @@ class IntervalMatcher:
         metrics = {}
         for col in ['power', 'speed', 'heart_rate']:
             if col in df.columns:
-                val = interval_df[col].mean()
-                metrics[f'avg_{col}'] = float(val) if not pd.isna(val) else None
+                series = interval_df[col]
+                val = series.mean()
+                
+                key = f'avg_{col}' if col != 'heart_rate' else 'avg_hr'
+                metrics[key] = float(val) if not pd.isna(val) else None
         
-        # Plateau averages (trimmed)
-        actual_duration = end_idx - start_idx
-        trim_start = min(cfg.plateau_trim_start, actual_duration // 4)
-        trim_end = min(cfg.plateau_trim_end, actual_duration // 4)
-        
-        plateau_start = start_idx + trim_start
-        plateau_end = end_idx - trim_end
-        
-        if plateau_end > plateau_start:
-            plateau_df = df.iloc[plateau_start:plateau_end]
-            for col in ['power', 'speed']:
-                if col in df.columns:
-                    val = plateau_df[col].mean()
-                    metrics[f'plateau_avg_{col}'] = float(val) if not pd.isna(val) else None
+        # Plateau averages (trimmed) - Only if requested
+        if trim:
+            actual_duration = end_idx - start_idx
+            trim_start = min(cfg.plateau_trim_start, actual_duration // 4)
+            trim_end = min(cfg.plateau_trim_end, actual_duration // 4)
             
-            if 'heart_rate' in df.columns:
-                val = plateau_df['heart_rate'].mean()
-                metrics['avg_hr'] = float(val) if not pd.isna(val) else None
+            plateau_start = start_idx + trim_start
+            plateau_end = end_idx - trim_end
+            
+            if plateau_end > plateau_start:
+                plateau_df = df.iloc[plateau_start:plateau_end]
+                for col in ['power', 'speed', 'heart_rate']:
+                    if col in df.columns:
+                        series = plateau_df[col]
+                        val = series.mean()
+                        
+                        key = f'plateau_avg_{col}' if col != 'heart_rate' else 'avg_hr'
+                        metrics[key] = float(val) if not pd.isna(val) else None
+        else:
+            # If not trimming, plateau metrics are the same as global ones
+            metrics['plateau_avg_power'] = metrics.get('avg_power')
+            metrics['plateau_avg_speed'] = metrics.get('avg_speed')
+            # HR is already calculated above without trimming in the first loop
         
         return metrics
     

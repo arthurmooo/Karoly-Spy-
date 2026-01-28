@@ -1,6 +1,7 @@
 
 import os
 import sys
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,10 +21,17 @@ def debug_nolio_activity(nolio_id, athlete_id=None):
         print(f"  elevation_gain: {activity.get('elevation_gain')}")
         print(f"  file_url: {activity.get('file_url')}")
         print(f"  All keys: {list(activity.keys())}")
-        print("\n--- HR Related Fields ---")
-        for k, v in activity.items():
-            if 'hr' in k.lower() or 'heart' in k.lower():
-                print(f"  {k}: {v}")
+        if 'laps' in activity:
+            print(f"✅ Found 'laps' ({len(activity['laps'])})")
+        if 'segments' in activity:
+            print(f"✅ Found 'segments' ({len(activity['segments'])})")
+        if 'structure' in activity:
+            print(f"✅ Found 'structure'")
+        
+        # Save full JSON for inspection
+        with open('activity_debug.json', 'w') as f:
+            json.dump(activity, f, indent=2)
+        print("📝 Full JSON saved to activity_debug.json")
     else:
         print(f"Activity {nolio_id} (Athlete {athlete_id}) not found.")
 
