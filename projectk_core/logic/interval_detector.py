@@ -74,8 +74,9 @@ class IntervalDetector:
                 # print(f"DEBUG Results Type: {type(results)}")
                 # if isinstance(results, list) and results:
                 #      print(f"DEBUG First Result Type: {type(results[0])}")
-                
-                return IntervalDetector._adapt_output(results)
+
+                # Pass target_grid to compute session completion status
+                return IntervalDetector._adapt_output(results, target_grid=target_grid)
             except AttributeError as e:
                 # Catch the specific 'list object has no attribute get' to identify source
                 if "get" in str(e):
@@ -195,53 +196,100 @@ class IntervalDetector:
         }
 
     @staticmethod
-    def _adapt_output(matched_intervals: List[Dict]) -> Dict:
+    def _adapt_output(matched_intervals: List[Dict], target_grid: List[Dict] = None) -> Dict:
+        """
+        Adapts IntervalMatcher output to the standard interval metrics format.
+
+        Includes:
+        - Power/HR mean and last interval
+        - Speed/Pace mean and last interval (new)
+        - Session completion status (new)
+        """
         if not matched_intervals:
             return {}
-            
+
         blocks = []
         sum_p = 0
         sum_hr = 0
+        sum_speed = 0
         count_p = 0
         count_hr = 0
-        
+        count_speed = 0
+
         for m in matched_intervals:
             if m['status'] != 'matched':
                 continue
-                
+
             p = m.get('plateau_avg_power') or m.get('avg_power') or 0
             hr = m.get('avg_hr') or 0
-            
+            speed = m.get('avg_speed') or 0
+
             blocks.append({
                 "index": m['start_index'],
                 "duration_sec": m['duration_sec'],
-                "avg_power": round(float(p), 1),
-                "avg_hr": round(float(hr), 1),
+                "avg_power": round(float(p), 1) if p else None,
+                "avg_hr": round(float(hr), 1) if hr else None,
+                "avg_speed": round(float(speed), 3) if speed else None,
                 "timestamp": str(m.get('start_index')),
                 "source": m.get('source')
             })
-            
-            if p > 0: 
+
+            if p and p > 0:
                 sum_p += p
                 count_p += 1
-            if hr > 0:
+            if hr and hr > 0:
                 sum_hr += hr
                 count_hr += 1
-            
+            if speed and speed > 0:
+                sum_speed += speed
+                count_speed += 1
+
         if not blocks:
             return {}
-            
+
         avg_p = sum_p / count_p if count_p > 0 else 0
         avg_hr = sum_hr / count_hr if count_hr > 0 else 0
-        
-        return {
-            "interval_power_mean": round(avg_p, 1),
-            "interval_hr_mean": round(avg_hr, 1),
-            "interval_power_last": round(blocks[-1]['avg_power'], 1),
-            "interval_hr_last": round(blocks[-1]['avg_hr'], 1),
+        avg_speed = sum_speed / count_speed if count_speed > 0 else 0
+
+        # Last interval metrics
+        last_block = blocks[-1]
+        last_speed = last_block.get('avg_speed') or 0
+
+        # Convert speed to pace string (min'sec''/km)
+        last_pace = None
+        avg_pace = None
+        if last_speed and last_speed > 0:
+            pace_sec = 1000 / last_speed
+            last_pace = f"{int(pace_sec // 60)}'{int(pace_sec % 60):02d}''"
+        if avg_speed and avg_speed > 0:
+            pace_sec = 1000 / avg_speed
+            avg_pace = f"{int(pace_sec // 60)}'{int(pace_sec % 60):02d}''"
+
+        result = {
+            "interval_power_mean": round(avg_p, 1) if avg_p else None,
+            "interval_hr_mean": round(avg_hr, 1) if avg_hr else None,
+            "interval_speed_mean": round(avg_speed, 3) if avg_speed else None,
+            "interval_pace_mean": avg_pace,
+            "interval_power_last": round(last_block['avg_power'], 1) if last_block.get('avg_power') else None,
+            "interval_hr_last": round(last_block['avg_hr'], 1) if last_block.get('avg_hr') else None,
+            "interval_speed_last": round(last_speed, 3) if last_speed else None,
+            "interval_pace_last": last_pace,
+            "interval_count": len(blocks),
             "blocks": blocks,
             "detailed_matches": matched_intervals
         }
+
+        # Session completion status
+        if target_grid:
+            expected_count = len(target_grid)
+            matched_count = len(blocks)
+            completion_ratio = matched_count / expected_count if expected_count > 0 else 1.0
+            result["session_complete"] = completion_ratio >= 0.95
+            result["session_completion_ratio"] = round(completion_ratio, 3)
+            result["session_expected_intervals"] = expected_count
+            result["session_matched_intervals"] = matched_count
+
+        return result
 
     @staticmethod
     def _merge_intervals(candidates: List[Tuple], base_duration: int, df: pd.DataFrame, signal_col: str, gap_tolerance: int = 60) -> List[Tuple[int, int, float]]:

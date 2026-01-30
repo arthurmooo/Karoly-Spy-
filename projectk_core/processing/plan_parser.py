@@ -7,13 +7,26 @@ class NolioPlanParser:
     Handles nested repetitions and complex wave structures.
     """
 
-    def parse(self, structure: Union[Dict[str, Any], List[Any]], sport_type: str = "run") -> List[Dict[str, Any]]:
+    def parse(
+        self,
+        structure: Union[Dict[str, Any], List[Any]],
+        sport_type: str = "run",
+        merge_adjacent_work: bool = False
+    ) -> List[Dict[str, Any]]:
         """
         Main entry point. Flattens the structure into a list of active intervals.
+
+        Args:
+            structure: Nolio workout JSON structure
+            sport_type: Type of sport ('run', 'bike', 'swim')
+            merge_adjacent_work: If True, fuse consecutive work blocks (Z3+Z2)
+                                without rest between them into single intervals.
+                                This is for the Karoly system where Z2 (70-80%)
+                                is considered intense work.
         """
         self.sport_type = sport_type.lower()
         steps = []
-        
+
         # Normalize input to a list of steps/blocks
         if isinstance(structure, dict):
             # If the dict IS a block (has 'type'), treat it as an item.
@@ -25,7 +38,7 @@ class NolioPlanParser:
 
         # Recursively flatten
         self._flatten(items, steps)
-        
+
         # Filter for work intervals
         target_grid = []
         for step in steps:
@@ -33,8 +46,133 @@ class NolioPlanParser:
                 interval = self._extract_interval_data(step)
                 if interval:
                     target_grid.append(interval)
-                    
+
+        # Optionally merge adjacent work blocks
+        if merge_adjacent_work and len(target_grid) > 1:
+            target_grid = self._merge_adjacent_work_blocks(target_grid)
+
         return target_grid
+
+    def _merge_adjacent_work_blocks(self, intervals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Merge consecutive work intervals that are adjacent (no rest between them).
+
+        This handles cases like 5×(1'30" Z3 + 3'30" Z2) where Z3 and Z2 are both
+        considered "work" in the Karoly system. The result is 5 blocks of 5 minutes.
+
+        Logic:
+        - Intervals are considered adjacent if they appear back-to-back in the plan
+        - We detect adjacency by looking at repeating patterns (e.g., 90s + 210s)
+        - If we see alternating durations that sum to a consistent total, merge them
+        """
+        if len(intervals) < 2:
+            return intervals
+
+        merged = []
+        i = 0
+
+        while i < len(intervals):
+            current = intervals[i]
+
+            # Look ahead to see if next interval should be merged
+            if i + 1 < len(intervals):
+                next_interval = intervals[i + 1]
+
+                # Check if these two intervals form a mergeable pair
+                # Heuristic: If they have different durations and both are "active" type,
+                # they likely represent Z3+Z2 within a single repetition block
+                current_dur = current.get('duration', 0)
+                next_dur = next_interval.get('duration', 0)
+
+                # Detect pattern: should we merge?
+                # We merge if:
+                # 1. Both are "active" type (work intervals)
+                # 2. They have different durations (suggesting Z3 vs Z2)
+                # 3. The pattern repeats (i.e., same durations appear later)
+                should_merge = self._should_merge_pair(intervals, i)
+
+                if should_merge:
+                    # Merge current and next into one interval
+                    merged_interval = self._create_merged_interval(current, next_interval)
+                    merged.append(merged_interval)
+                    i += 2  # Skip both intervals
+                    continue
+
+            # No merge - keep as is
+            merged.append(current)
+            i += 1
+
+        return merged
+
+    def _should_merge_pair(self, intervals: List[Dict[str, Any]], idx: int) -> bool:
+        """
+        Determine if interval at idx should be merged with interval at idx+1.
+
+        We look for repeating patterns that suggest Z3+Z2 combinations:
+        - Pattern like [90, 210, 90, 210, 90, 210, ...] should merge pairs
+        - Pattern like [120, 120, 120, ...] should NOT merge (same duration = separate work blocks)
+        """
+        if idx + 1 >= len(intervals):
+            return False
+
+        current = intervals[idx]
+        next_int = intervals[idx + 1]
+
+        current_dur = current.get('duration', 0)
+        next_dur = next_int.get('duration', 0)
+
+        # Don't merge if durations are very similar (same type of work)
+        if current_dur > 0 and abs(current_dur - next_dur) / current_dur < 0.2:
+            return False
+
+        # Check if this pattern repeats
+        # Look for the same (current_dur, next_dur) pattern appearing later
+        pattern_count = 0
+        for j in range(0, len(intervals) - 1, 2):
+            if j == idx:
+                continue
+            other_cur = intervals[j].get('duration', 0)
+            other_next = intervals[j + 1].get('duration', 0) if j + 1 < len(intervals) else 0
+
+            # Same pattern with 10% tolerance
+            if (abs(other_cur - current_dur) / max(current_dur, 1) < 0.1 and
+                abs(other_next - next_dur) / max(next_dur, 1) < 0.1):
+                pattern_count += 1
+
+        # If pattern repeats at least once (plus the current), it's a merge pattern
+        # Total occurrences should be >= 2 (including current)
+        # For 5×(Z3+Z2), we'd have 5 pairs, so pattern_count would be 4 (excluding current)
+        return pattern_count >= 1
+
+    def _create_merged_interval(self, first: Dict[str, Any], second: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a single merged interval from two adjacent intervals."""
+        dur1 = first.get('duration', 0)
+        dur2 = second.get('duration', 0)
+        total_duration = dur1 + dur2
+
+        dist1 = first.get('distance_m', 0)
+        dist2 = second.get('distance_m', 0)
+        total_distance = dist1 + dist2
+
+        # Weighted average of targets (if both have targets)
+        target_min_1 = first.get('target_min') or 0
+        target_min_2 = second.get('target_min') or 0
+
+        if dur1 + dur2 > 0 and (target_min_1 or target_min_2):
+            weighted_target = (target_min_1 * dur1 + target_min_2 * dur2) / total_duration
+        else:
+            weighted_target = target_min_1 or target_min_2
+
+        return {
+            "type": first.get('type', 'active'),
+            "name": f"{first.get('name', '')} + {second.get('name', '')}".strip(' +'),
+            "duration": total_duration,
+            "distance_m": total_distance,
+            "target_min": weighted_target if weighted_target else None,
+            "target_max": None,  # Hard to combine
+            "target_type": first.get('target_type') or second.get('target_type'),
+            "merged_from": [first, second]  # Keep reference for debugging
+        }
 
     def _flatten(self, items: List[Any], result: List[Any]):
         """Recursively walks the structure to produce a linear list of steps."""
@@ -56,11 +194,21 @@ class NolioPlanParser:
         intensity = step.get("intensity_type", "").lower()
         name = step.get("name", "").lower()
         pct_low = step.get("step_percent_low", 0)
-        
+        target_type = step.get("target_type", "").lower()
+        duration = step.get("step_duration_value", 0)
+
+        # 0. Filter out RPE-only entries (no actual workout step)
+        if target_type == "rpe":
+            return False
+
+        # 0b. Filter out zero-duration steps (metadata, not actual intervals)
+        if duration == 0:
+            return False
+
         # 1. Explicit recovery types
         if intensity in ["recovery", "cooldown", "warmup"]:
             return False
-            
+
         # 2. Explicit work types
         if intensity in ["active", "ramp_up"]:
             return True

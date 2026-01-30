@@ -130,7 +130,12 @@ class ReprocessingEngine:
                                  plan = self.text_plan_parser.parse(planned_title)
                     
                     if structure_source:
-                        plan = self.nolio_plan_parser.parse(structure_source, sport_type=sport)
+                        # merge_adjacent_work=True fusionne les blocs Z3+Z2 adjacents (système Karoly)
+                        plan = self.nolio_plan_parser.parse(
+                            structure_source,
+                            sport_type=sport,
+                            merge_adjacent_work=True
+                        )
                         print(f"      [bold green]💎 Deep Plan Found:[/bold green] {len(plan)} intervals detected from JSON.")
                     elif not plan and activity_title:
                         # Strategy B: Text Parsing
@@ -160,12 +165,43 @@ class ReprocessingEngine:
                 
                 if interval_metrics:
                     print(f"      [bold yellow]⚡ Intervals Detected:[/bold yellow]")
-                    print(f"         • P Last: [green]{interval_metrics.get('interval_power_last')}W[/green] | Mean: [green]{interval_metrics.get('interval_power_mean')}W[/green]")
-                    print(f"         • HR Last: [red]{interval_metrics.get('interval_hr_last')}bpm[/red] | Mean: [red]{interval_metrics.get('interval_hr_mean')}bpm[/red]")
-                    
+                    # Power metrics
+                    p_last = interval_metrics.get('interval_power_last')
+                    p_mean = interval_metrics.get('interval_power_mean')
+                    if p_last or p_mean:
+                        print(f"         • P Last: [green]{p_last}W[/green] | Mean: [green]{p_mean}W[/green]")
+
+                    # HR metrics
+                    hr_last = interval_metrics.get('interval_hr_last')
+                    hr_mean = interval_metrics.get('interval_hr_mean')
+                    if hr_last or hr_mean:
+                        print(f"         • HR Last: [red]{hr_last}bpm[/red] | Mean: [red]{hr_mean}bpm[/red]")
+
+                    # Speed/Pace metrics (new)
+                    pace_last = interval_metrics.get('interval_pace_last')
+                    pace_mean = interval_metrics.get('interval_pace_mean')
+                    if pace_last or pace_mean:
+                        print(f"         • Pace Last: [cyan]{pace_last}/km[/cyan] | Mean: [cyan]{pace_mean}/km[/cyan]")
+
+                    # Session completion (new)
+                    if 'session_complete' in interval_metrics:
+                        matched = interval_metrics.get('session_matched_intervals', 0)
+                        expected = interval_metrics.get('session_expected_intervals', 0)
+                        ratio = interval_metrics.get('session_completion_ratio', 0) * 100
+                        status = "✅ Complète" if interval_metrics['session_complete'] else "⚠️ Incomplète"
+                        print(f"         • Session: {status} ({matched}/{expected} = {ratio:.0f}%)")
+
                     # Print breakdown
                     for i, block in enumerate(interval_metrics.get('blocks', [])):
-                        print(f"         [dim]Block {i+1}: {block['avg_power']}W | {block['avg_hr']}bpm ({block['duration_sec']}s)[/dim]")
+                        p = block.get('avg_power')
+                        hr = block.get('avg_hr')
+                        spd = block.get('avg_speed')
+                        dur = block.get('duration_sec')
+                        parts = []
+                        if p: parts.append(f"{p}W")
+                        if hr: parts.append(f"{hr}bpm")
+                        if spd: parts.append(f"{spd:.2f}m/s")
+                        print(f"         [dim]Block {i+1}: {' | '.join(parts)} ({dur}s)[/dim]")
 
             meta = ActivityMetadata(
                 activity_type=sport,

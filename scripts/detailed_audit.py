@@ -22,7 +22,12 @@ def detailed_audit(case_name):
     matcher = IntervalMatcher()
     
     sport = data['activity'].get('sport', 'Run')
-    target_grid = plan_parser.parse(data['planned_structure'], sport_type=sport)
+    # merge_adjacent_work=True fusionne les blocs Z3+Z2 adjacents (système Karoly)
+    target_grid = plan_parser.parse(
+        data['planned_structure'],
+        sport_type=sport,
+        merge_adjacent_work=True
+    )
     df, _, _ = FitParser.parse(fit_path)
     
     start_time_activity = pd.to_datetime(data['activity'].get('hour_start', '00:00:00'))

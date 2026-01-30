@@ -569,7 +569,12 @@ class IngestionRobot:
                 # Structure can be under 'structure' or 'structured_workout' depending on endpoint
                 struct = planned_session.get("structure") or planned_session.get("structured_workout")
                 if struct:
-                    target_grid = self.plan_parser.parse(struct, sport_type=internal_sport)
+                    # merge_adjacent_work=True fusionne les blocs Z3+Z2 adjacents (système Karoly)
+                    target_grid = self.plan_parser.parse(
+                        struct,
+                        sport_type=internal_sport,
+                        merge_adjacent_work=True
+                    )
                     if target_grid:
                         print(f"      🎯 Plan parsed: {len(target_grid)} interval steps found.")
             except Exception as e:

@@ -211,14 +211,18 @@ class IntervalMatcher:
             # Try to find a matching LAP
             matched_lap = None
             matched_idx = None
-            
+
+            # Check if this is a merged/fused target (Z3+Z2 combined)
+            is_merged_target = target.get('merged_from') is not None
+
             # Look ahead slightly more for LAPs (skip up to 5)
             # FIX: If we haven't matched anything yet (lap_idx=0), look deeper (e.g. 20 laps)
             # to handle long warmups split into multiple manual laps.
             lookahead = 20 if lap_idx == 0 else 6
-            
+
             search_limit = min(lap_idx + lookahead, len(work_laps))
-            
+
+            # Strategy 1: Try to match a single LAP
             for i in range(lap_idx, search_limit):
                 lap = work_laps[i]
                 confidence = self._calculate_lap_confidence(
@@ -229,6 +233,58 @@ class IntervalMatcher:
                     matched_lap = {**lap, 'lap_index': i, 'confidence': confidence}
                     matched_idx = i
                     break
+
+            # Strategy 2: For merged targets, try to merge consecutive LAPs
+            # This handles cases like 5×(90s Z3 + 210s Z2) where LAPs are separate
+            # IMPORTANT: Match chronologically - take FIRST valid pair, not best
+            if not matched_lap and is_merged_target:
+                for i in range(lap_idx, search_limit - 1):
+                    lap1 = work_laps[i]
+                    lap2 = work_laps[i + 1]
+
+                    # Check if these two LAPs are consecutive (gap < 10s)
+                    gap = lap2['start_offset'] - lap1['end_offset']
+                    if gap > 10:
+                        continue
+
+                    # CRITICAL: At least one lap must have intensity >= target_min
+                    # This filters out warmup/recovery laps that happen to match duration
+                    lap1_intensity = lap1.get('avg_speed', 0) if signal_col == 'speed' else lap1.get('avg_power', 0)
+                    lap2_intensity = lap2.get('avg_speed', 0) if signal_col == 'speed' else lap2.get('avg_power', 0)
+
+                    # Require at least one lap to be above 90% of target intensity
+                    intensity_threshold = target_min * 0.90 if target_min > 0 else 0
+                    if max(lap1_intensity, lap2_intensity) < intensity_threshold:
+                        continue  # Neither lap is intense enough
+
+                    # PATTERN CHECK for Z3+Z2 fused blocks (Karoly system):
+                    # The FIRST lap should be shorter AND more intense (Z3 = hard, short)
+                    # The SECOND lap should be longer AND less intense (Z2 = moderate, long)
+                    # This prevents matching recovery+work pairs like 240s@slow + 90s@fast
+                    if lap1['duration'] > lap2['duration']:
+                        # First lap is longer - this is wrong pattern (recovery + Z3)
+                        # Skip unless both are similar duration (within 50%)
+                        dur_ratio_laps = lap1['duration'] / lap2['duration']
+                        if dur_ratio_laps > 1.5:
+                            continue  # Skip this pair, pattern is recovery+work not work+work
+
+                    # Merge the two LAPs
+                    merged = self._merge_laps([lap1, lap2])
+                    merged_duration = merged['duration']
+
+                    # Check if merged duration matches target (±30%)
+                    dur_ratio = merged_duration / duration_s if duration_s > 0 else 0
+                    if 0.7 <= dur_ratio <= 1.3:
+                        # Calculate confidence for merged LAP
+                        confidence = self._calculate_lap_confidence(
+                            merged, target_min, duration_s, signal_col,
+                            target_distance=float(target.get('distance_m', 0))
+                        )
+                        # Take FIRST valid match (chronological order)
+                        if confidence >= self.config.lap_confidence_threshold * 0.9:
+                            matched_lap = {**merged, 'lap_index': [i, i+1], 'confidence': confidence}
+                            matched_idx = i + 2
+                            break  # Stop at first valid match
             
             if matched_lap:
                 result = self._build_lap_result(
@@ -292,7 +348,114 @@ class IntervalMatcher:
                     current_ptr += duration_s // 2 # Small advance to avoid loop
         
         return [r for r in detected_intervals if r['status'] == MatchStatus.MATCHED.value]
-    
+
+    def detect_incomplete_session(
+        self,
+        matched_results: List[Dict[str, Any]],
+        target_grid: List[Dict[str, Any]],
+        df: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """
+        Detect if the session was incomplete compared to the plan.
+
+        This helps identify cases like Baptiste's session where the athlete
+        said "Nul, pas d'énergie, j'ai fait que la moitié".
+
+        Args:
+            matched_results: List of matched interval results from match()
+            target_grid: Original target grid from plan parser
+            df: DataFrame with activity data (for session duration context)
+
+        Returns:
+            Dict with:
+            - is_complete: True if >= 95% of planned intervals were matched
+            - completion_ratio: matched_count / expected_count
+            - matched_count: Number of intervals successfully matched
+            - expected_count: Number of intervals in the plan
+            - session_duration_sec: Total duration of the session
+            - planned_work_duration_sec: Total planned work duration
+            - matched_work_duration_sec: Total matched work duration
+        """
+        expected_count = len(target_grid)
+        matched_count = len([r for r in matched_results if r.get('status') == MatchStatus.MATCHED.value])
+
+        # Calculate durations
+        planned_work_duration = sum(t.get('duration', 0) for t in target_grid)
+        matched_work_duration = sum(r.get('duration_sec', 0) or 0 for r in matched_results
+                                    if r.get('status') == MatchStatus.MATCHED.value)
+
+        # Session duration from DataFrame
+        session_duration = len(df) if not df.empty else 0
+
+        # Calculate completion ratio
+        completion_ratio = matched_count / expected_count if expected_count > 0 else 1.0
+
+        # Consider session complete if >= 95% of intervals matched
+        is_complete = completion_ratio >= 0.95
+
+        return {
+            'is_complete': is_complete,
+            'completion_ratio': round(completion_ratio, 3),
+            'matched_count': matched_count,
+            'expected_count': expected_count,
+            'session_duration_sec': session_duration,
+            'planned_work_duration_sec': planned_work_duration,
+            'matched_work_duration_sec': matched_work_duration
+        }
+
+    def extract_last_interval_metrics(
+        self,
+        matched_results: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Extract and highlight metrics from the last matched interval.
+
+        The last interval is often the most important for Karoly's analysis
+        as it represents peak performance/fatigue state.
+
+        Args:
+            matched_results: List of matched interval results from match()
+
+        Returns:
+            Dict with:
+            - avg_speed: float (m/s)
+            - avg_pace: str (e.g., "3'07''/km")
+            - avg_hr: float (bpm)
+            - avg_power: float (W) if available
+            - index: int (interval number, 1-indexed)
+            - duration_sec: int
+            Or None if no matched results
+        """
+        # Filter to only matched intervals
+        matched = [r for r in matched_results if r.get('status') == MatchStatus.MATCHED.value]
+
+        if not matched:
+            return None
+
+        last = matched[-1]
+        avg_speed = last.get('avg_speed')
+        avg_hr = last.get('avg_hr')
+        avg_power = last.get('avg_power')
+        duration = last.get('duration_sec', 0)
+
+        # Convert speed to pace string
+        avg_pace = None
+        if avg_speed and avg_speed > 0:
+            # Pace in seconds per km
+            pace_sec_per_km = 1000.0 / avg_speed
+            pace_min = int(pace_sec_per_km // 60)
+            pace_sec = int(pace_sec_per_km % 60)
+            avg_pace = f"{pace_min}'{pace_sec:02d}''/km"
+
+        return {
+            'avg_speed': round(avg_speed, 4) if avg_speed else None,
+            'avg_pace': avg_pace,
+            'avg_hr': round(avg_hr, 2) if avg_hr else None,
+            'avg_power': round(avg_power, 2) if avg_power else None,
+            'index': len(matched),  # 1-indexed position
+            'duration_sec': duration
+        }
+
     def _preprocess_laps(
         self, 
         laps: List[Dict[str, Any]], 
@@ -472,10 +635,10 @@ class IntervalMatcher:
         total_dur = sum(l['duration'] for l in laps_to_merge)
         total_dist = sum(l.get('total_distance', 0) for l in laps_to_merge)
         
-        # Weighted averages
-        w_pwr = sum(l.get('avg_power', 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
-        w_spd = sum(l.get('avg_speed', 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
-        w_hr = sum(l.get('avg_hr', 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+        # Weighted averages (handle None values)
+        w_pwr = sum((l.get('avg_power') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+        w_spd = sum((l.get('avg_speed') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+        w_hr = sum((l.get('avg_hr') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
         
         return {
             'start_offset': first['start_offset'],
@@ -608,32 +771,36 @@ class IntervalMatcher:
         target_idx: int,
         signal_col: str
     ) -> Dict[str, Any]:
-        """Build a result dict from a LAP match."""
-        # FIX: Do not use 'start_offset' (cumulative timer time) as it drifts from 'df' index (elapsed time)
-        # Use the explicit timestamp from the raw lap data
+        """Build a result dict from a LAP match.
+
+        SURGICAL PRECISION (2026-01-30):
+        Uses timestamp-based searchsorted to find the exact DataFrame index
+        corresponding to the LAP's start_time. This ensures nanosecond-level
+        alignment with Nolio/Garmin data.
+        """
         start_ts = lap_match.get('raw', {}).get('start_time')
         duration = lap_match['duration']
-        
+
         start_idx = 0
-        if start_ts:
-            # Find the index in df corresponding to start_ts
-            # Ensure start_ts is tz-aware if df is tz-aware, etc.
-            # Usually strict equality might fail, so we use searchsorted or nearest
+        if start_ts and 'timestamp' in df.columns:
+            # SURGICAL ALIGNMENT: Use searchsorted for precise index lookup
             try:
-                # Assuming df.index is or contains timestamps? 
-                # No, UniversalParser usually returns 'timestamp' as a column.
-                # Check if timestamp column exists
-                if 'timestamp' in df.columns:
-                    # Find first index >= start_ts
-                    matches = df.index[df['timestamp'] >= start_ts]
-                    if not matches.empty:
-                        start_idx = matches[0]
-                    else:
-                        # Fallback to offset if timestamp not found (rare)
-                        start_idx = lap_match['start_offset']
-                else:
-                    start_idx = lap_match['start_offset']
+                # Convert timestamp column to datetime if needed
+                ts_series = pd.to_datetime(df['timestamp'])
+                start_ts_dt = pd.to_datetime(start_ts)
+
+                # searchsorted finds the exact insertion point (binary search)
+                # This is O(log n) and finds the first index where ts >= start_ts
+                start_idx = int(ts_series.searchsorted(start_ts_dt))
+
+                # Bounds check
+                if start_idx >= len(df):
+                    start_idx = len(df) - 1
+                elif start_idx < 0:
+                    start_idx = 0
+
             except Exception:
+                # Fallback to cumulative offset if timestamp parsing fails
                 start_idx = lap_match['start_offset']
         else:
             start_idx = lap_match['start_offset']
