@@ -7,11 +7,11 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) [checkpoint: 743efb6]
 
 ## Phase 2 : Calibration & Suppression du facteur 4.184
-- [ ] Task: Supprimer le multiplicateur `4.184` dans `projectk_core/processing/calculator.py`.
-- [ ] Task: Créer un test TDD simulant l'équivalence 1h Bike vs 1h Run à 120bpm.
-- [ ] Task: Identifier et appliquer le **Coefficient d'Équilibre** global pour le run.
-- [ ] Task: Vérifier que la logique de dénivelé (`100m D+ = 1km plat`) est bien isolée et conforme.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Supprimer le multiplicateur `4.184` dans `projectk_core/processing/calculator.py`. [75da4bb]
+- [x] Task: Créer un test TDD simulant l'équivalence 1h Bike vs 1h Run à 120bpm. [ecb465d]
+- [x] Task: Identifier et appliquer le **Coefficient d'Équilibre** global pour le run. [5c1e435]
+- [x] Task: Vérifier que la logique de dénivelé (`100m D+ = 1km plat`) est bien isolée et conforme. [65b00f0]
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) [checkpoint: 556e72c]
 
 ## Phase 3 : Reprocess & Validation Louis Richard
 - [ ] Task: Initialiser les deux profils de Louis (Bike vs Run) avec ses vraies valeurs.
