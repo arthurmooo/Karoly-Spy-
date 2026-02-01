@@ -124,7 +124,14 @@ class MetricsCalculator:
                 # Ascent logic: 100m D+ = 1km plat (so D+ / 100 adds to km)
                 kcal = weight * (dist_km + (ascent_m / 100.0))
                 
-                energy_kj = kcal
+                # CALIBRATION 2026-02-01:
+                # After removing 4.184 factor, we observed that Run MLS was still ~30% higher than Bike MLS
+                # for equivalent effort (1h @ 120bpm).
+                # We apply a coefficient of 0.77 to align the baselines.
+                # Target: 1h Run @ 120bpm = 1h Bike @ 120bpm
+                RUN_COEFF = 0.77
+                
+                energy_kj = kcal * RUN_COEFF
                 mec_base = energy_kj
 
         # 4. IF (Intensity Factor)
