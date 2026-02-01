@@ -23,6 +23,7 @@ class PhysioProfile(BaseModel):
     Represents an athlete's physiological thresholds at a specific point in time.
     """
     valid_from: datetime
+    sport: str = Field("bike", description="bike, run")
     lt1_hr: Optional[float] = Field(None, gt=0, description="Heart Rate at Lactate Threshold 1")
     lt2_hr: Optional[float] = Field(None, gt=0, description="Heart Rate at Lactate Threshold 2")
     lt1_power_pace: Optional[float] = Field(None, gt=0, description="Power/Pace at LT1")
