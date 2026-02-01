@@ -3,8 +3,8 @@
 ## Phase 1 : Infrastructure & Profils (Multi-Seuils)
 - [x] Task: Migration Supabase pour ajouter la colonne `sport` (bike/run) à la table `physio_profiles`. [464a838]
 - [x] Task: Mise à jour du modèle `PhysioProfile` dans `projectk_core/logic/models.py`. [464a838]
-- [ ] Task: Adapter `MetricsCalculator` pour charger le bon profil (LT1/LT2/CP) selon l'activité.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Adapter `MetricsCalculator` pour charger le bon profil (LT1/LT2/CP) selon l'activité. [544a9fa]
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) [checkpoint: 743efb6]
 
 ## Phase 2 : Calibration & Suppression du facteur 4.184
 - [ ] Task: Supprimer le multiplicateur `4.184` dans `projectk_core/processing/calculator.py`.
