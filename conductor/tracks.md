@@ -144,3 +144,8 @@ This file tracks the master plan, strictly aligned with the contract phases.
 
 # 🧠 PHASE 2 : Analyse & Reporting (LOCKED)
 
+---
+
+- [x] **Track: Alignement MLS et Profils Sport-Spécifiques**
+    - **Status:** 🟡 New. Alignement Run/Bike (1h @ 120bpm) et support multi-profils par sport.
+    - **Link:** [./tracks/mls_alignment_20260201/](./tracks/mls_alignment_20260201/)
