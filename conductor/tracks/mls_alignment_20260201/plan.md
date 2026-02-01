@@ -14,7 +14,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) [checkpoint: 556e72c]
 
 ## Phase 3 : Reprocess & Validation Louis Richard
-- [ ] Task: Initialiser les deux profils de Louis (Bike vs Run) avec ses vraies valeurs.
-- [ ] Task: Lancer un recalcul global de ses séances depuis le 1er janvier.
-- [ ] Task: Valider l'équilibre sur la séance du 1er février.
+- [x] Task: Initialiser les deux profils de Louis (Bike vs Run) avec ses vraies valeurs. [71ef074]
+- [x] Task: Lancer un recalcul global de ses séances depuis le 1er janvier. [executed]
+- [x] Task: Valider l'équilibre sur la séance du 1er février. [checkpoint: 35c8f27]
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
