@@ -58,14 +58,19 @@ class Athlete:
         # Sort by date ascending
         self.profiles.sort(key=lambda x: x.valid_from)
 
-    def get_profile_for_date(self, date: datetime) -> Optional[PhysioProfile]:
+    def get_profile_for_date(self, date: datetime, sport: Optional[str] = None) -> Optional[PhysioProfile]:
         """
         Returns the active profile for a given date.
+        If sport is provided, prioritizes exact sport match.
         """
         # Iterate backwards to find the most recent profile valid at that date
         for profile in reversed(self.profiles):
             if profile.valid_from <= date:
-                return profile
+                if sport:
+                    if profile.sport == sport:
+                        return profile
+                else:
+                    return profile
         return None
 
 class ActivityMetadata(BaseModel):
