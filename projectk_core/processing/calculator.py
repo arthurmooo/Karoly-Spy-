@@ -115,11 +115,16 @@ class MetricsCalculator:
                 mec_base = energy_kj
             else:
                 # Standard runners: use weight/distance formula (WhatsApp 2026-01-20)
+                # UPDATE 2026-02-01: Removed 4.184 factor to align Run with Bike (Calorie-equivalent)
                 weight = profile.weight if profile and profile.weight else 70.0
                 dist_km = meta.distance_m / 1000.0 if meta.distance_m else 0.0
                 ascent_m = meta.elevation_gain if meta.elevation_gain else 0.0
+                
+                # Base Mechanical Cost = Weight * (Distance_km + Ascent_km)
+                # Ascent logic: 100m D+ = 1km plat (so D+ / 100 adds to km)
                 kcal = weight * (dist_km + (ascent_m / 100.0))
-                energy_kj = kcal * 4.184
+                
+                energy_kj = kcal
                 mec_base = energy_kj
 
         # 4. IF (Intensity Factor)
