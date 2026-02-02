@@ -245,11 +245,11 @@ class MetricsCalculator:
         # 10. Interval Metrics (Requested by Karoly)
         # We now have two modes: LAP-based (legacy) and MATCHER-based (surgical)
         
-        avg_intervals_power = 0.0
-        avg_intervals_hr = 0.0
+        avg_intervals_power = None
+        avg_intervals_hr = None
         avg_intervals_pace = None
-        last_interval_power = 0.0
-        last_interval_hr = 0.0
+        last_interval_power = None
+        last_interval_hr = None
         last_interval_pace = None
         global_respect_score = None
         interval_detection_source = None
@@ -264,206 +264,209 @@ class MetricsCalculator:
         # Bike = Power
         eff_signal_col = 'power' if sport == 'bike' else 'speed'
 
-        if meta.work_type == "intervals" and target_grid:
-            # SURGICAL MODE
-            # Pass CP to help the matcher classify LAPs correctly
-            athlete_cp = profile.cp if profile else None
-            detections = self.matcher.match(df, target_grid, sport=sport, laps=activity.laps, cp=athlete_cp)
-            if detections:
-                from projectk_core.logic.models import IntervalBlock, DetectionSource
+        # STRICT RULE: Only compute interval metrics for "intervals" work type
+        # (Endurance and Competition are excluded to avoid cluttering the dashboard)
+        if meta.work_type == "intervals":
+            if target_grid:
+                # SURGICAL MODE
+                # Pass CP to help the matcher classify LAPs correctly
+                athlete_cp = profile.cp if profile else None
+                detections = self.matcher.match(df, target_grid, sport=sport, laps=activity.laps, cp=athlete_cp)
+                if detections:
+                    from projectk_core.logic.models import IntervalBlock, DetectionSource
+                    
+                    valid_p = [d['avg_power'] for d in detections if d['avg_power'] is not None]
+                    valid_s = [d['avg_speed'] for d in detections if d['avg_speed'] is not None]
+                    valid_h = [d['avg_hr'] for d in detections if d['avg_hr'] is not None]
+                    valid_r = [d['respect_score'] for d in detections if d['respect_score'] is not None]
+                    
+                    # Determine source from majority of detections
+                    sources = [d.get('source') for d in detections if d.get('source')]
+                    if sources:
+                        interval_detection_source = max(set(sources), key=sources.count)
+                    else:
+                        interval_detection_source = "plan" # Default fallback if status was matched
+                    
+                    # Create IntervalBlock objects for the DB
+                    for d in detections:
+                        detection_source_enum = DetectionSource.LAP if d['source'] == 'lap' else DetectionSource.ALGO
+                        block = IntervalBlock(
+                            start_time=float(d['start_index']),
+                            end_time=float(d['end_index']),
+                            type=d['target'].get('type', 'active'),
+                            detection_source=detection_source_enum,
+                            avg_power=d.get('avg_power'),
+                            avg_speed=d.get('avg_speed'),
+                            avg_hr=d.get('avg_hr'),
+                            respect_score=d.get('respect_score')
+                        )
+                        detected_blocks.append(block)
+
+                    # ROBUSTNESS: Filter for Performance Averages
+                    # We only include intervals that meet a minimum intensity respect score (82%)
+                    # to avoid including warmups that match the duration of a work block.
+                    perf_detections = [d for d in detections if d.get('respect_score') is not None and d.get('respect_score') >= 82.0]
+                    
+                    # If everything is below 82%, we fall back to all detections to avoid 0,
+                    # but we'll print a warning in the logs.
+                    if not perf_detections:
+                        perf_detections = detections
+
+                    valid_p = [d['avg_power'] for d in perf_detections if d['avg_power'] is not None]
+                    valid_s = [d['avg_speed'] for d in perf_detections if d['avg_speed'] is not None]
+                    valid_h = [d['avg_hr'] for d in perf_detections if d['avg_hr'] is not None]
+                    valid_r = [d['respect_score'] for d in perf_detections if d['respect_score'] is not None]
+                    
+                    # ========== STRICT VALIDATION FOR KAROLY (2026-01-28) ==========
+                    # Rule: Only populate aggregate metrics if 100% of planned work intervals 
+                    # were matched AND all came from the LAP source.
+                    
+                    num_planned = len(target_grid)
+                    num_matched = len(detections)
+                    all_laps = all(d.get('source') == 'lap' for d in detections)
+                    
+                    is_perfect_match = (num_matched >= num_planned) and all_laps
+                    
+                    if is_perfect_match:
+                        # Calculate averages
+                        if valid_p:
+                            avg_intervals_power = sum(valid_p) / len(valid_p)
+                        if valid_h:
+                            avg_intervals_hr = sum(valid_h) / len(valid_h)
+                        if valid_s:
+                            avg_speed = sum(valid_s) / len(valid_s)
+                            avg_intervals_pace = 1000.0 / avg_speed / 60.0 if avg_speed > 0 else None
+                        if valid_r:
+                            global_respect_score = sum(valid_r) / len(valid_r)
+                        
+                        # Get last interval values
+                        if perf_detections:
+                            last_det = perf_detections[-1]
+                            last_interval_power = last_det.get('avg_power') or 0.0
+                            last_interval_hr = last_det.get('avg_hr') or 0.0
+                            last_speed = last_det.get('avg_speed')
+                            if last_speed and last_speed > 0:
+                                last_interval_pace = 1000.0 / last_speed / 60.0
+                        
+                        # Calculate efficiency (Pa:HR or Speed:HR)
+                        efficiencies = []
+                        for d in perf_detections:
+                            val = d.get('avg_power') if sport == 'bike' else d.get('avg_speed')
+                            hr = d.get('avg_hr')
+                            if val is not None and hr is not None and hr > 0:
+                                efficiencies.append(val / hr)
+                        
+                        if efficiencies:
+                            interval_pahr_mean = sum(efficiencies) / len(efficiencies)
+                            interval_pahr_last = efficiencies[-1]
+                    else:
+                        # NOT A PERFECT LAP MATCH: We keep the individual detected blocks 
+                        # for the detailed view, but we leave the summary metrics at NULL
+                        # so that Karoly can fill them manually if he chooses.
+                        avg_intervals_power = None
+                        avg_intervals_hr = None
+                        avg_intervals_pace = None
+                        last_interval_power = None
+                        last_interval_hr = None
+                        last_interval_pace = None
+                        interval_pahr_mean = None
+                        interval_pahr_last = None
+                        global_respect_score = None
+                        
+                        # Log the reason for NULL metrics
+                        reason = "Partial match" if num_matched < num_planned else "Mixed sources (SIGNAL used)"
+                        print(f"      ⚠️  Interval metrics set to NULL: {reason} ({num_matched}/{num_planned} matched)")
+                    # ================================================================================
+                    
+            else:
+                # LAP-BASED MODE (Fallback)
+                # Weighted averages for all intervals (laps) using Recalculated Durations
+                # This ensures we respect Moving Time (vs Elapsed) for performance metrics.
                 
-                valid_p = [d['avg_power'] for d in detections if d['avg_power'] is not None]
-                valid_s = [d['avg_speed'] for d in detections if d['avg_speed'] is not None]
-                valid_h = [d['avg_hr'] for d in detections if d['avg_hr'] is not None]
-                valid_r = [d['respect_score'] for d in detections if d['respect_score'] is not None]
-                
-                # Determine source from majority of detections
-                sources = [d.get('source') for d in detections if d.get('source')]
-                if sources:
-                    interval_detection_source = max(set(sources), key=sources.count)
+                clean_laps = []
+                for l in activity.laps:
+                    recalc = LapCalculator.recalculate(l)
+                    clean_laps.append({
+                        **l,
+                        'effective_duration': recalc['effective_duration']
+                    })
+
+                # SMART FALLBACK: Filter out Warmup/Cooldown and Recovery
+                # Rule: Keep only laps that have > 100% of global avg intensity
+                # (effectively keeps only the 'work' parts of an interval session)
+                # AND exclude the very first and very last if they look like WU/CD (> 5 min)
+                if clean_laps:
+                    global_avg = df[eff_signal_col].mean() if eff_signal_col in df.columns else 0
+                    filtered_laps = []
+                    for i, l in enumerate(clean_laps):
+                        is_first_last = (i == 0 or i == len(clean_laps) - 1)
+                        dur = l.get('effective_duration', 0)
+                        val = l.get('avg_power') if eff_signal_col == 'power' else l.get('avg_speed')
+                        
+                        # Heuristic for Work Lap
+                        is_work = True
+                        if is_first_last and dur > 300: # Exclude if > 5 min at start/end
+                            is_work = False
+                        
+                        # If it's a running session, we look at speed. 
+                        # If it's bike, we look at power.
+                        # We must be ABOVE average to be a work interval.
+                        if val and global_avg > 0 and val <= global_avg: 
+                            is_work = False
+                        
+                        if is_work:
+                            filtered_laps.append(l)
+                    
+                    # If we filtered everything, keep everything to avoid 0
+                    work_laps = filtered_laps if filtered_laps else clean_laps
+                    if work_laps:
+                        interval_detection_source = "lap"
                 else:
-                    interval_detection_source = "plan" # Default fallback if status was matched
-                
-                # Create IntervalBlock objects for the DB
-                for d in detections:
-                    detection_source_enum = DetectionSource.LAP if d['source'] == 'lap' else DetectionSource.ALGO
-                    block = IntervalBlock(
-                        start_time=float(d['start_index']),
-                        end_time=float(d['end_index']),
-                        type=d['target'].get('type', 'active'),
-                        detection_source=detection_source_enum,
-                        avg_power=d.get('avg_power'),
-                        avg_speed=d.get('avg_speed'),
-                        avg_hr=d.get('avg_hr'),
-                        respect_score=d.get('respect_score')
-                    )
-                    detected_blocks.append(block)
+                    work_laps = []
 
-                # ROBUSTNESS: Filter for Performance Averages
-                # We only include intervals that meet a minimum intensity respect score (82%)
-                # to avoid including warmups that match the duration of a work block.
-                perf_detections = [d for d in detections if d.get('respect_score') is not None and d.get('respect_score') >= 82.0]
+                total_lap_time = sum(l.get('effective_duration', 0) for l in work_laps)
                 
-                # If everything is below 82%, we fall back to all detections to avoid 0,
-                # but we'll print a warning in the logs.
-                if not perf_detections:
-                    perf_detections = detections
-
-                valid_p = [d['avg_power'] for d in perf_detections if d['avg_power'] is not None]
-                valid_s = [d['avg_speed'] for d in perf_detections if d['avg_speed'] is not None]
-                valid_h = [d['avg_hr'] for d in perf_detections if d['avg_hr'] is not None]
-                valid_r = [d['respect_score'] for d in perf_detections if d['respect_score'] is not None]
-                
-                # ========== STRICT VALIDATION FOR KAROLY (2026-01-28) ==========
-                # Rule: Only populate aggregate metrics if 100% of planned work intervals 
-                # were matched AND all came from the LAP source.
-                
-                num_planned = len(target_grid)
-                num_matched = len(detections)
-                all_laps = all(d.get('source') == 'lap' for d in detections)
-                
-                is_perfect_match = (num_matched >= num_planned) and all_laps
-                
-                if is_perfect_match:
-                    # Calculate averages
-                    if valid_p:
-                        avg_intervals_power = sum(valid_p) / len(valid_p)
-                    if valid_h:
-                        avg_intervals_hr = sum(valid_h) / len(valid_h)
-                    if valid_s:
-                        avg_speed = sum(valid_s) / len(valid_s)
-                        avg_intervals_pace = 1000.0 / avg_speed / 60.0 if avg_speed > 0 else None
-                    if valid_r:
-                        global_respect_score = sum(valid_r) / len(valid_r)
+                if total_lap_time > 0:
+                    valid_p_laps = [l for l in work_laps if l.get('avg_power') is not None]
+                    valid_hr_laps = [l for l in work_laps if l.get('avg_heart_rate') is not None]
+                    valid_s_laps = [l for l in work_laps if l.get('avg_speed') is not None]
                     
-                    # Get last interval values
-                    if perf_detections:
-                        last_det = perf_detections[-1]
-                        last_interval_power = last_det.get('avg_power') or 0.0
-                        last_interval_hr = last_det.get('avg_hr') or 0.0
-                        last_speed = last_det.get('avg_speed')
-                        if last_speed and last_speed > 0:
-                            last_interval_pace = 1000.0 / last_speed / 60.0
+                    p_time = sum(l.get('effective_duration', 0) for l in valid_p_laps)
+                    hr_time = sum(l.get('effective_duration', 0) for l in valid_hr_laps)
+                    s_time = sum(l.get('effective_duration', 0) for l in valid_s_laps)
                     
-                    # Calculate efficiency (Pa:HR or Speed:HR)
+                    avg_intervals_power = sum(l.get('avg_power', 0) * l.get('effective_duration', 0) for l in valid_p_laps) / p_time if p_time > 0 else None
+                    avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('effective_duration', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else None
+                    
+                    if s_time > 0:
+                        avg_speed = sum(l.get('avg_speed', 0) * l.get('effective_duration', 0) for l in valid_s_laps) / s_time
+                        def s_to_p(s): return 1000.0 / s / 60.0 if s and s > 0 else None
+                        avg_intervals_pace = s_to_p(avg_speed)
+                    
+                    # Efficiency Calculation (Lap-based)
                     efficiencies = []
-                    for d in perf_detections:
-                        val = d.get('avg_power') if sport == 'bike' else d.get('avg_speed')
-                        hr = d.get('avg_hr')
+                    for l in work_laps:
+                        # Get relevant signal average
+                        # Note: Lap objects usually have 'avg_speed' in m/s
+                        val = l.get('avg_power') if eff_signal_col == 'power' else l.get('avg_speed')
+                        hr = l.get('avg_heart_rate')
+                        
                         if val is not None and hr is not None and hr > 0:
                             efficiencies.append(val / hr)
                     
                     if efficiencies:
                         interval_pahr_mean = sum(efficiencies) / len(efficiencies)
                         interval_pahr_last = efficiencies[-1]
-                else:
-                    # NOT A PERFECT LAP MATCH: We keep the individual detected blocks 
-                    # for the detailed view, but we leave the summary metrics at NULL
-                    # so that Karoly can fill them manually if he chooses.
-                    avg_intervals_power = None
-                    avg_intervals_hr = None
-                    avg_intervals_pace = None
-                    last_interval_power = None
-                    last_interval_hr = None
-                    last_interval_pace = None
-                    interval_pahr_mean = None
-                    interval_pahr_last = None
-                    global_respect_score = None
                     
-                    # Log the reason for NULL metrics
-                    reason = "Partial match" if num_matched < num_planned else "Mixed sources (SIGNAL used)"
-                    print(f"      ⚠️  Interval metrics set to NULL: {reason} ({num_matched}/{num_planned} matched)")
-                # ================================================================================
-                
-        else:
-            # LAP-BASED MODE (Fallback)
-            # Weighted averages for all intervals (laps) using Recalculated Durations
-            # This ensures we respect Moving Time (vs Elapsed) for performance metrics.
-            
-            clean_laps = []
-            for l in activity.laps:
-                recalc = LapCalculator.recalculate(l)
-                clean_laps.append({
-                    **l,
-                    'effective_duration': recalc['effective_duration']
-                })
-
-            # SMART FALLBACK: Filter out Warmup/Cooldown and Recovery
-            # Rule: Keep only laps that have > 100% of global avg intensity
-            # (effectively keeps only the 'work' parts of an interval session)
-            # AND exclude the very first and very last if they look like WU/CD (> 5 min)
-            if clean_laps:
-                global_avg = df[eff_signal_col].mean() if eff_signal_col in df.columns else 0
-                filtered_laps = []
-                for i, l in enumerate(clean_laps):
-                    is_first_last = (i == 0 or i == len(clean_laps) - 1)
-                    dur = l.get('effective_duration', 0)
-                    val = l.get('avg_power') if eff_signal_col == 'power' else l.get('avg_speed')
-                    
-                    # Heuristic for Work Lap
-                    is_work = True
-                    if is_first_last and dur > 300: # Exclude if > 5 min at start/end
-                         is_work = False
-                    
-                    # If it's a running session, we look at speed. 
-                    # If it's bike, we look at power.
-                    # We must be ABOVE average to be a work interval.
-                    if val and global_avg > 0 and val <= global_avg: 
-                         is_work = False
-                    
-                    if is_work:
-                        filtered_laps.append(l)
-                
-                # If we filtered everything, keep everything to avoid 0
-                work_laps = filtered_laps if filtered_laps else clean_laps
-                if work_laps:
-                    interval_detection_source = "lap"
-            else:
-                work_laps = []
-
-            total_lap_time = sum(l.get('effective_duration', 0) for l in work_laps)
-            
-            if total_lap_time > 0:
-                valid_p_laps = [l for l in work_laps if l.get('avg_power') is not None]
-                valid_hr_laps = [l for l in work_laps if l.get('avg_heart_rate') is not None]
-                valid_s_laps = [l for l in work_laps if l.get('avg_speed') is not None]
-                
-                p_time = sum(l.get('effective_duration', 0) for l in valid_p_laps)
-                hr_time = sum(l.get('effective_duration', 0) for l in valid_hr_laps)
-                s_time = sum(l.get('effective_duration', 0) for l in valid_s_laps)
-                
-                avg_intervals_power = sum(l.get('avg_power', 0) * l.get('effective_duration', 0) for l in valid_p_laps) / p_time if p_time > 0 else 0.0
-                avg_intervals_hr = sum(l.get('avg_heart_rate', 0) * l.get('effective_duration', 0) for l in valid_hr_laps) / hr_time if hr_time > 0 else 0.0
-                
-                if s_time > 0:
-                    avg_speed = sum(l.get('avg_speed', 0) * l.get('effective_duration', 0) for l in valid_s_laps) / s_time
-                    def s_to_p(s): return 1000.0 / s / 60.0 if s > 0 else 0
-                    avg_intervals_pace = s_to_p(avg_speed)
-                
-                # Efficiency Calculation (Lap-based)
-                efficiencies = []
-                for l in work_laps:
-                    # Get relevant signal average
-                    # Note: Lap objects usually have 'avg_speed' in m/s
-                    val = l.get('avg_power') if eff_signal_col == 'power' else l.get('avg_speed')
-                    hr = l.get('avg_heart_rate')
-                    
-                    if val is not None and hr is not None and hr > 0:
-                        efficiencies.append(val / hr)
-                
-                if efficiencies:
-                    interval_pahr_mean = sum(efficiencies) / len(efficiencies)
-                    interval_pahr_last = efficiencies[-1]
-                
-                if work_laps:
-                    # Use the last WORK lap, not the very last lap of the file
-                    last_lap = work_laps[-1]
-                    last_interval_power = last_lap.get('avg_power', 0) or 0
-                    last_interval_hr = last_lap.get('avg_heart_rate', 0) or 0
-                    last_speed = last_lap.get('avg_speed', 0) or 0
-                    if last_speed > 0:
-                        def s_to_p(s): return 1000.0 / s / 60.0 if s > 0 else 0
-                        last_interval_pace = s_to_p(last_speed)
+                    if work_laps:
+                        # Use the last WORK lap, not the very last lap of the file
+                        last_lap = work_laps[-1]
+                        last_interval_power = last_lap.get('avg_power')
+                        last_interval_hr = last_lap.get('avg_heart_rate')
+                        last_speed = last_lap.get('avg_speed')
+                        if last_speed and last_speed > 0:
+                            def s_to_p(s): return 1000.0 / s / 60.0 if s and s > 0 else None
+                            last_interval_pace = s_to_p(last_speed)
 
         # 11. Smart Segmentation (Karoly's Request)
         # Determine strategy - Use activity name (title) for keyword detection
@@ -488,16 +491,23 @@ class MetricsCalculator:
             seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport_cat)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
 
+        # ========== FINAL CLEANUP FOR KAROLY (2026-02-01) ==========
+        # Rule: Run Power is only reliable with Stryd (CP > 100). 
+        # If not (Garmin Wrist Power), we force to None to favor Pace display.
+        if sport == "run" and not has_ref_power:
+            avg_intervals_power = None
+            last_interval_power = None
+
         return {
-            "interval_power_last": round(float(last_interval_power), 1),
-            "interval_hr_last": round(float(last_interval_hr), 1),
-            "interval_power_mean": round(float(avg_intervals_power), 1),
-            "interval_hr_mean": round(float(avg_intervals_hr), 1),
-            "interval_pace_last": round(float(last_interval_pace), 2) if last_interval_pace else None,
-            "interval_pace_mean": round(float(avg_intervals_pace), 2) if avg_intervals_pace else None,
-            "interval_respect_score": round(float(global_respect_score), 1) if global_respect_score else None,
-            "interval_pahr_mean": round(float(interval_pahr_mean), 3) if interval_pahr_mean else None,
-            "interval_pahr_last": round(float(interval_pahr_last), 3) if interval_pahr_last else None,
+            "interval_power_last": round(float(last_interval_power), 1) if last_interval_power is not None else None,
+            "interval_hr_last": round(float(last_interval_hr), 1) if last_interval_hr is not None else None,
+            "interval_power_mean": round(float(avg_intervals_power), 1) if avg_intervals_power is not None else None,
+            "interval_hr_mean": round(float(avg_intervals_hr), 1) if avg_intervals_hr is not None else None,
+            "interval_pace_last": round(float(last_interval_pace), 2) if last_interval_pace is not None else None,
+            "interval_pace_mean": round(float(avg_intervals_pace), 2) if avg_intervals_pace is not None else None,
+            "interval_respect_score": round(float(global_respect_score), 1) if global_respect_score is not None else None,
+            "interval_pahr_mean": round(float(interval_pahr_mean), 3) if interval_pahr_mean is not None else None,
+            "interval_pahr_last": round(float(interval_pahr_last), 3) if interval_pahr_last is not None else None,
             "interval_detection_source": interval_detection_source,
             "energy_kj": round(energy_kj, 1) if energy_kj is not None else None,
             "intensity_factor": round(if_mean, 3),

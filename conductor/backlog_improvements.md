@@ -1,6 +1,9 @@
 # Backlog Improvements - Project K
 
-## Phase 2: Refinement & Scale
+### 2026-02-02: Interval Metrics Visibility Restriction
+- [x] **Strict Visibility Control**: Modified `MetricsCalculator.compute` to restrict interval-specific metrics (PmoyW, HRmeanW, Pace, Efficiency Ratio) strictly to activities classified as 'intervals'. This prevents confusing average metrics from appearing on endurance or competition sessions, ensuring a cleaner dashboard for Karoly.
+
+### Phase 2: Refinement & Scale
 
 ### Logic Improvements (Logged from Track 1.5 - Matcher V2)
 

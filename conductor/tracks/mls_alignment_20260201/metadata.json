@@ -1,0 +1,8 @@
+{
+  "track_id": "mls_alignment_20260201",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-02-01T15:30:00Z",
+  "updated_at": "2026-02-01T15:30:00Z",
+  "description": "Alignement de la MLS Run et Bike pour assurer une parité (1h @ 120bpm). Introduction des profils physio par sport."
+}

@@ -35,6 +35,7 @@ To transform Karoly Spy's coaching methodology into a scalable, automated, and s
 
 ### 2. The "Intelligence Engine" (Python Core)
 - **Physiological Brain:** High-precision calculation of Load (MLS), Durability, and Decoupling. **100% certified alignment** with Karoly's original mathematical models (strict exclusion of pauses, precise split-halves by time). Note: MLS calculation is strictly restricted to Running and Cycling activities to ensure scientific validity.
+- **MLS Parity & Calibration:** Advanced "Calorie-equivalent" model for Running (MEC) that aligns Running Load with Cycling Load (e.g., 1h Run @ 120bpm ≈ 1h Bike @ 120bpm), removing historical conversion biases (Run Coeff 0.77 vs legacy 4.184).
 - **Hybrid Interval Engine:** Surgical segmentation of complex workouts using a four-tier fusion strategy: theoretical plan correlation, manual/automatic lap analysis, ULTRA signal analysis (Histogram Valley), and **PureSignalMatcher** (DoM edge detection, Cadence Snap alignment, and Plateau Validation).
 - **Smart Classification & Interval Metrics:** Automated extraction of physiological markers (Avg Speed/Power, HR, Pa:Hr Ratio, internal Decoupling) for every detected effort block. Advanced classification logic prevents "Endurance" sessions from being misclassified as "Intervalles" by enforcing **Strict Plan Priority** (Strategy A) and **Intelligent Lap Filtering** (Strategy B) to ignore device-generated Auto-Laps (e.g., 1km, 5km, 100m) based on duration/intensity variance checks.
 -   **Magnitude Rule:** Automatic intelligence to switch between Stryd Power (Watts) and Critical Speed (m/s) based on threshold magnitudes (CP > 100 vs CS < 20), ensuring scientific validity across different sensor setups.
@@ -43,6 +44,7 @@ To transform Karoly Spy's coaching methodology into a scalable, automated, and s
     -   *Best Effort Repair:* Smoothing and interpolation for minor gaps.
     -   *Exclusion Logic:* Sessions with >20% missing data are flagged for manual review or excluded.
 -   **Physio Profiles (SCD Type 2):** Historical tracking of LT1, LT2, CP/CS to ensure every activity is analyzed with the correct context.
+-   **Sport-Specific Profiling:** Multi-dimensional physiological profiles allowing distinct thresholds (LT1/LT2) for different modalities (e.g., Run vs. Bike) for the same athlete, enabling precision analysis across disciplines.
 
 ### 3. Output & Consumption
 -   **Automated Weekly Reporting:** Custom summaries for athletes with variable detail levels (Simplified vs. Expert).
