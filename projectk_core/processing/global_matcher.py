@@ -851,12 +851,21 @@ class GlobalCandidateMatcher:
         
         if not local_regions:
             return None
-        
+
+        # Filter regions by mean intensity (must be >= 90% of target)
+        # This prevents warmup zones from being selected
+        if target_min > 0:
+            min_mean_intensity = target_min * 0.90
+            local_regions = [r for r in local_regions if r['mean_intensity'] >= min_mean_intensity]
+
+        if not local_regions:
+            return None
+
         # Score each candidate
         target = {'duration': target_duration, 'target_min': target_min}
         best_region = None
         best_score = float('inf')
-        
+
         for region in local_regions:
             score = self.score_candidate(region, target, None, None)
             

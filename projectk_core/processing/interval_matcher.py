@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from enum import Enum
 from projectk_core.logic.step_detector import StepDetector
 from projectk_core.processing.global_matcher import GlobalCandidateMatcher
-from projectk_core.processing.edge_detector import AdaptiveHysteresis
+from projectk_core.processing.edge_detector import AdaptiveHysteresis, MultiSignalEdgeDetector
 from projectk_core.processing.confidence import (
     ConfidenceMetrics, ConfidenceCalculator, VALIDATION_THRESHOLD,
     is_high_confidence_match
@@ -76,7 +76,7 @@ class MatchConfig:
     pause_min_duration: int = 20             # Seconds - minimum to consider a pause
 
     # Search behavior
-    max_search_gap: int = 900                # Max seconds to search ahead
+    max_search_gap: int = 1800               # Max seconds to search ahead (30 min for long warmups)
     retry_offset: int = 30                   # Seconds to skip before retry
     max_retries: int = 5                     # Max retries per target
     search_gap_multiplier: float = 2.0       # Search gap = max(base, duration * this)
@@ -244,29 +244,62 @@ class IntervalMatcher:
 
             search_limit = min(lap_idx + lookahead, len(work_laps))
 
-            # Strategy 1: Try to match a single LAP
-            # SURGICAL PRECISION (2026-02-02): Find BEST lap, not first valid lap
-            # Also enforce minimum intensity to filter warmup laps
+            # Strategy 1: "BEST IN WINDOW" approach (2026-02-03)
+            # Maintains chronological order while selecting best candidate within a lookahead window
+            # Uses SOFT intensity filter (90%) to skip warmup but allow slightly tired athletes
+            target_dist = float(target.get('distance_m', 0))
+
+            # Define lookahead window (how many laps ahead to consider)
+            # Larger window at start to skip warmup, smaller after
+            lookahead_window = min(8, search_limit - lap_idx) if lap_idx == 0 else min(5, search_limit - lap_idx)
+
             best_lap = None
-            best_confidence = 0.0
             best_idx = None
+            best_combined_score = 0.0
 
-            for i in range(lap_idx, search_limit):
+            # INTENSITY FLOOR: Minimum 90% of target to filter out warmup
+            # This is more forgiving than 95% but still filters obvious warmup
+            intensity_floor = target_min * 0.90 if target_min > 0 else 0
+
+            for i in range(lap_idx, min(lap_idx + lookahead_window, search_limit)):
                 lap = work_laps[i]
-
-                # HARD FILTER: Lap must have intensity >= 95% of target
-                # This filters out warmup laps (e.g., 4.51 vs 5.0 m/s = 90.2%)
                 lap_intensity = lap.get('avg_speed', 0) if signal_col == 'speed' else lap.get('avg_power', 0)
-                if target_min > 0 and lap_intensity < target_min * 0.95:
-                    continue  # Skip: intensity too low
 
+                # SOFT FILTER: Skip if clearly below intensity floor
+                # But allow if we're past the lookahead (desperation mode)
+                if lap_intensity < intensity_floor and (i - lap_idx) < lookahead_window - 1:
+                    continue
+
+                # Calculate confidence score
                 confidence = self._calculate_lap_confidence(
                     lap, target_min, duration_s, signal_col,
-                    target_distance=float(target.get('distance_m', 0))
+                    target_distance=target_dist
                 )
-                if confidence >= self.config.lap_confidence_threshold and confidence > best_confidence:
+
+                # Skip if below minimum confidence
+                if confidence < self.config.lap_confidence_threshold:
+                    continue
+
+                # Calculate intensity ratio (how close to target)
+                intensity_ratio = lap_intensity / target_min if target_min > 0 else 1.0
+
+                # Intensity score: bonus for being at or above target
+                if intensity_ratio >= 0.98:
+                    intensity_score = 1.0
+                elif intensity_ratio >= 0.93:
+                    intensity_score = 0.85 + (intensity_ratio - 0.93) / 0.05 * 0.15
+                elif intensity_ratio >= 0.90:
+                    intensity_score = 0.70 + (intensity_ratio - 0.90) / 0.03 * 0.15
+                else:
+                    intensity_score = max(0.3, intensity_ratio)
+
+                # Combined score: confidence (35%) + intensity (65%)
+                # Intensity weighted heavily to prefer faster laps
+                combined_score = 0.35 * confidence + 0.65 * intensity_score
+
+                if combined_score > best_combined_score:
                     best_lap = {**lap, 'lap_index': i, 'confidence': confidence}
-                    best_confidence = confidence
+                    best_combined_score = combined_score
                     best_idx = i
 
             if best_lap:
@@ -326,55 +359,60 @@ class IntervalMatcher:
                             break  # Stop at first valid match
 
             # Strategy 3: Multi-LAP aggregation for long intervals (e.g., 5km = 5x1km LAPs)
-            # SURGICAL PRECISION (2026-02-02): Handles distance-based long intervals
-            # where athlete marks each km but we need the whole 5km as one interval
+            # Uses intensity floor (90%) to filter warmup blocks
             if not matched_lap and duration_s >= 600:  # Only for intervals >= 10 min
                 target_dist = float(target.get('distance_m', 0))
+                multi_lap_candidates = []
+                intensity_floor = target_min * 0.90 if target_min > 0 else 0
 
-                # Try to aggregate multiple consecutive high-intensity LAPs
+                # Try to aggregate multiple consecutive LAPs starting from each position
                 for start_i in range(lap_idx, search_limit):
                     laps_to_merge = []
                     total_duration = 0
                     total_distance = 0
-                    all_high_intensity = True
+                    intensity_sum = 0
+                    all_above_floor = True
 
                     # Keep adding consecutive LAPs until we reach target duration/distance
-                    for j in range(start_i, min(start_i + 10, len(work_laps))):  # Max 10 LAPs
+                    for j in range(start_i, min(start_i + 15, len(work_laps))):  # Max 15 LAPs
                         lap = work_laps[j]
-
-                        # Check intensity (must be >= 95% of target)
                         lap_intensity = lap.get('avg_speed', 0) if signal_col == 'speed' else lap.get('avg_power', 0)
-                        if target_min > 0 and lap_intensity < target_min * 0.95:
-                            # This lap is too slow, stop aggregation
-                            all_high_intensity = False
+
+                        # Check intensity floor (stop if lap is too slow)
+                        if lap_intensity < intensity_floor:
+                            all_above_floor = False
                             break
 
                         # Check gap with previous lap (must be consecutive)
                         if laps_to_merge:
                             prev_lap = laps_to_merge[-1]
                             gap = lap['start_offset'] - prev_lap['end_offset']
-                            if gap > 15:  # Max 15s gap between km marks
+                            if gap > 20:  # Max 20s gap between km marks
                                 break
 
                         laps_to_merge.append(lap)
                         total_duration += lap['duration']
                         total_distance += lap.get('total_distance', 0)
+                        intensity_sum += lap_intensity * lap['duration']
 
                         # Check if we've reached target
+                        reached_target = False
                         if target_dist > 0:
-                            # Distance-based target: check distance
                             if total_distance >= target_dist * 0.95:
-                                break
+                                reached_target = True
                         else:
-                            # Duration-based target: check duration
                             if total_duration >= duration_s * 0.95:
-                                break
+                                reached_target = True
 
-                    # Validate the merged block
-                    if len(laps_to_merge) >= 2 and all_high_intensity:
+                        if reached_target:
+                            break
+
+                    # Validate the merged block (need at least 2 laps and high intensity)
+                    if len(laps_to_merge) >= 2 and all_above_floor:
                         merged = self._merge_laps(laps_to_merge)
                         merged_duration = merged['duration']
                         merged_distance = merged.get('total_distance', 0)
+                        avg_intensity = intensity_sum / total_duration if total_duration > 0 else 0
 
                         # Check if merged block matches target
                         dur_match = 0.7 <= merged_duration / duration_s <= 1.3 if duration_s > 0 else False
@@ -385,11 +423,26 @@ class IntervalMatcher:
                                 merged, target_min, duration_s, signal_col,
                                 target_distance=target_dist
                             )
-                            if confidence >= self.config.lap_confidence_threshold * 0.85:
-                                lap_indices = list(range(start_i, start_i + len(laps_to_merge)))
-                                matched_lap = {**merged, 'lap_index': lap_indices, 'confidence': confidence}
-                                matched_idx = start_i + len(laps_to_merge)
-                                break  # Found a valid multi-LAP match
+                            intensity_rank = avg_intensity / target_min if target_min > 0 else avg_intensity
+
+                            multi_lap_candidates.append({
+                                'merged': merged,
+                                'lap_indices': list(range(start_i, start_i + len(laps_to_merge))),
+                                'confidence': confidence,
+                                'avg_intensity': avg_intensity,
+                                'intensity_rank': intensity_rank,
+                                'end_idx': start_i + len(laps_to_merge)
+                            })
+
+                # Take the FIRST candidate that meets threshold (chronologically earliest with high intensity)
+                # Sort by position first, then by intensity
+                multi_lap_candidates.sort(key=lambda c: (c['lap_indices'][0], -c['intensity_rank']))
+
+                for cand in multi_lap_candidates:
+                    if cand['confidence'] >= self.config.lap_confidence_threshold * 0.85:
+                        matched_lap = {**cand['merged'], 'lap_index': cand['lap_indices'], 'confidence': cand['confidence']}
+                        matched_idx = cand['end_idx']
+                        break
             
             if matched_lap:
                 result = self._build_lap_result(
@@ -412,18 +465,32 @@ class IntervalMatcher:
                 if ps_match:
                     start_idx = ps_match['start']
                     end_idx = ps_match['end']
-                    
+
                     plateau_metrics = self._calculate_plateau_metrics(
                         df, signal_col, start_idx, end_idx, duration_s
                     )
-                    
+
                     realized = plateau_metrics.get(f'avg_{signal_col}', 0)
                     respect_score = (realized / target_min * 100) if target_min > 0 else None
-                    
+
+                    # Calculate signal confidence (2026-02-03)
+                    # Score is a cost function (lower = better), typically 20-100 after scaling
+                    # Map to 0-1 confidence: score=0 → conf=1.0, score=60 → conf=0.85, score=120 → conf=0.70
+                    raw_score = ps_match['score']
+                    signal_confidence = max(0.5, 1.0 - (raw_score / 200.0))
+
+                    # Boost confidence if intensity match is good
+                    if target_min > 0 and realized > 0:
+                        intensity_ratio = realized / target_min
+                        if intensity_ratio >= 0.95:
+                            signal_confidence = min(1.0, signal_confidence + 0.10)
+                        elif intensity_ratio >= 0.90:
+                            signal_confidence = min(1.0, signal_confidence + 0.05)
+
                     result = {
                         "status": MatchStatus.MATCHED.value,
                         "source": MatchSource.SIGNAL.value,
-                        "confidence": 1.0 / (1.0 + (ps_match['score'] / 100.0)), # Mock confidence 0-1
+                        "confidence": signal_confidence,
                         "lap_index": None,
                         "target_index": target_idx,
                         "start_index": start_idx,
@@ -736,15 +803,15 @@ class IntervalMatcher:
         if not laps_to_merge: return {}
         first = laps_to_merge[0]
         last = laps_to_merge[-1]
-        
+
         total_dur = sum(l['duration'] for l in laps_to_merge)
         total_dist = sum(l.get('total_distance', 0) for l in laps_to_merge)
-        
+
         # Weighted averages (handle None values)
         w_pwr = sum((l.get('avg_power') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
         w_spd = sum((l.get('avg_speed') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
         w_hr = sum((l.get('avg_hr') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
-        
+
         return {
             'start_offset': first['start_offset'],
             'end_offset': last['end_offset'],
@@ -756,6 +823,71 @@ class IntervalMatcher:
             'intensity': first.get('intensity', 'unknown'), # Assume intent matches start
             'raw': first['raw'] # Keep ref
         }
+
+    def _refine_boundaries_with_signal(
+        self,
+        df: pd.DataFrame,
+        tentative_start: int,
+        tentative_end: int,
+        signal_col: str,
+        target_min: float,
+        search_window: int = 30
+    ) -> Tuple[int, int]:
+        """
+        Refine LAP boundaries using signal-based edge detection.
+
+        This handles mid-lap starts where the athlete begins the interval
+        between km marks (e.g., at 3.5km instead of exactly 3km or 4km).
+
+        Uses gradient analysis of speed/power to find the actual transition points.
+
+        Args:
+            df: DataFrame with signal data
+            tentative_start: LAP-based start index
+            tentative_end: LAP-based end index
+            signal_col: 'speed' or 'power'
+            target_min: Expected minimum intensity
+            search_window: Seconds to search around LAP boundary
+
+        Returns:
+            Tuple of (refined_start, refined_end)
+        """
+        try:
+            # Create edge detector for this segment
+            edge_detector = MultiSignalEdgeDetector(df, sport='run' if signal_col == 'speed' else 'bike')
+
+            # Refine start boundary
+            start_result = edge_detector.find_edge(
+                tentative_idx=tentative_start,
+                edge_type='start',
+                target_intensity=target_min
+            )
+            refined_start = start_result.index if start_result else tentative_start
+
+            # Refine end boundary
+            end_result = edge_detector.find_edge(
+                tentative_idx=tentative_end,
+                edge_type='end',
+                target_intensity=target_min
+            )
+            refined_end = end_result.index if end_result else tentative_end
+
+            # Sanity checks
+            if refined_start >= refined_end:
+                # Invalid refinement, keep original
+                return tentative_start, tentative_end
+
+            # Don't allow extreme shifts (> search_window)
+            if abs(refined_start - tentative_start) > search_window:
+                refined_start = tentative_start
+            if abs(refined_end - tentative_end) > search_window:
+                refined_end = tentative_end
+
+            return refined_start, refined_end
+
+        except Exception:
+            # Fallback to original boundaries on any error
+            return tentative_start, tentative_end
     
     def _calculate_lap_confidence(
         self,

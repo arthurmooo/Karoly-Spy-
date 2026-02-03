@@ -87,6 +87,54 @@ SOT_CASES = {
         "ground_truth_starts": [1200, 1440, 1680, 1920, 2160, 2400, 2640, 2880, 3120, 3360],
         "ground_truth_ends": [1380, 1620, 1860, 2100, 2340, 2580, 2820, 3060, 3300, 3540],
     },
+    # Adrien Claeyssen 31/01/2026 - 2*7Km Tempo / r 1Km
+    # SOT: 3'41/km = 4.52 m/s, 163 bpm
+    # Last interval: 3'43/km = 4.48 m/s, 161 bpm
+    # Structure: 2 blocks of 7km each (7 laps per block)
+    # Block 1: Laps 4-10 (starts at 862s)
+    # Block 2: Laps 12-18 (starts at 2718s, after 1km recovery at lap 11)
+    "0b906793-9d76-4844-a72b-3093dc2fe231": {
+        "athlete": "Adrien Claeyssen",
+        "date": "2026-01-31",
+        "structure": "2*7Km Tempo / r 1Km",
+        "expected_pace_min_km": 3.68,  # 3'41/km
+        "expected_speed_ms": 4.52,      # 4.52 m/s
+        "expected_hr": 163,
+        "num_intervals": 2,
+        "interval_duration_sec": 1557,  # ~26 min per 7Km
+        "target_grid": [
+            {"type": "active", "duration": 1557, "target_min": 4.40, "distance_m": 7000, "planned_rest": 300},
+            {"type": "active", "duration": 1557, "target_min": 4.40, "distance_m": 7000, "planned_rest": 300},
+        ],
+        # Ground truth boundaries from LAP analysis
+        "ground_truth_starts": [862, 2718],
+        "ground_truth_ends": [2419, 4249],
+    },
+    # Steven Galibert 26/01/2026 - 3*10Km LT1 / r 2Km
+    # SOT: 3'52/km = 4.31 m/s, 147 bpm
+    # Last interval: 3'55/km = 4.26 m/s, 145 bpm
+    # Structure: 3 blocks of 10km each (10 laps per block)
+    # Block 1: Laps 5-14 (starts at 1202s)
+    # Block 2: Laps 17-26 (starts at 4128s, after 2km recovery)
+    # Block 3: Laps 29-38 (starts at 7024s, after 2km recovery)
+    "c3f94ffb-7b0b-41bd-a1a4-f5a094332329": {
+        "athlete": "Steven Galibert",
+        "date": "2026-01-26",
+        "structure": "3*10Km LT1 / r 2Km",
+        "expected_pace_min_km": 3.87,  # 3'52/km
+        "expected_speed_ms": 4.31,      # 4.31 m/s
+        "expected_hr": 147,
+        "num_intervals": 3,
+        "interval_duration_sec": 2334,  # ~39 min per 10Km
+        "target_grid": [
+            {"type": "active", "duration": 2334, "target_min": 4.15, "distance_m": 10000, "planned_rest": 480},
+            {"type": "active", "duration": 2334, "target_min": 4.15, "distance_m": 10000, "planned_rest": 480},
+            {"type": "active", "duration": 2334, "target_min": 4.15, "distance_m": 10000, "planned_rest": 480},
+        ],
+        # Ground truth boundaries from LAP analysis
+        "ground_truth_starts": [1202, 4128, 7024],
+        "ground_truth_ends": [3536, 6428, 9315],
+    },
 }
 
 
@@ -342,19 +390,18 @@ def audit_activity(activity_id: str) -> Dict[str, Any]:
     }
 
 
-def audit_steven_cases():
+def audit_all_cases():
     """
-    Main audit function for Steven Galibert's test cases.
+    Main audit function for all test cases.
 
-    Validates the two cases against the SOT:
-    Test 1: 53433168-97a8-4f80-bcf6-efd357734ee7 (3*5Km)
-    - Expected: 3'20/km, 169 bpm
-
-    Test 2: 3b7ddceb-e9e8-4c8b-9b3e-72b6dd1663a3 (10*3'/r1')
-    - Expected: 18.39 km/h, 161 bpm
+    Validates against the SOT:
+    Test 1: Steven 3*5Km (01/02/2026) - 3'20/km, 169 bpm
+    Test 2: Steven 10*3'/r1' (16/01/2026) - 3'16/km, 161 bpm
+    Test 3: Adrien 2*7Km Tempo (31/01/2026) - 3'41/km, 163 bpm
+    Test 4: Steven 3*10Km LT1 (26/01/2026) - 3'52/km, 147 bpm
     """
     print("\n" + "=" * 60)
-    print("SIGNAL OPTIMIZATION AUDIT - Steven Galibert Cases")
+    print("SIGNAL OPTIMIZATION AUDIT - All Test Cases")
     print("Target: +/-2s boundary precision, <2% metrics error")
     print("=" * 60)
 
@@ -395,4 +442,4 @@ def audit_steven_cases():
 
 
 if __name__ == "__main__":
-    audit_steven_cases()
+    audit_all_cases()
