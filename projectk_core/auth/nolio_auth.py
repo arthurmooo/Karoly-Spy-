@@ -17,14 +17,15 @@ class NolioAuthenticator:
     TOKEN_URL = "https://www.nolio.io/api/token/"
     
     def __init__(self, client_id: Optional[str] = None, client_secret: Optional[str] = None, env_path: Optional[str] = None):
-        if not client_id or not client_secret:
+        # Only try to load .env if we are missing critical keys and the file exists
+        self.env_path = env_path or os.path.join(os.getcwd(), '.env')
+        if (not os.environ.get("NOLIO_CLIENT_ID") or not os.environ.get("SUPABASE_URL")) and os.path.exists(self.env_path):
             from dotenv import load_dotenv
-            load_dotenv(override=True)
+            load_dotenv(self.env_path, override=True)
             
         self.client_id = client_id or os.environ.get("NOLIO_CLIENT_ID")
         self.client_secret = client_secret or os.environ.get("NOLIO_CLIENT_SECRET")
         self.redirect_uri = os.environ.get("NOLIO_REDIRECT_URI", "https://google.com")
-        self.env_path = env_path or os.path.join(os.getcwd(), '.env')
         
         # Setup Supabase Client for Secret Management
         sb_url = os.environ.get("SUPABASE_URL")
