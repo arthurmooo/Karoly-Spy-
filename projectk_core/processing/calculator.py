@@ -291,8 +291,8 @@ class MetricsCalculator:
                         pass
 
         # STRICT RULE: Only compute interval metrics for "intervals" work type
-        # (Endurance and Competition are excluded to avoid cluttering the dashboard)
-        if meta.work_type == "intervals":
+        # AND only for Running and Cycling (requested 2026-02-03)
+        if meta.work_type == "intervals" and sport in ["run", "bike"]:
             if target_grid:
                 # SURGICAL MODE
                 # Pass CP to help the matcher classify LAPs correctly
