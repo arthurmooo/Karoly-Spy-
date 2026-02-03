@@ -64,13 +64,17 @@ class IntervalAuditor:
                 if "speed" in segment.columns:
                     stats["avg_speed"] = segment["speed"].mean()
                 if "power" in segment.columns:
-                    stats["avg_power"] = segment["power"].mean()
+                    # Karoly 2026-02-02: Wmoy excludes zeros
+                    pwr = segment["power"].dropna()
+                    stats["avg_power"] = pwr[pwr > 0].mean() if not pwr.empty else None
             
             else:
                 if is_run and "speed" in segment.columns:
                     stats["avg_speed"] = segment["speed"].mean()
                 if is_bike and "power" in segment.columns:
-                    stats["avg_power"] = segment["power"].mean()
+                    # Karoly 2026-02-02: Wmoy excludes zeros
+                    pwr = segment["power"].dropna()
+                    stats["avg_power"] = pwr[pwr > 0].mean() if not pwr.empty else None
                     
             report.append(stats)
             

@@ -15,7 +15,6 @@ class NolioAuthenticator:
     
     AUTH_URL = "https://www.nolio.io/api/authorize/"
     TOKEN_URL = "https://www.nolio.io/api/token/"
-    REDIRECT_URI = "https://google.com" # Placeholder used during setup
     
     def __init__(self, client_id: Optional[str] = None, client_secret: Optional[str] = None, env_path: Optional[str] = None):
         if not client_id or not client_secret:
@@ -24,6 +23,7 @@ class NolioAuthenticator:
             
         self.client_id = client_id or os.environ.get("NOLIO_CLIENT_ID")
         self.client_secret = client_secret or os.environ.get("NOLIO_CLIENT_SECRET")
+        self.redirect_uri = os.environ.get("NOLIO_REDIRECT_URI", "https://google.com")
         self.env_path = env_path or os.path.join(os.getcwd(), '.env')
         
         # Setup Supabase Client for Secret Management
@@ -60,7 +60,7 @@ class NolioAuthenticator:
 
     def get_authorization_url(self) -> str:
         """Generates the URL for the user to click."""
-        return f"{self.AUTH_URL}?response_type=code&client_id={self.client_id}&redirect_uri={self.REDIRECT_URI}"
+        return f"{self.AUTH_URL}?response_type=code&client_id={self.client_id}&redirect_uri={self.redirect_uri}"
 
     def exchange_code_for_token(self, code: str) -> Dict[str, Any]:
         """Exchanges the authorization code for access/refresh tokens."""
@@ -79,7 +79,7 @@ class NolioAuthenticator:
         data = {
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": self.REDIRECT_URI
+            "redirect_uri": self.redirect_uri
         }
         
         response = requests.post(self.TOKEN_URL, headers=headers, data=data)

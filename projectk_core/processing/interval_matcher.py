@@ -24,6 +24,12 @@ from dataclasses import dataclass
 from enum import Enum
 from projectk_core.logic.step_detector import StepDetector
 from projectk_core.processing.global_matcher import GlobalCandidateMatcher
+from projectk_core.processing.edge_detector import AdaptiveHysteresis
+from projectk_core.processing.confidence import (
+    ConfidenceMetrics, ConfidenceCalculator, VALIDATION_THRESHOLD,
+    is_high_confidence_match
+)
+from projectk_core.processing.manual_pattern_parser import ManualPatternParser, pattern_to_grid
 
 
 class MatchStatus(Enum):
@@ -47,29 +53,34 @@ class MatchConfig:
     lap_distance_tolerance: float = 0.05     # ±5% distance tolerance
     lap_intensity_tolerance: float = 0.35    # ±35% power/speed tolerance
     lap_confidence_threshold: float = 0.70   # Min confidence to use LAP
-    
+
     # Thresholds for hysteresis (signal fallback)
-    entry_threshold_ratio: float = 0.80      # 80% of target to enter
-    exit_threshold_ratio: float = 0.65       # 65% of target to exit
-    
+    # NOTE: These are now fallback values. AdaptiveHysteresis calculates
+    # zone-based thresholds dynamically when CP is available.
+    entry_threshold_ratio: float = 0.80      # 80% of target to enter (fallback)
+    exit_threshold_ratio: float = 0.65       # 65% of target to exit (fallback)
+
     # Plateau trimming (seconds)
     plateau_trim_start: int = 8              # Seconds to trim at start
     plateau_trim_end: int = 5                # Seconds to trim at end
-    
+
     # Match validation
     min_duration_ratio: float = 0.70         # Must find at least 70% of target duration
     max_duration_ratio: float = 1.50         # Don't accept more than 150% of target
-    
+
+    # Confidence-based validation (new)
+    signal_confidence_threshold: float = VALIDATION_THRESHOLD  # 0.85 for signal acceptance
+
     # Pause detection
     pause_speed_threshold: float = 1.5       # m/s - below this = walking/stopped
     pause_min_duration: int = 20             # Seconds - minimum to consider a pause
-    
+
     # Search behavior
     max_search_gap: int = 900                # Max seconds to search ahead
     retry_offset: int = 30                   # Seconds to skip before retry
     max_retries: int = 5                     # Max retries per target
     search_gap_multiplier: float = 2.0       # Search gap = max(base, duration * this)
-    
+
     # Sport-specific absolute minimums
     min_speed_run: float = 2.0               # m/s (~8:20/km) - below = not running
     min_speed_swim: float = 0.5              # m/s - below = not swimming
@@ -135,26 +146,37 @@ class IntervalMatcher:
         return score
 
     def match(
-        self, 
-        df: pd.DataFrame, 
-        target_grid: List[Dict[str, Any]], 
+        self,
+        df: pd.DataFrame,
+        target_grid: List[Dict[str, Any]],
         sport: str = "run",
         laps: Optional[List[Dict[str, Any]]] = None,
-        cp: Optional[float] = None
+        cp: Optional[float] = None,
+        manual_pattern: Optional[str] = None,
+        profile: Optional['PhysioProfile'] = None
     ) -> List[Dict[str, Any]]:
         """
         Main entry point: Match target intervals to actual data.
-        
+
         Args:
             df: DataFrame with 1Hz data (timestamp, speed, power, heart_rate, distance)
             target_grid: List of target intervals from plan_parser
             sport: Sport type ('run', 'bike', 'swim')
             laps: Optional list of LAP records from FIT file
             cp: Optional Critical Power/Speed for relative intensity classification
-            
+            manual_pattern: Optional manual pattern string (e.g., "10x1Km / r 250m")
+                           If provided and target_grid is empty, will parse pattern
+            profile: Optional PhysioProfile for adaptive thresholds
+
         Returns:
             List of detected intervals with metrics, status, and source
         """
+        # Strategy D: Parse manual pattern if provided and no target grid
+        if manual_pattern and (not target_grid or len(target_grid) == 0):
+            target_grid = pattern_to_grid(manual_pattern, profile=profile, sport=sport)
+            if target_grid:
+                print(f"      📋 Parsed manual pattern '{manual_pattern}' -> {len(target_grid)} intervals")
+
         if df.empty or not target_grid:
             return []
         
@@ -223,16 +245,33 @@ class IntervalMatcher:
             search_limit = min(lap_idx + lookahead, len(work_laps))
 
             # Strategy 1: Try to match a single LAP
+            # SURGICAL PRECISION (2026-02-02): Find BEST lap, not first valid lap
+            # Also enforce minimum intensity to filter warmup laps
+            best_lap = None
+            best_confidence = 0.0
+            best_idx = None
+
             for i in range(lap_idx, search_limit):
                 lap = work_laps[i]
+
+                # HARD FILTER: Lap must have intensity >= 95% of target
+                # This filters out warmup laps (e.g., 4.51 vs 5.0 m/s = 90.2%)
+                lap_intensity = lap.get('avg_speed', 0) if signal_col == 'speed' else lap.get('avg_power', 0)
+                if target_min > 0 and lap_intensity < target_min * 0.95:
+                    continue  # Skip: intensity too low
+
                 confidence = self._calculate_lap_confidence(
                     lap, target_min, duration_s, signal_col,
                     target_distance=float(target.get('distance_m', 0))
                 )
-                if confidence >= self.config.lap_confidence_threshold:
-                    matched_lap = {**lap, 'lap_index': i, 'confidence': confidence}
-                    matched_idx = i
-                    break
+                if confidence >= self.config.lap_confidence_threshold and confidence > best_confidence:
+                    best_lap = {**lap, 'lap_index': i, 'confidence': confidence}
+                    best_confidence = confidence
+                    best_idx = i
+
+            if best_lap:
+                matched_lap = best_lap
+                matched_idx = best_idx
 
             # Strategy 2: For merged targets, try to merge consecutive LAPs
             # This handles cases like 5×(90s Z3 + 210s Z2) where LAPs are separate
@@ -285,6 +324,72 @@ class IntervalMatcher:
                             matched_lap = {**merged, 'lap_index': [i, i+1], 'confidence': confidence}
                             matched_idx = i + 2
                             break  # Stop at first valid match
+
+            # Strategy 3: Multi-LAP aggregation for long intervals (e.g., 5km = 5x1km LAPs)
+            # SURGICAL PRECISION (2026-02-02): Handles distance-based long intervals
+            # where athlete marks each km but we need the whole 5km as one interval
+            if not matched_lap and duration_s >= 600:  # Only for intervals >= 10 min
+                target_dist = float(target.get('distance_m', 0))
+
+                # Try to aggregate multiple consecutive high-intensity LAPs
+                for start_i in range(lap_idx, search_limit):
+                    laps_to_merge = []
+                    total_duration = 0
+                    total_distance = 0
+                    all_high_intensity = True
+
+                    # Keep adding consecutive LAPs until we reach target duration/distance
+                    for j in range(start_i, min(start_i + 10, len(work_laps))):  # Max 10 LAPs
+                        lap = work_laps[j]
+
+                        # Check intensity (must be >= 95% of target)
+                        lap_intensity = lap.get('avg_speed', 0) if signal_col == 'speed' else lap.get('avg_power', 0)
+                        if target_min > 0 and lap_intensity < target_min * 0.95:
+                            # This lap is too slow, stop aggregation
+                            all_high_intensity = False
+                            break
+
+                        # Check gap with previous lap (must be consecutive)
+                        if laps_to_merge:
+                            prev_lap = laps_to_merge[-1]
+                            gap = lap['start_offset'] - prev_lap['end_offset']
+                            if gap > 15:  # Max 15s gap between km marks
+                                break
+
+                        laps_to_merge.append(lap)
+                        total_duration += lap['duration']
+                        total_distance += lap.get('total_distance', 0)
+
+                        # Check if we've reached target
+                        if target_dist > 0:
+                            # Distance-based target: check distance
+                            if total_distance >= target_dist * 0.95:
+                                break
+                        else:
+                            # Duration-based target: check duration
+                            if total_duration >= duration_s * 0.95:
+                                break
+
+                    # Validate the merged block
+                    if len(laps_to_merge) >= 2 and all_high_intensity:
+                        merged = self._merge_laps(laps_to_merge)
+                        merged_duration = merged['duration']
+                        merged_distance = merged.get('total_distance', 0)
+
+                        # Check if merged block matches target
+                        dur_match = 0.7 <= merged_duration / duration_s <= 1.3 if duration_s > 0 else False
+                        dist_match = merged_distance >= target_dist * 0.95 if target_dist > 0 else False
+
+                        if dur_match or dist_match:
+                            confidence = self._calculate_lap_confidence(
+                                merged, target_min, duration_s, signal_col,
+                                target_distance=target_dist
+                            )
+                            if confidence >= self.config.lap_confidence_threshold * 0.85:
+                                lap_indices = list(range(start_i, start_i + len(laps_to_merge)))
+                                matched_lap = {**merged, 'lap_index': lap_indices, 'confidence': confidence}
+                                matched_idx = start_i + len(laps_to_merge)
+                                break  # Found a valid multi-LAP match
             
             if matched_lap:
                 result = self._build_lap_result(
@@ -725,9 +830,9 @@ class IntervalMatcher:
             # e.g. target_min=80W (default bike), actual=274W -> Should be 1.0 score
             is_generic_floor = (signal_col == 'power' and expected < 150) or \
                                (signal_col == 'speed' and expected < 2.8) # ~10km/h
-            
+
             intensity_ratio = actual / expected
-            
+
             if is_generic_floor:
                 # Only penalize if below floor
                 if intensity_ratio >= 1.0:
@@ -735,15 +840,29 @@ class IntervalMatcher:
                 else:
                     intensity_score = max(0, 1 - abs(1 - intensity_ratio) * 2)
             else:
-                # Standard bracket
-                if 0.70 <= intensity_ratio <= 1.30:  # Wider tolerance for proxy
-                    intensity_score = 1 - abs(1 - intensity_ratio) / 0.30
+                # SURGICAL PRECISION (2026-02-02): Tighter tolerance for high-intensity targets
+                # For running/cycling intervals, the athlete should be AT or ABOVE target
+                # Warmup laps (e.g., 4.51 vs 5.0 m/s = 0.902) should be strongly penalized
+                #
+                # Key insight: Real intervals are typically at 98-105% of target
+                # Warmup laps are typically at 85-95% of target
+                # We need to clearly separate these two cases
+                if intensity_ratio >= 0.96:
+                    # At or above target (within 4%): full score
+                    intensity_score = 1.0
+                elif intensity_ratio >= 0.93:
+                    # 4-7% below target: good but not perfect
+                    intensity_score = 0.75 + (intensity_ratio - 0.93) / 0.03 * 0.25
+                elif intensity_ratio >= 0.88:
+                    # 7-12% below target: mediocre (likely warmup)
+                    intensity_score = 0.3 + (intensity_ratio - 0.88) / 0.05 * 0.45
                 else:
-                    # Allow harder efforts (up to 2x) but penalize weaker efforts
-                    if intensity_ratio > 1.30 and intensity_ratio < 2.0:
-                        intensity_score = 0.8
-                    else:
-                        intensity_score = max(0, 0.3 - abs(1 - intensity_ratio) / 3)
+                    # More than 12% below target: strong penalty (definitely warmup)
+                    intensity_score = max(0, intensity_ratio / 0.88 * 0.3)
+
+                # Over-performing is fine (up to 15%)
+                if intensity_ratio > 1.15:
+                    intensity_score = max(0.7, intensity_score - (intensity_ratio - 1.15) * 0.6)
         else:
             intensity_score = 0.2  # No data, small partial credit
         
@@ -1266,11 +1385,15 @@ class IntervalMatcher:
         metrics = {}
         for col in ['power', 'speed', 'heart_rate']:
             if col in df.columns:
-                series = interval_df[col]
-                val = series.mean()
+                series = interval_df[col].dropna()
+                if col == 'power':
+                    # Karoly 2026-02-02: Wmoy excludes zeros
+                    val = series[series > 0].mean() if not series.empty else None
+                else:
+                    val = series.mean()
                 
                 key = f'avg_{col}' if col != 'heart_rate' else 'avg_hr'
-                metrics[key] = float(val) if not pd.isna(val) else None
+                metrics[key] = float(val) if val is not None and not pd.isna(val) else None
         
         # Plateau averages (trimmed) - Only if requested
         if trim:
@@ -1285,11 +1408,15 @@ class IntervalMatcher:
                 plateau_df = df.iloc[plateau_start:plateau_end]
                 for col in ['power', 'speed', 'heart_rate']:
                     if col in df.columns:
-                        series = plateau_df[col]
-                        val = series.mean()
+                        series = plateau_df[col].dropna()
+                        if col == 'power':
+                            # Karoly 2026-02-02: Wmoy excludes zeros
+                            val = series[series > 0].mean() if not series.empty else None
+                        else:
+                            val = series.mean()
                         
                         key = f'plateau_avg_{col}' if col != 'heart_rate' else 'avg_hr'
-                        metrics[key] = float(val) if not pd.isna(val) else None
+                        metrics[key] = float(val) if val is not None and not pd.isna(val) else None
         else:
             # If not trimming, plateau metrics are the same as global ones
             metrics['plateau_avg_power'] = metrics.get('avg_power')

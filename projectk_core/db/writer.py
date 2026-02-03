@@ -27,7 +27,13 @@ class ActivityWriter:
         df = activity.streams
         
         # Calculate raw averages if streams exist
-        avg_power = float(df['power'].mean()) if not df.empty and 'power' in df.columns else None
+        # Karoly 2026-02-02: For Bike (and general power display), use mean excluding zeros (Nolio's Wmoy)
+        if not df.empty and 'power' in df.columns:
+            pwr_series = df['power'].dropna()
+            avg_power = float(pwr_series[pwr_series > 0].mean()) if not pwr_series.empty else None
+        else:
+            avg_power = None
+            
         avg_hr = float(df['heart_rate'].mean()) if not df.empty and 'heart_rate' in df.columns else None
 
         # Weather Logic: Metadata (API) takes priority over streams (Device)

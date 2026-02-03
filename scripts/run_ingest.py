@@ -164,7 +164,7 @@ class IngestionRobot:
                     cp_bike = get_latest("criticalpowercycling")
                     cs_run_raw = get_latest("criticalspeedrunning") # in sec/km or min/km
                     rmssd = get_latest("rmssd")
-                    resting_hr = get_latest("restinghr")
+                    resting_hr = get_latest("hrrest") or get_latest("restinghr")
                     
                     # 2.1 Sync HRV (Daily Readiness)
                     if rmssd or resting_hr:

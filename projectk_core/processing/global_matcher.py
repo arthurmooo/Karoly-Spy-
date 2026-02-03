@@ -20,6 +20,7 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from scipy.signal import find_peaks
 from scipy.ndimage import uniform_filter1d
+from projectk_core.processing.edge_detector import MultiSignalEdgeDetector, AdaptiveHysteresis
 
 
 class GlobalCandidateMatcher:
@@ -40,11 +41,12 @@ class GlobalCandidateMatcher:
     DOM_WINDOW = 5                     # Difference of Means window size
     MIN_SEGMENT_DURATION = 15          # Minimum work segment duration
 
-    def __init__(self, df: pd.DataFrame, sport: str = 'bike'):
+    def __init__(self, df: pd.DataFrame, sport: str = 'bike', profile: Optional['PhysioProfile'] = None):
         self.df = df
         self.sport = sport
+        self.profile = profile
         self.sample_rate = 1  # Assuming 1Hz
-        
+
         # Select primary signal
         if 'power' in df.columns and df['power'].notna().any():
             self.signal_col = 'power'
@@ -52,10 +54,10 @@ class GlobalCandidateMatcher:
             self.signal_col = 'speed'
         else:
             self.signal_col = 'power'
-        
+
         self.signal = df[self.signal_col].fillna(0).values
         self.cadence = df['cadence'].fillna(0).values if 'cadence' in df.columns else None
-        
+
         # Precompute session statistics
         active_mask = self.signal > np.mean(self.signal) * 0.3
         if active_mask.sum() > 100:
@@ -64,6 +66,12 @@ class GlobalCandidateMatcher:
         else:
             self.session_max = np.max(self.signal) if len(self.signal) > 0 else 0
             self.session_mean = np.mean(self.signal) if len(self.signal) > 0 else 0
+
+        # Initialize multi-signal edge detector for surgical precision
+        self.edge_detector = MultiSignalEdgeDetector(df, sport=sport, profile=profile)
+
+        # Initialize adaptive hysteresis for zone-based thresholds
+        self.hysteresis = AdaptiveHysteresis(sport=sport)
 
     def detect_edges_dom(self, window: int = 5) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -128,78 +136,94 @@ class GlobalCandidateMatcher:
         
         return regions
 
-    def snap_to_cadence(self, tentative_idx: int, search_window: int = 3) -> int:
+    def snap_to_cadence(self, tentative_idx: int, search_window: int = 8, edge_type: str = 'start', target_intensity: Optional[float] = None) -> int:
         """
-        Refines a start index by looking for a sharp rise in cadence.
+        Refines an index using MultiSignalEdgeDetector for surgical precision (+/-2s).
+
+        Uses cadence gradient as leading indicator (1-3s before power/speed),
+        cross-validates with power/speed gradient, and expands search window to ±8s.
+
+        Args:
+            tentative_idx: Initial estimate of edge position
+            search_window: Search window in seconds (default 8, was 3)
+            edge_type: 'start' for interval beginning, 'end' for interval end
+            target_intensity: Optional target for adaptive thresholds
+
+        Returns:
+            Refined index with surgical precision
         """
-        if self.cadence is None or len(self.cadence) == 0:
+        if len(self.df) == 0:
             return tentative_idx
-        
-        start_search = max(0, tentative_idx - search_window)
-        end_search = min(len(self.cadence), tentative_idx + search_window)
-        
-        segment = self.cadence[start_search:end_search]
-        if len(segment) < 2:
-            return tentative_idx
-        
-        grad = np.diff(segment)
-        if len(grad) > 0 and np.max(grad) > 5:
-            offset = np.argmax(grad)
-            return start_search + offset
-        
-        return tentative_idx
+
+        # Use the multi-signal edge detector for precision
+        edge_result = self.edge_detector.find_edge(
+            tentative_idx=tentative_idx,
+            edge_type=edge_type,
+            target_intensity=target_intensity
+        )
+
+        return edge_result.index
 
     def refine_boundaries_dom(
-        self, 
-        region: Dict, 
-        target_duration: int
+        self,
+        region: Dict,
+        target_duration: int,
+        target_intensity: Optional[float] = None
     ) -> Tuple[int, int]:
         """
-        Refines region boundaries using DoM edge detection.
+        Refines region boundaries using MultiSignalEdgeDetector for surgical precision.
+
+        V2: Uses multi-signal cross-validation (cadence + power/speed) instead of
+        simple DoM peaks. Achieves +/-2s precision on interval boundaries.
+
         Returns (refined_start, refined_end).
         """
+        # Use MultiSignalEdgeDetector for surgical precision
+        refined_start, refined_end = self.edge_detector.refine_boundaries(
+            start_idx=region['start'],
+            end_idx=region['end'],
+            target_duration=target_duration
+        )
+
+        # Additional DoM-based validation for edge cases
         dom_abs, dom_signed = self.detect_edges_dom(self.DOM_WINDOW)
-        
-        # Search for start edge near region start
-        search_start = max(0, region['start'] - 15)
-        search_end = min(len(self.signal), region['start'] + 15)
-        
-        start_window = dom_signed[search_start:search_end]
-        if len(start_window) > 0:
-            # Look for positive peaks (intensity rising)
-            peaks, _ = find_peaks(start_window, height=np.max(start_window) * 0.3, distance=3)
-            if len(peaks) > 0:
-                best_start = search_start + peaks[0]
-            else:
-                best_start = region['start']
-        else:
-            best_start = region['start']
-        
-        # Snap to cadence if available
-        best_start = self.snap_to_cadence(best_start)
-        
-        # Search for end edge
-        expected_end = best_start + target_duration
-        search_end_low = max(0, expected_end - 15)
-        search_end_high = min(len(self.signal), expected_end + 15)
-        
-        end_window = -dom_signed[search_end_low:search_end_high]  # Negative for drops
-        if len(end_window) > 0:
-            peaks, _ = find_peaks(end_window, height=np.max(end_window) * 0.3, distance=3)
-            if len(peaks) > 0:
-                # Choose peak closest to expected end
-                closest = min(peaks, key=lambda p: abs((search_end_low + p) - expected_end))
-                best_end = search_end_low + closest
-            else:
-                best_end = expected_end
-        else:
-            best_end = expected_end
-        
+
+        # Validate start with DoM (sanity check)
+        search_start = max(0, refined_start - 5)
+        search_end = min(len(self.signal), refined_start + 5)
+        if search_end > search_start:
+            start_window = dom_signed[search_start:search_end]
+            if len(start_window) > 0:
+                # Check if there's a stronger edge nearby
+                peaks, _ = find_peaks(start_window, height=np.max(start_window) * 0.5, distance=2)
+                if len(peaks) > 0:
+                    dom_start = search_start + peaks[0]
+                    # Only override if very close and stronger signal
+                    if abs(dom_start - refined_start) <= 2:
+                        refined_start = dom_start
+
+        # Validate end with DoM
+        search_end_low = max(0, refined_end - 5)
+        search_end_high = min(len(self.signal), refined_end + 5)
+        if search_end_high > search_end_low:
+            end_window = -dom_signed[search_end_low:search_end_high]
+            if len(end_window) > 0:
+                peaks, _ = find_peaks(end_window, height=np.max(end_window) * 0.5, distance=2)
+                if len(peaks) > 0:
+                    dom_end = search_end_low + peaks[-1]
+                    if abs(dom_end - refined_end) <= 2:
+                        refined_end = dom_end
+
         # Clamp to valid range
-        best_end = min(best_end, len(self.signal))
-        best_start = max(0, best_start)
-        
-        return best_start, best_end
+        refined_start = max(0, refined_start)
+        refined_end = min(len(self.signal), refined_end)
+
+        # Ensure valid interval
+        if refined_end <= refined_start:
+            refined_end = min(region['end'], len(self.signal))
+            refined_start = max(0, region['start'])
+
+        return refined_start, refined_end
 
     def score_candidate(
         self,
@@ -727,8 +751,13 @@ class GlobalCandidateMatcher:
         if 'power' in self.df.columns:
             seg = self.df['power'].iloc[start_idx:end_idx].dropna()
             plateau_seg = self.df['power'].iloc[plateau_start:plateau_end].dropna()
-            metrics['avg_power'] = float(seg.mean()) if len(seg) > 0 else None
-            metrics['plateau_avg_power'] = float(plateau_seg.mean()) if len(plateau_seg) > 0 else None
+            
+            # Karoly 2026-02-02: Wmoy excludes zeros
+            avg_p = seg[seg > 0].mean() if not seg.empty else None
+            plat_p = plateau_seg[plateau_seg > 0].mean() if not plateau_seg.empty else None
+            
+            metrics['avg_power'] = float(avg_p) if avg_p is not None and not pd.isna(avg_p) else None
+            metrics['plateau_avg_power'] = float(plat_p) if plat_p is not None and not pd.isna(plat_p) else None
         
         # Speed
         if 'speed' in self.df.columns:

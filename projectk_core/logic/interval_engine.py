@@ -419,7 +419,9 @@ class IntervalMetricsCalculator:
         if block.distance_m is None and "distance" in segment.columns:
             block.distance_m = float(segment["distance"].iloc[-1] - segment["distance"].iloc[0])
         if block.avg_power is None and "power" in segment.columns:
-            block.avg_power = float(segment["power"].mean())
+            # Karoly 2026-02-02: Wmoy excludes zeros
+            pwr = segment["power"].dropna()
+            block.avg_power = float(pwr[pwr > 0].mean()) if not pwr.empty else None
         if block.avg_hr is None and "heart_rate" in segment.columns:
             block.avg_hr = float(segment["heart_rate"].mean())
         if block.avg_speed is None and "speed" in segment.columns:
@@ -442,10 +444,16 @@ class IntervalMetricsCalculator:
             first_half = segment[segment["time"] < mid]
             second_half = segment[segment["time"] >= mid]
             
-            p1 = first_half["power"].mean() if "power" in first_half.columns else None
-            h1 = first_half["heart_rate"].mean()
+            # Karoly 2026-02-02: Wmoy excludes zeros
+            if "power" in first_half.columns:
+                p1_s = first_half["power"].dropna()
+                p1 = p1_s[p1_s > 0].mean() if not p1_s.empty else None
+                p2_s = second_half["power"].dropna()
+                p2 = p2_s[p2_s > 0].mean() if not p2_s.empty else None
+            else:
+                p1, p2 = None, None
             
-            p2 = second_half["power"].mean() if "power" in second_half.columns else None
+            h1 = first_half["heart_rate"].mean()
             h2 = second_half["heart_rate"].mean()
             
             if h1 and h2 and h1 > 0 and h2 > 0:

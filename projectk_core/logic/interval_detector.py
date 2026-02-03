@@ -171,7 +171,13 @@ class IntervalDetector:
             dur = end_idx - start_idx
             
             # Re-compute averages on the full merged segment
-            p = df['power'].iloc[start_idx:end_idx].mean() if 'power' in df.columns else 0.0
+            # Karoly 2026-02-02: Wmoy excludes zeros
+            if 'power' in df.columns:
+                p_s = df['power'].iloc[start_idx:end_idx].dropna()
+                p = p_s[p_s > 0].mean() if not p_s.empty else 0.0
+            else:
+                p = 0.0
+                
             hr = df['heart_rate'].iloc[start_idx:end_idx].mean() if 'heart_rate' in df.columns else 0.0
             
             sum_p += p

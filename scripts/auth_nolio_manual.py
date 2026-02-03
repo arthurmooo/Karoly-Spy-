@@ -15,6 +15,7 @@ def run_manual_auth():
     
     client_id = os.environ.get("NOLIO_CLIENT_ID")
     client_secret = os.environ.get("NOLIO_CLIENT_SECRET")
+    redirect_uri = os.environ.get("NOLIO_REDIRECT_URI", "https://google.com")
     
     if not client_id:
         client_id = input("Enter NOLIO_CLIENT_ID: ").strip()
@@ -22,9 +23,16 @@ def run_manual_auth():
     if not client_secret:
         client_secret = input("Enter NOLIO_CLIENT_SECRET: ").strip()
         
+    custom_redirect = input(f"Enter Redirect URI (default: {redirect_uri}): ").strip()
+    if custom_redirect:
+        redirect_uri = custom_redirect
+        
     if not client_id or not client_secret:
         print("❌ Error: Credentials required.")
         return
+
+    # Set env var for authenticator to pick up
+    os.environ["NOLIO_REDIRECT_URI"] = redirect_uri
 
     # Authenticator will automatically handle Supabase connection if keys are in env
     auth = NolioAuthenticator(client_id, client_secret)

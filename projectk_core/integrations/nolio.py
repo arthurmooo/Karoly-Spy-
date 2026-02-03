@@ -101,7 +101,7 @@ class NolioClient:
             "rmssd": "rmssd",
             "hrrest": "resting_hr",
             "sleep": "sleep_duration",
-            "sleep_score": "sleep_score"
+            "scoresommeil": "sleep_score"
         }
         
         # Structure the results by date

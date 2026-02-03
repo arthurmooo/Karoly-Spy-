@@ -7,6 +7,7 @@ from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.processing.segmentation import SegmentCalculator
 from projectk_core.processing.interval_matcher import IntervalMatcher
 from projectk_core.processing.lap_calculator import LapCalculator
+from projectk_core.processing.confidence import VALIDATION_THRESHOLD, is_high_confidence_match
 
 class MetricsCalculator:
     """
@@ -188,8 +189,14 @@ class MetricsCalculator:
                 # KAROLY UPDATE: Run = Vitesse (Always use Speed for Run)
                 use_power_drift = has_ref_power and sport != 'run'
                 
-                val1 = first_half['power'].fillna(0).mean() if use_power_drift else (first_half['speed'].fillna(0).mean() if has_speed else 0.0)
-                val2 = second_half['power'].fillna(0).mean() if use_power_drift else (second_half['speed'].fillna(0).mean() if has_speed else 0.0)
+                if use_power_drift:
+                    p1_s = first_half['power'].dropna()
+                    val1 = p1_s[p1_s > 0].mean() if not p1_s.empty else 0.0
+                    p2_s = second_half['power'].dropna()
+                    val2 = p2_s[p2_s > 0].mean() if not p2_s.empty else 0.0
+                else:
+                    val1 = first_half['speed'].fillna(0).mean() if has_speed else 0.0
+                    val2 = second_half['speed'].fillna(0).mean() if has_speed else 0.0
                 
                 h1 = hr_smooth.iloc[start_idx:start_idx+mid_idx].mean()
                 h2 = hr_smooth.iloc[start_idx+mid_idx:].mean()
@@ -264,6 +271,25 @@ class MetricsCalculator:
         # Bike = Power
         eff_signal_col = 'power' if sport == 'bike' else 'speed'
 
+        # Karoly 2026-02-02: Pre-correct Lap averages from stream (Wmoy = no zeros)
+        # This ensures both matcher classification and final display are consistent.
+        if sport == 'bike' and 'power' in df.columns and activity.laps:
+            ts_series = pd.to_datetime(df['timestamp']) if 'timestamp' in df.columns else None
+            if ts_series is not None:
+                for l in activity.laps:
+                    try:
+                        start_ts = l.get('start_time')
+                        # Duration in laps can be total_timer_time or total_elapsed_time
+                        dur = l.get('total_timer_time') or l.get('total_elapsed_time')
+                        if start_ts and dur:
+                            start_idx = int(ts_series.searchsorted(pd.to_datetime(start_ts)))
+                            end_idx = start_idx + int(round(dur))
+                            pwr_seg = df['power'].iloc[start_idx:end_idx].dropna()
+                            if not pwr_seg.empty:
+                                l['avg_power'] = float(pwr_seg[pwr_seg > 0].mean())
+                    except:
+                        pass
+
         # STRICT RULE: Only compute interval metrics for "intervals" work type
         # (Endurance and Competition are excluded to avoid cluttering the dashboard)
         if meta.work_type == "intervals":
@@ -316,18 +342,34 @@ class MetricsCalculator:
                     valid_s = [d['avg_speed'] for d in perf_detections if d['avg_speed'] is not None]
                     valid_h = [d['avg_hr'] for d in perf_detections if d['avg_hr'] is not None]
                     valid_r = [d['respect_score'] for d in perf_detections if d['respect_score'] is not None]
-                    
-                    # ========== STRICT VALIDATION FOR KAROLY (2026-01-28) ==========
-                    # Rule: Only populate aggregate metrics if 100% of planned work intervals 
-                    # were matched AND all came from the LAP source.
-                    
+
+                    # ========== CONFIDENCE-BASED VALIDATION (2026-02-02) ==========
+                    # Rule: Populate aggregate metrics if EITHER:
+                    # 1. 100% LAP match (legacy strict rule), OR
+                    # 2. >= 95% match with all signal detections having confidence >= 0.85
+
                     num_planned = len(target_grid)
                     num_matched = len(detections)
                     all_laps = all(d.get('source') == 'lap' for d in detections)
-                    
-                    is_perfect_match = (num_matched >= num_planned) and all_laps
-                    
-                    if is_perfect_match:
+
+                    # Check for high-confidence signal match (new)
+                    is_high_confidence_signal = is_high_confidence_match(
+                        detections,
+                        num_planned,
+                        threshold=VALIDATION_THRESHOLD
+                    )
+
+                    # Valid match: either all LAPs or high-confidence signal
+                    is_valid_match = (
+                        (num_matched >= num_planned and all_laps) or  # Perfect LAP match
+                        is_high_confidence_signal  # High-confidence signal match
+                    )
+
+                    if is_valid_match:
+                        # Log match type for debugging
+                        match_type = "LAP" if all_laps else "SIGNAL (high-confidence)"
+                        print(f"      ✅ Valid {match_type} match: {num_matched}/{num_planned} intervals")
+
                         # Calculate averages
                         if valid_p:
                             avg_intervals_power = sum(valid_p) / len(valid_p)
@@ -338,7 +380,7 @@ class MetricsCalculator:
                             avg_intervals_pace = 1000.0 / avg_speed / 60.0 if avg_speed > 0 else None
                         if valid_r:
                             global_respect_score = sum(valid_r) / len(valid_r)
-                        
+
                         # Get last interval values
                         if perf_detections:
                             last_det = perf_detections[-1]
@@ -347,7 +389,7 @@ class MetricsCalculator:
                             last_speed = last_det.get('avg_speed')
                             if last_speed and last_speed > 0:
                                 last_interval_pace = 1000.0 / last_speed / 60.0
-                        
+
                         # Calculate efficiency (Pa:HR or Speed:HR)
                         efficiencies = []
                         for d in perf_detections:
@@ -355,14 +397,13 @@ class MetricsCalculator:
                             hr = d.get('avg_hr')
                             if val is not None and hr is not None and hr > 0:
                                 efficiencies.append(val / hr)
-                        
+
                         if efficiencies:
                             interval_pahr_mean = sum(efficiencies) / len(efficiencies)
                             interval_pahr_last = efficiencies[-1]
                     else:
-                        # NOT A PERFECT LAP MATCH: We keep the individual detected blocks 
-                        # for the detailed view, but we leave the summary metrics at NULL
-                        # so that Karoly can fill them manually if he chooses.
+                        # NOT A VALID MATCH: Keep individual detected blocks
+                        # but leave summary metrics at NULL
                         avg_intervals_power = None
                         avg_intervals_hr = None
                         avg_intervals_pace = None
@@ -372,10 +413,20 @@ class MetricsCalculator:
                         interval_pahr_mean = None
                         interval_pahr_last = None
                         global_respect_score = None
-                        
+
                         # Log the reason for NULL metrics
-                        reason = "Partial match" if num_matched < num_planned else "Mixed sources (SIGNAL used)"
-                        print(f"      ⚠️  Interval metrics set to NULL: {reason} ({num_matched}/{num_planned} matched)")
+                        if num_matched < num_planned * 0.95:
+                            reason = f"Partial match ({num_matched}/{num_planned})"
+                        else:
+                            # Check signal confidence
+                            signal_dets = [d for d in detections if d.get('source') == 'signal']
+                            low_conf = [d for d in signal_dets if d.get('confidence', 0) < VALIDATION_THRESHOLD]
+                            if low_conf:
+                                avg_conf = sum(d.get('confidence', 0) for d in low_conf) / len(low_conf)
+                                reason = f"Low signal confidence ({avg_conf:.2f} < {VALIDATION_THRESHOLD})"
+                            else:
+                                reason = "Mixed sources (SIGNAL used)"
+                        print(f"      ⚠️  Interval metrics set to NULL: {reason}")
                     # ================================================================================
                     
             else:
@@ -384,19 +435,45 @@ class MetricsCalculator:
                 # This ensures we respect Moving Time (vs Elapsed) for performance metrics.
                 
                 clean_laps = []
+                # For surgical indexing if needed
+                ts_series = pd.to_datetime(df['timestamp']) if 'timestamp' in df.columns else None
+                
                 for l in activity.laps:
                     recalc = LapCalculator.recalculate(l)
-                    clean_laps.append({
+                    lap_entry = {
                         **l,
                         'effective_duration': recalc['effective_duration']
-                    })
+                    }
+                    
+                    # Karoly 2026-02-02: Recalculate power mean excluding zeros from stream
+                    if sport == 'bike' and 'power' in df.columns and ts_series is not None:
+                        try:
+                            start_ts = l.get('start_time')
+                            duration = int(recalc['effective_duration'])
+                            if start_ts:
+                                start_idx = int(ts_series.searchsorted(pd.to_datetime(start_ts)))
+                                end_idx = start_idx + duration
+                                pwr_seg = df['power'].iloc[start_idx:end_idx].dropna()
+                                if not pwr_seg.empty:
+                                    # Use Wmoy (exclude zeros)
+                                    lap_entry['avg_power'] = float(pwr_seg[pwr_seg > 0].mean())
+                        except Exception as e:
+                            print(f"      ⚠️ Failed to recalculate lap power from stream: {e}")
+                            
+                    clean_laps.append(lap_entry)
 
                 # SMART FALLBACK: Filter out Warmup/Cooldown and Recovery
                 # Rule: Keep only laps that have > 100% of global avg intensity
                 # (effectively keeps only the 'work' parts of an interval session)
                 # AND exclude the very first and very last if they look like WU/CD (> 5 min)
                 if clean_laps:
-                    global_avg = df[eff_signal_col].mean() if eff_signal_col in df.columns else 0
+                    # Karoly 2026-02-02: global_avg should exclude zeros for power (Wmoy)
+                    if eff_signal_col == 'power' and 'power' in df.columns:
+                        pwr_all = df['power'].dropna()
+                        global_avg = pwr_all[pwr_all > 0].mean() if not pwr_all.empty else 0
+                    else:
+                        global_avg = df[eff_signal_col].mean() if eff_signal_col in df.columns else 0
+                    
                     filtered_laps = []
                     for i, l in enumerate(clean_laps):
                         is_first_last = (i == 0 or i == len(clean_laps) - 1)
