@@ -215,6 +215,20 @@ class ActivityClassifier:
                 
         return False
 
+    def detect_work_type_from_title(self, title: str) -> str:
+        """
+        Simplified detection based ONLY on title (for recovery).
+        """
+        return self.detect_work_type(
+            df=None,
+            title=title,
+            nolio_type="",
+            sport_name="",
+            target_grid=None,
+            is_competition_nolio=False,
+            laps=None
+        )
+
     def parse_splits(self, comment: str) -> List[Dict[str, Any]]:
         """
         Parses #split tags from Nolio comments.

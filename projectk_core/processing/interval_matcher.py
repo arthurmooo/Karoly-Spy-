@@ -245,14 +245,20 @@ class IntervalMatcher:
 
             search_limit = min(lap_idx + lookahead, len(work_laps))
 
-            # Strategy 1: "BEST IN WINDOW" approach (2026-02-03)
-            # Maintains chronological order while selecting best candidate within a lookahead window
-            # Uses SOFT intensity filter (90%) to skip warmup but allow slightly tired athletes
+            # Strategy 1: "FIRST VALID" approach (2026-02-04)
+            # For time-based targets, take the FIRST LAP that passes filters
+            # This ensures all valid LAPs are matched in order without skipping
+            # Only use "best in window" for distance-based targets where aggregation might be needed
             target_dist = float(target.get('distance_m', 0))
 
-            # Define lookahead window (how many laps ahead to consider)
-            # Larger window at start to skip warmup, smaller after
-            lookahead_window = min(8, search_limit - lap_idx) if lap_idx == 0 else min(5, search_limit - lap_idx)
+            # Define lookahead window
+            # For time-based targets: small window (2) to stay chronological
+            # For distance-based targets: larger window to find best match
+            if target_dist > 0:
+                lookahead_window = min(8, search_limit - lap_idx) if lap_idx == 0 else min(5, search_limit - lap_idx)
+            else:
+                # Time-based: use small window (2) - essentially "first valid" approach
+                lookahead_window = min(8, search_limit - lap_idx) if lap_idx == 0 else min(2, search_limit - lap_idx)
 
             best_lap = None
             best_idx = None

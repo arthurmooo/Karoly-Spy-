@@ -177,16 +177,33 @@ class FitParser:
                                 if field.name in ['start_time', 'timestamp', 'total_elapsed_time', 'total_timer_time', 'avg_heart_rate', 'avg_power', 'total_distance', 'avg_speed', 'enhanced_avg_speed']:
                                     lap_row[field.name] = field.value
                             
-                            # Fallback for speed if missing or None but dist/dur present
+                            # ===== NORMALIZE LAP FIELD NAMES (2026-02-05) =====
+                            # Consolidate FIT field variants to standard names
+
+                            # Speed: enhanced_avg_speed -> avg_speed
                             spd = lap_row.get('enhanced_avg_speed')
-                            if spd is None: spd = lap_row.get('avg_speed')
-                            
-                            if (spd is None or spd == 0):
+                            if spd is None:
+                                spd = lap_row.get('avg_speed')
+                            if spd is not None and spd > 0:
+                                lap_row['avg_speed'] = float(spd)
+
+                            # Fallback: calculate speed from dist/dur if missing
+                            if lap_row.get('avg_speed') is None or lap_row.get('avg_speed') == 0:
                                 dist = lap_row.get('total_distance', 0)
                                 dur = lap_row.get('total_elapsed_time', 0)
                                 if dist and dur:
                                     lap_row['avg_speed'] = float(dist) / float(dur)
-                                    
+
+                            # Duration: total_elapsed_time -> duration
+                            dur = lap_row.get('total_elapsed_time') or lap_row.get('total_timer_time', 0)
+                            if dur:
+                                lap_row['duration'] = float(dur)
+
+                            # HR: avg_heart_rate -> avg_hr (keep both for compatibility)
+                            hr = lap_row.get('avg_heart_rate')
+                            if hr is not None:
+                                lap_row['avg_hr'] = float(hr)
+
                             if lap_row:
                                 laps.append(lap_row)
 
@@ -242,5 +259,86 @@ class FitParser:
         limit_seconds = 10
         df_filled = df_resampled.interpolate(method='time', limit=limit_seconds)
         df_filled = df_filled.reset_index()
-        
+
+        # ===== ENRICH LAPS FROM STREAM (2026-02-05) =====
+        # Some FIT files have LAPs with distance but no duration/HR/speed
+        # (e.g., manual laps outside structured workouts)
+        # Calculate missing metrics from the stream using LAP timestamps
+        if laps and len(df_filled) > 0:
+            laps = FitParser._enrich_laps_from_stream(laps, df_filled)
+
         return df_filled, metadata, laps
+
+    @staticmethod
+    def _enrich_laps_from_stream(laps: list, df: pd.DataFrame) -> list:
+        """
+        Enrich LAP records with metrics calculated from stream data.
+
+        For LAPs missing duration, HR, or speed, we use the LAP timestamps
+        to find the corresponding segment in the stream and calculate metrics.
+        """
+        if 'timestamp' not in df.columns:
+            return laps
+
+        enriched = []
+        for lap in laps:
+            lap_copy = lap.copy()
+
+            # Get LAP time boundaries
+            start_time = lap.get('start_time')
+            end_time = lap.get('timestamp')  # 'timestamp' in LAP record is end time
+
+            # Skip if no timestamps
+            if not start_time or not end_time:
+                enriched.append(lap_copy)
+                continue
+
+            # Ensure timezone-aware comparison
+            if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                start_time = start_time.replace(tzinfo=pd.Timestamp.now().tzinfo)
+            if hasattr(end_time, 'tzinfo') and end_time.tzinfo is None:
+                end_time = end_time.replace(tzinfo=pd.Timestamp.now().tzinfo)
+
+            # Find stream segment for this LAP
+            mask = (df['timestamp'] >= start_time) & (df['timestamp'] <= end_time)
+            segment = df[mask]
+
+            if len(segment) < 2:
+                enriched.append(lap_copy)
+                continue
+
+            # Calculate duration if missing or zero
+            duration = lap_copy.get('total_elapsed_time', 0) or lap_copy.get('total_timer_time', 0)
+            if not duration or duration == 0:
+                duration = len(segment)  # 1Hz resampled, so len = seconds
+                lap_copy['total_elapsed_time'] = duration
+                lap_copy['duration'] = duration
+            else:
+                lap_copy['duration'] = duration
+
+            # Calculate avg_hr if missing
+            if not lap_copy.get('avg_heart_rate') and 'heart_rate' in segment.columns:
+                hr_valid = segment['heart_rate'].dropna()
+                if len(hr_valid) > 0:
+                    lap_copy['avg_heart_rate'] = hr_valid.mean()
+                    lap_copy['avg_hr'] = hr_valid.mean()
+
+            # Calculate avg_speed if missing
+            if not lap_copy.get('avg_speed') and 'speed' in segment.columns:
+                spd_valid = segment['speed'].dropna()
+                if len(spd_valid) > 0:
+                    lap_copy['avg_speed'] = spd_valid.mean()
+
+            # Calculate avg_power if missing
+            if not lap_copy.get('avg_power') and 'power' in segment.columns:
+                pwr_valid = segment['power'].dropna()
+                if len(pwr_valid) > 0:
+                    lap_copy['avg_power'] = pwr_valid.mean()
+
+            # Ensure distance is preserved
+            if lap_copy.get('total_distance'):
+                lap_copy['total_distance'] = float(lap_copy['total_distance'])
+
+            enriched.append(lap_copy)
+
+        return enriched

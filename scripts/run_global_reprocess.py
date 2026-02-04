@@ -15,12 +15,15 @@ def main():
     parser = argparse.ArgumentParser(description="Global Reprocessing with Meta-Precision")
     parser.add_argument("--athlete", type=str, help="Filter by athlete name (optional)")
     parser.add_argument("--force", action="store_true", help="Force recalculation")
+    parser.add_argument("--offline", action="store_true", help="Disable Nolio API calls (uses stored data)")
     
     args = parser.parse_args()
     
-    engine = ReprocessingEngine()
+    engine = ReprocessingEngine(offline_mode=args.offline)
     
     console.print(f"[bold green]Starting Global Reprocessing...[/bold green]")
+    if args.offline:
+        console.print(f"[bold yellow]⚠️ OFFLINE MODE: Nolio API disabled[/bold yellow]")
     if args.athlete:
         console.print(f"Filtering for athlete: [yellow]{args.athlete}[/yellow]")
         

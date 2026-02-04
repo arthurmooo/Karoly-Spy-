@@ -639,6 +639,37 @@ class IngestionRobot:
                             if fit_dist > 0:
                                 print(f"      📏 FIT Distance override: {meta.distance_m}m -> {fit_dist}m")
                                 meta.distance_m = fit_dist
+
+                        # CONFLICT RESOLUTION: Trust FIT for Duration & Start Time if significant mismatch
+                        # This fixes bugs where Nolio only sees the last lap (e.g., Bastien Ibanez 2026-02-04)
+                        fit_duration = 0.0
+                        if 'total_timer_time' in df.columns:
+                            fit_duration = float(df['total_timer_time'].sum()) # Sum of active records? No, this is usually per-lap in laps, but not in stream
+                        
+                        # Better duration estimation from stream
+                        if not df.empty:
+                            t_min = df.index.min()
+                            t_max = df.index.max()
+                            if t_min and t_max:
+                                stream_duration = (t_max - t_min).total_seconds()
+                                fit_duration = stream_duration
+                        
+                        if fit_duration > 0:
+                            diff = abs(fit_duration - meta.duration_sec)
+                            if diff > 60: # Threshold: 60 seconds
+                                print(f"      ⚠️ Duration Mismatch! Nolio: {meta.duration_sec}s vs FIT: {fit_duration}s. Trusting FIT.")
+                                meta.duration_sec = fit_duration
+                        
+                        # Start Time Check
+                        if device_meta.get('start_time'):
+                            fit_start = device_meta['start_time']
+                            if fit_start.tzinfo is None:
+                                fit_start = fit_start.replace(tzinfo=timezone.utc)
+                            
+                            time_diff = abs((fit_start - meta.start_time).total_seconds())
+                            if time_diff > 300: # Threshold: 5 minutes
+                                print(f"      ⚠️ Start Time Mismatch! Nolio: {meta.start_time} vs FIT: {fit_start}. Trusting FIT.")
+                                meta.start_time = fit_start
                         
                         # Fetch Weather (API)
                         if 'lat' in df.columns and 'lon' in df.columns:

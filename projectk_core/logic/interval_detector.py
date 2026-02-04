@@ -222,6 +222,11 @@ class IntervalDetector:
         count_hr = 0
         count_speed = 0
 
+        # Get expected duration from target_grid for validation
+        expected_duration = None
+        if target_grid and len(target_grid) > 0:
+            expected_duration = target_grid[0].get('duration', 0)
+
         for m in matched_intervals:
             if m['status'] != 'matched':
                 continue
@@ -229,10 +234,31 @@ class IntervalDetector:
             p = m.get('plateau_avg_power') or m.get('avg_power') or 0
             hr = m.get('avg_hr') or 0
             speed = m.get('avg_speed') or 0
+            duration = m.get('duration_sec', 0)
+
+            # ===== VALIDATION BASED ON TARGET TYPE (2026-02-04) =====
+            # For time-based targets: validate duration
+            # For distance-based targets: validate distance (not duration!)
+            expected_distance = target_grid[0].get('distance_m', 0) if target_grid else 0
+            target_type = target_grid[0].get('target_type', 'time') if target_grid else 'time'
+
+            if expected_distance > 0 or target_type == 'distance':
+                # DISTANCE-BASED TARGET (e.g., 5km)
+                # Only validate distance, not duration (duration is just an estimate)
+                actual_distance = duration * speed if speed else 0
+                min_distance = expected_distance * 0.85  # 85% of target
+                if actual_distance < min_distance:
+                    continue  # Skip this incomplete distance block
+            elif expected_duration and expected_duration > 0:
+                # TIME-BASED TARGET (e.g., 3 min)
+                # Validate duration
+                min_duration = expected_duration * 0.85
+                if duration < min_duration:
+                    continue  # Skip this partial interval
 
             blocks.append({
                 "index": m['start_index'],
-                "duration_sec": m['duration_sec'],
+                "duration_sec": duration,
                 "avg_power": round(float(p), 1) if p else None,
                 "avg_hr": round(float(hr), 1) if hr else None,
                 "avg_speed": round(float(speed), 3) if speed else None,
@@ -240,12 +266,15 @@ class IntervalDetector:
                 "source": m.get('source')
             })
 
-            if p and p > 0:
-                sum_p += p
-                count_p += 1
-            if hr and hr > 0:
-                sum_hr += hr
-                count_hr += 1
+            # ===== TIME-WEIGHTED SUMS FOR POWER/HR (2026-02-05) =====
+            # Weight each interval by its duration for accurate averaging
+            # Example: 5min at 300W should count 5x more than 1min at 300W
+            if p and p > 0 and duration > 0:
+                sum_p += p * duration  # weighted sum
+                count_p += duration    # total time (for time-weighted avg)
+            if hr and hr > 0 and duration > 0:
+                sum_hr += hr * duration
+                count_hr += duration
             if speed and speed > 0:
                 sum_speed += speed
                 count_speed += 1
@@ -253,23 +282,85 @@ class IntervalDetector:
         if not blocks:
             return {}
 
+        # ===== POST-VALIDATION: Filter out low-intensity intervals (2026-02-04) =====
+        # Intervals with intensity < 75% of median are likely recovery/bad data
+        # This fixes cases like Kylian where LAP 16 (196W) was included as "last" but
+        # is clearly not a Z3 work interval compared to other blocks at ~310W
+        if len(blocks) >= 3:
+            # Use power for bike, speed for run
+            intensities = []
+            for b in blocks:
+                if b.get('avg_power') and b['avg_power'] > 0:
+                    intensities.append(('power', b['avg_power']))
+                elif b.get('avg_speed') and b['avg_speed'] > 0:
+                    intensities.append(('speed', b['avg_speed']))
+
+            if intensities and all(t[0] == intensities[0][0] for t in intensities):
+                vals = [t[1] for t in intensities]
+                median_val = sorted(vals)[len(vals) // 2]
+                threshold = median_val * 0.75  # 75% of median
+
+                # Filter out low-intensity blocks
+                filtered_blocks = []
+                for b, (itype, ival) in zip(blocks, intensities):
+                    if ival >= threshold:
+                        filtered_blocks.append(b)
+                    # else: block dropped (low intensity)
+
+                if filtered_blocks and len(filtered_blocks) >= len(blocks) * 0.5:
+                    # Only apply filter if we keep at least 50% of blocks
+                    blocks = filtered_blocks
+                    # Recalculate sums (TIME-WEIGHTED for power/HR)
+                    sum_p = sum(b['avg_power'] * b.get('duration_sec', 0) for b in blocks if b.get('avg_power') and b.get('duration_sec'))
+                    sum_hr = sum(b['avg_hr'] * b.get('duration_sec', 0) for b in blocks if b.get('avg_hr') and b.get('duration_sec'))
+                    sum_speed = sum(b['avg_speed'] for b in blocks if b.get('avg_speed'))
+                    count_p = sum(b.get('duration_sec', 0) for b in blocks if b.get('avg_power') and b.get('duration_sec'))
+                    count_hr = sum(b.get('duration_sec', 0) for b in blocks if b.get('avg_hr') and b.get('duration_sec'))
+                    count_speed = sum(1 for b in blocks if b.get('avg_speed'))
+
         avg_p = sum_p / count_p if count_p > 0 else 0
         avg_hr = sum_hr / count_hr if count_hr > 0 else 0
         avg_speed = sum_speed / count_speed if count_speed > 0 else 0
+
+        # ===== DISTANCE-WEIGHTED PACE CALCULATION (2026-02-05) =====
+        # Instead of averaging speeds (which is biased by short intervals),
+        # calculate: total_time / total_distance
+        # This gives the true average pace for the entire session
+        # Example: 15x897m in 2700s = 201s/km = 3'21/km (matches SOT perfectly)
+        total_time = 0
+        total_distance = 0
+        for b in blocks:
+            dur = b.get('duration_sec', 0)
+            spd = b.get('avg_speed', 0)
+            if dur > 0 and spd and spd > 0:
+                total_time += dur
+                total_distance += dur * spd  # distance = time * speed
 
         # Last interval metrics
         last_block = blocks[-1]
         last_speed = last_block.get('avg_speed') or 0
 
-        # Convert speed to pace string (min'sec''/km)
+        # Convert speed to pace (min/km as float, e.g. 4.5 = 4'30''/km)
         last_pace = None
         avg_pace = None
         if last_speed and last_speed > 0:
             pace_sec = 1000 / last_speed
-            last_pace = f"{int(pace_sec // 60)}'{int(pace_sec % 60):02d}''"
-        if avg_speed and avg_speed > 0:
+            last_pace = round(pace_sec / 60, 2)  # Convert to min/km as decimal
+
+        # ===== DISTANCE-WEIGHTED AVG PACE =====
+        if total_distance > 0:
+            # pace = total_time / total_distance (in s/m), convert to min/km
+            pace_s_per_m = total_time / total_distance
+            pace_s_per_km = pace_s_per_m * 1000
+            avg_pace = round(pace_s_per_km / 60, 2)  # Convert to min/km as decimal
+        elif avg_speed and avg_speed > 0:
+            # Fallback to simple calculation if no distance data
             pace_sec = 1000 / avg_speed
-            avg_pace = f"{int(pace_sec // 60)}'{int(pace_sec % 60):02d}''"
+            avg_pace = round(pace_sec / 60, 2)
+
+        # Distance-weighted avg_speed (total_distance / total_time)
+        if total_time > 0 and total_distance > 0:
+            avg_speed = total_distance / total_time
 
         result = {
             "interval_power_mean": round(avg_p, 1) if avg_p else None,

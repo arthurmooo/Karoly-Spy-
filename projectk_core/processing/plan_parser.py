@@ -503,16 +503,26 @@ class TextPlanParser:
                 return intervals
 
         # ===== ORIGINAL PATTERN 1: Nx Distance =====
-        # (e.g. 3x 2000m, 8*1km)
-        dist_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*(k?m)(?![a-z])', title_lower)
+        # (e.g. 3x 2000m, 8*1km, 20x500)
+        # Unit is optional - if missing and value >= 100, assume meters
+        dist_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*(k?m)?(?:\s|$|[^a-z])', title_lower)
         if dist_match:
             count = int(dist_match.group(1))
             val = float(dist_match.group(2))
-            unit = dist_match.group(3)
+            unit = dist_match.group(3)  # May be None if no unit
 
             dist_m = val
             if unit == 'km':
                 dist_m = val * 1000
+            elif unit == 'm':
+                dist_m = val
+            elif unit is None:
+                # No unit specified - infer from value
+                # >= 100 = meters, < 100 = likely km or invalid
+                if val >= 100:
+                    dist_m = val  # e.g., "500" -> 500m
+                else:
+                    dist_m = val * 1000  # e.g., "2" -> 2km
 
             # Estimate Duration (Default Run: 4:00/km = 0.24 s/m)
             est_duration = dist_m * 0.24
@@ -523,6 +533,26 @@ class TextPlanParser:
                     "distance_m": dist_m,
                     "duration": est_duration,
                     "target_type": "distance"
+                })
+            return intervals
+
+        # ===== PATTERN 2a: Nx Compound Duration (e.g. 20*1'30'' / r 45'') =====
+        # Handles M'S'' format (minutes and seconds combined)
+        compound_match = re.search(
+            r'(\d+)\s*[x*]\s*(\d+)[\'′](\d+)[\'″"\'\']',
+            title_lower
+        )
+        if compound_match:
+            count = int(compound_match.group(1))
+            minutes = float(compound_match.group(2))
+            seconds = float(compound_match.group(3))
+            dur_on = minutes * 60 + seconds
+
+            for _ in range(count):
+                intervals.append({
+                    "type": "active",
+                    "duration": dur_on,
+                    "target_type": "time"
                 })
             return intervals
 
@@ -568,4 +598,4 @@ class TextPlanParser:
              return val * 60
         if unit in ['"', "s", "sec", ""]:
              return val
-        return val 
+        return val

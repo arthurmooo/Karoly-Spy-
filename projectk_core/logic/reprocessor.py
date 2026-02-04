@@ -28,7 +28,7 @@ class ReprocessingEngine:
     Engine to re-calculate metrics for existing activities in the database.
     Does NOT call Nolio API. Uses stored FIT files.
     """
-    def __init__(self):
+    def __init__(self, offline_mode: bool = False):
         self.db = DBConnector()
         self.storage = StorageManager()
         self.nolio = NolioClient()
@@ -40,6 +40,7 @@ class ReprocessingEngine:
         self.interval_detector = IntervalDetector()
         self.nolio_plan_parser = NolioPlanParser()
         self.text_plan_parser = TextPlanParser()
+        self.offline_mode = offline_mode
 
     def run(self, athlete_name_filter: Optional[str] = None, force: bool = False):
         print(f"Starting Reprocessing Engine...")
@@ -116,13 +117,15 @@ class ReprocessingEngine:
             # If Nolio API fails (rate limiting, etc.), use existing activity_name from DB
             existing_activity_name = act_record.get('activity_name') or ""
 
-            if nolio_id:
-                details = self.nolio.get_activity_details(int(nolio_id), athlete_id=athlete_nolio_id)
+            if nolio_id and not self.offline_mode:
+                details = None
+                try:
+                    details = self.nolio.get_activity_details(int(nolio_id), athlete_id=athlete_nolio_id)
+                except Exception as e:
+                    print(f"      [dim]⚠️ Nolio API skipped (Rate Limit/Error): {e}[/dim]")
+                
                 if details:
                     activity_title = details.get('planned_name') or details.get('name') or ""
-                else:
-                    # API failed - use existing name from database
-                    activity_title = existing_activity_name
                     
                     # Strategy A: Structured Workout from Activity Details (if synced)
                     # or from Linked Planned Workout
@@ -150,6 +153,13 @@ class ReprocessingEngine:
                         plan = self.text_plan_parser.parse(activity_title)
                         if plan:
                              print(f"      [bold cyan]📝 Text Plan Parsed:[/bold cyan] {len(plan)} intervals from '{activity_title}'")
+            else:
+                # API disabled (offline mode) or failed or returned None - use existing name from database
+                activity_title = existing_activity_name
+                # Try to parse text plan from existing title
+                plan = self.text_plan_parser.parse(activity_title)
+                if plan:
+                    print(f"      [bold cyan]📝 Text Plan Parsed (Fallback/Offline):[/bold cyan] {len(plan)} intervals from '{activity_title}'")
 
             if plan:
                 if isinstance(plan, list):
@@ -189,7 +199,13 @@ class ReprocessingEngine:
                     pace_last = interval_metrics.get('interval_pace_last')
                     pace_mean = interval_metrics.get('interval_pace_mean')
                     if pace_last or pace_mean:
-                        print(f"         • Pace Last: [cyan]{pace_last}/km[/cyan] | Mean: [cyan]{pace_mean}/km[/cyan]")
+                        # Format pace from decimal (4.5) to string (4'30'')
+                        def fmt_pace(p):
+                            if p is None: return 'N/A'
+                            mins = int(p)
+                            secs = int((p - mins) * 60)
+                            return f"{mins}'{secs:02d}''"
+                        print(f"         • Pace Last: [cyan]{fmt_pace(pace_last)}/km[/cyan] | Mean: [cyan]{fmt_pace(pace_mean)}/km[/cyan]")
 
                     # Session completion (new)
                     if 'session_complete' in interval_metrics:
@@ -233,13 +249,13 @@ class ReprocessingEngine:
                         print(f"      🌍 Weather Found: {meta.temp_avg}°C | {meta.humidity_avg}% Hum.")
 
             activity = Activity(metadata=meta, streams=df, laps=laps)
-            
+
             # Fetch Profile
             profile = self.profile_manager.get_profile_for_date(athlete_id, sport, start_time)
-            
+
             if profile and not df.empty:
                 metrics_dict = self.calculator.compute(activity, profile)
-                
+
                 # Merge interval metrics into calculator output (only if work_type is intervals)
                 if work_type == "intervals":
                     metrics_dict.update(interval_metrics)
@@ -248,8 +264,22 @@ class ReprocessingEngine:
                     interval_keys = ["interval_power_last", "interval_hr_last", "interval_power_mean", "interval_hr_mean"]
                     for k in interval_keys:
                         metrics_dict.pop(k, None)
-                
+
                 activity.metrics = ActivityMetrics(**metrics_dict)
+            elif work_type == "intervals" and interval_metrics:
+                # ===== FIX 2026-02-04: Save interval metrics even without profile =====
+                # Athletes without profiles can still have valid interval metrics
+                # BUT only if completion threshold is met (70%)
+                matched = interval_metrics.get('session_matched_intervals', 0)
+                expected = interval_metrics.get('session_expected_intervals', 1)
+                completion = matched / expected if expected > 0 else 0
+
+                if completion >= 0.70:
+                    print(f"      ⚠️ No profile found, but saving interval metrics ({matched}/{expected} = {completion*100:.0f}%)")
+                    activity.metrics = ActivityMetrics(**interval_metrics)
+                else:
+                    print(f"      ⚠️ No profile + incomplete session ({matched}/{expected} = {completion*100:.0f}% < 70%) -> NULL")
+                    # Don't save incomplete interval metrics
                 
             # 6. Update DB (Always save if we have a file, even without profile)
             ActivityWriter.update_by_id(
