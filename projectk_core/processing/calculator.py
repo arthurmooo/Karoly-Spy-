@@ -359,8 +359,14 @@ class MetricsCalculator:
                         threshold=VALIDATION_THRESHOLD
                     )
 
-                    # Valid match: either all LAPs or high-confidence signal
-                    is_valid_match = (
+                    # ===== COMPLETION THRESHOLD (2026-02-04) =====
+                    # Require at least 70% of expected intervals to be detected
+                    # This prevents partial sessions from populating metrics
+                    completion_ratio = num_matched / num_planned if num_planned > 0 else 0
+                    meets_completion_threshold = completion_ratio >= 0.70
+
+                    # Valid match: meets completion AND (all LAPs or high-confidence signal)
+                    is_valid_match = meets_completion_threshold and (
                         (num_matched >= num_planned and all_laps) or  # Perfect LAP match
                         is_high_confidence_signal  # High-confidence signal match
                     )
@@ -415,7 +421,9 @@ class MetricsCalculator:
                         global_respect_score = None
 
                         # Log the reason for NULL metrics
-                        if num_matched < num_planned * 0.95:
+                        if not meets_completion_threshold:
+                            reason = f"Session incomplète ({num_matched}/{num_planned} = {completion_ratio*100:.0f}% < 70%)"
+                        elif num_matched < num_planned:
                             reason = f"Partial match ({num_matched}/{num_planned})"
                         else:
                             # Check signal confidence

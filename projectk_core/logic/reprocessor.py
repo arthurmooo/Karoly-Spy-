@@ -63,8 +63,9 @@ class ReprocessingEngine:
 
         # 2. Fetch Activities
         # Only fetch those with a fit_file_path (can't reprocess metadata-only ones efficiently yet)
+        # Include activity_name to preserve it if API fails
         acts = self.db.client.table("activities")\
-            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe")\
+            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name")\
             .eq("athlete_id", athlete_id)\
             .not_.is_("fit_file_path", "null")\
             .execute().data
@@ -110,11 +111,18 @@ class ReprocessingEngine:
             nolio_id = act_record.get('nolio_id')
             plan = None
             activity_title = ""
-            
+
+            # ===== PRESERVE EXISTING DATA (2026-02-04) =====
+            # If Nolio API fails (rate limiting, etc.), use existing activity_name from DB
+            existing_activity_name = act_record.get('activity_name') or ""
+
             if nolio_id:
                 details = self.nolio.get_activity_details(int(nolio_id), athlete_id=athlete_nolio_id)
                 if details:
                     activity_title = details.get('planned_name') or details.get('name') or ""
+                else:
+                    # API failed - use existing name from database
+                    activity_title = existing_activity_name
                     
                     # Strategy A: Structured Workout from Activity Details (if synced)
                     # or from Linked Planned Workout
@@ -156,12 +164,12 @@ class ReprocessingEngine:
             interval_metrics = {}
             if work_type == "intervals":
                 if plan:
-                    # Guided Detection
-                    interval_metrics = self.interval_detector.detect(Activity(metadata=None, streams=df), plan)
+                    # Guided Detection - include laps for LAP-based matching and HR filtering
+                    interval_metrics = self.interval_detector.detect(Activity(metadata=None, streams=df, laps=laps), plan)
                 else:
                     # Stage 3: Blind Detection Fallback
                     print("      [dim]No plan found on Nolio, using Blind Autostruct...[/dim]")
-                    interval_metrics = self.interval_detector.detect(Activity(metadata=None, streams=df), None)
+                    interval_metrics = self.interval_detector.detect(Activity(metadata=None, streams=df, laps=laps), None)
                 
                 if interval_metrics:
                     print(f"      [bold yellow]⚡ Intervals Detected:[/bold yellow]")

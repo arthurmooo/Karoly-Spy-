@@ -378,53 +378,163 @@ class NolioPlanParser:
 class TextPlanParser:
     """
     Parses workout titles using regex patterns to extract interval structure.
+
+    Supported formats:
+    - Simple: "10*1km", "6*4'", "15*3' Z2/ r 1'"
+    - Composite distance: "5*(500m Z3 + 1000m Z2)"
+    - Composite time: "5*2' Z3 + 3' Z2" (parsed as 5 composite blocks)
+    - HIT format: "(20*10-50)" means 20 intervals of 10s work / 50s rest
     """
-    
+
     def parse(self, title: str) -> List[Dict[str, Any]]:
         """
         Parses a title string and returns a list of interval dicts.
         """
         if not title:
             return []
-            
-        title = title.lower()
+
+        title_lower = title.lower()
         intervals = []
-        
-        # Pattern 1: Nx Distance (e.g. 3x 2000m, 8*1km)
-        dist_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*(k?m)(?![a-z])', title)
+
+        # ===== NEW PATTERN 0a: Composite distance in parentheses =====
+        # Example: "5*(500m Z3 + 1000m Z2)" → 5 composite blocks
+        composite_dist_match = re.search(
+            r'(\d+)\s*[x*]\s*\(\s*(\d+)\s*m[^+]*\+\s*(\d+)\s*m',
+            title_lower
+        )
+        if composite_dist_match:
+            count = int(composite_dist_match.group(1))
+            dist1 = float(composite_dist_match.group(2))
+            dist2 = float(composite_dist_match.group(3))
+            total_dist = dist1 + dist2
+
+            # Estimate duration (4:00/km = 0.24 s/m)
+            est_duration = total_dist * 0.24
+
+            for _ in range(count):
+                intervals.append({
+                    "type": "active",
+                    "distance_m": total_dist,
+                    "duration": est_duration,
+                    "target_type": "distance",
+                    "is_composite": True,
+                    "components": [
+                        {"distance_m": dist1},
+                        {"distance_m": dist2}
+                    ]
+                })
+            return intervals
+
+        # ===== NEW PATTERN 0b: Composite time with "+" =====
+        # Example: "5*2' Z3 + 3' Z2" → 5 composite blocks of 5 min each
+        composite_time_match = re.search(
+            r'(\d+)\s*[x*]\s*(\d+)\s*([\'"])\s*[^+]*\+\s*(\d+)\s*([\'""])',
+            title_lower
+        )
+        if composite_time_match:
+            count = int(composite_time_match.group(1))
+            dur1_val = float(composite_time_match.group(2))
+            dur1_unit = composite_time_match.group(3)
+            dur2_val = float(composite_time_match.group(4))
+            dur2_unit = composite_time_match.group(5)
+
+            dur1 = self._parse_duration(dur1_val, dur1_unit)
+            dur2 = self._parse_duration(dur2_val, dur2_unit)
+            total_dur = dur1 + dur2
+
+            for _ in range(count):
+                intervals.append({
+                    "type": "active",
+                    "duration": total_dur,
+                    "target_type": "time",
+                    "is_composite": True,
+                    "components": [
+                        {"duration": dur1},
+                        {"duration": dur2}
+                    ]
+                })
+            return intervals
+
+        # ===== NEW PATTERN 0c: HIT format (N*work-rest) =====
+        # Handles both single and multiple HIT blocks
+        # Examples:
+        #   "(20*10-50)" → 20 intervals of 10s work
+        #   "20*10-50" → 20 intervals of 10s work
+        #   "LIT + HIT (20*10-50) + (20*15-45) + (20*10-50)" → 60 intervals
+
+        # First check for multiple HIT blocks in parentheses
+        multi_hit_matches = re.findall(
+            r'\((\d+)\s*[x*]\s*(\d+)\s*-\s*(\d+)\)',
+            title_lower
+        )
+        if multi_hit_matches and len(multi_hit_matches) > 1:
+            # Multiple HIT blocks found
+            for match in multi_hit_matches:
+                count = int(match[0])
+                work_dur = float(match[1])
+
+                for _ in range(count):
+                    intervals.append({
+                        "type": "active",
+                        "duration": work_dur,
+                        "target_type": "time"
+                    })
+            return intervals
+
+        # Single HIT pattern (with or without parentheses)
+        hit_match = re.search(
+            r'\(?(\d+)\s*[x*]\s*(\d+)\s*-\s*(\d+)\)?',
+            title_lower
+        )
+        if hit_match:
+            # Check if this is really HIT (short durations) vs tempo (longer)
+            count = int(hit_match.group(1))
+            work_dur = float(hit_match.group(2))
+            rest_dur = float(hit_match.group(3))
+
+            # HIT is typically < 60s work, tempo is longer
+            if work_dur <= 60 and rest_dur <= 120:
+                for _ in range(count):
+                    intervals.append({
+                        "type": "active",
+                        "duration": work_dur,
+                        "target_type": "time"
+                    })
+                return intervals
+
+        # ===== ORIGINAL PATTERN 1: Nx Distance =====
+        # (e.g. 3x 2000m, 8*1km)
+        dist_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*(k?m)(?![a-z])', title_lower)
         if dist_match:
             count = int(dist_match.group(1))
             val = float(dist_match.group(2))
             unit = dist_match.group(3)
-            
+
             dist_m = val
             if unit == 'km':
                 dist_m = val * 1000
-            
+
             # Estimate Duration (Default Run: 4:00/km = 0.24 s/m)
-            # We don't know sport here easily, so we assume Run or use a generic avg?
-            # Better to be safe and use Run default, or 0 if we want to rely on caller.
-            # But Matcher needs duration.
-            est_duration = dist_m * 0.24 
-                
+            est_duration = dist_m * 0.24
+
             for _ in range(count):
                 intervals.append({
                     "type": "active",
                     "distance_m": dist_m,
-                    "duration": est_duration, 
+                    "duration": est_duration,
                     "target_type": "distance"
                 })
             return intervals
 
-        # Pattern 2: Nx A/B (Interval/Rest)
-        on_off_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)([\'"mns]*)\s*/\s*([\d\.]+)([\'"mns]*)', title)
+        # ===== ORIGINAL PATTERN 2: Nx A/B (Interval/Rest) =====
+        on_off_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)([\'"mns]*)\s*/\s*([\d\.]+)([\'"mns]*)', title_lower)
         if on_off_match:
             count = int(on_off_match.group(1))
             val_on = float(on_off_match.group(2))
             unit_on = on_off_match.group(3)
-            
+
             dur_on = self._parse_duration(val_on, unit_on)
-            
+
             for _ in range(count):
                 intervals.append({
                     "type": "active",
@@ -433,15 +543,15 @@ class TextPlanParser:
                 })
             return intervals
 
-        # Pattern 3: Nx Time (e.g. 6*4', 10x 30")
-        time_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*([\'"mns]+)', title)
+        # ===== ORIGINAL PATTERN 3: Nx Time (e.g. 6*4', 10x 30") =====
+        time_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*([\'"mns]+)', title_lower)
         if time_match:
             count = int(time_match.group(1))
             val = float(time_match.group(2))
             unit = time_match.group(3)
-            
+
             dur = self._parse_duration(val, unit)
-             
+
             for _ in range(count):
                 intervals.append({
                     "type": "active",
@@ -449,7 +559,7 @@ class TextPlanParser:
                     "target_type": "time"
                 })
             return intervals
-            
+
         return []
 
     def _parse_duration(self, val: float, unit: str) -> float:

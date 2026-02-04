@@ -149,3 +149,8 @@ This file tracks the master plan, strictly aligned with the contract phases.
 - [x] **Track: Alignement MLS et Profils Sport-Spécifiques**
     - **Status:** 🟡 New. Alignement Run/Bike (1h @ 120bpm) et support multi-profils par sport.
     - **Link:** [./tracks/mls_alignment_20260201/](./tracks/mls_alignment_20260201/)
+
+---
+
+- [ ] **Track: Background engine to import 6 months of historical activity data from Nolio without blocking daily operations.**
+*Link: [./tracks/historical_import_20260204/](./tracks/historical_import_20260204/)*

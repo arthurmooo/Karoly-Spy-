@@ -235,7 +235,8 @@ class IntervalMatcher:
             matched_idx = None
 
             # Check if this is a merged/fused target (Z3+Z2 combined)
-            is_merged_target = target.get('merged_from') is not None
+            # Also check for 'is_composite' from TextPlanParser
+            is_merged_target = target.get('merged_from') is not None or target.get('is_composite', False)
 
             # Look ahead slightly more for LAPs (skip up to 5)
             # FIX: If we haven't matched anything yet (lap_idx=0), look deeper (e.g. 20 laps)
@@ -261,13 +262,39 @@ class IntervalMatcher:
             # This is more forgiving than 95% but still filters obvious warmup
             intensity_floor = target_min * 0.90 if target_min > 0 else 0
 
+            # ===== HR-BASED WARMUP FILTER (2026-02-04) =====
+            # Calculate median HR of candidate laps to identify warmup laps
+            # Warmup laps typically have HR 15-25 bpm lower than work laps
+            candidate_hrs = []
+            for i in range(lap_idx, min(lap_idx + lookahead_window, search_limit)):
+                lap_hr = work_laps[i].get('avg_hr', 0)  # Use 'avg_hr' (preprocessed field)
+                if lap_hr > 80:  # Valid HR
+                    candidate_hrs.append(lap_hr)
+
+            # Calculate HR floor using 75th percentile (Q3) instead of median
+            # This ensures warmup laps (which drag down the median) don't set the floor too low
+            # HR floor = 90% of Q3, which filters warmup laps with significantly lower HR
+            hr_floor = 0
+            if len(candidate_hrs) >= 4:
+                candidate_hrs_sorted = sorted(candidate_hrs)
+                # Q3 = 75th percentile
+                q3_idx = int(len(candidate_hrs_sorted) * 0.75)
+                q3_hr = candidate_hrs_sorted[q3_idx]
+                hr_floor = q3_hr * 0.90
+
             for i in range(lap_idx, min(lap_idx + lookahead_window, search_limit)):
                 lap = work_laps[i]
                 lap_intensity = lap.get('avg_speed', 0) if signal_col == 'speed' else lap.get('avg_power', 0)
+                lap_hr = lap.get('avg_hr', 0)  # Use 'avg_hr' (preprocessed field)
 
-                # SOFT FILTER: Skip if clearly below intensity floor
+                # SOFT FILTER 1: Skip if clearly below intensity floor
                 # But allow if we're past the lookahead (desperation mode)
                 if lap_intensity < intensity_floor and (i - lap_idx) < lookahead_window - 1:
+                    continue
+
+                # SOFT FILTER 2: Skip if HR is significantly below median (warmup)
+                # Only apply if we have enough candidates and lap has valid HR
+                if hr_floor > 0 and lap_hr > 80 and lap_hr < hr_floor and (i - lap_idx) < lookahead_window - 1:
                     continue
 
                 # Calculate confidence score
@@ -307,9 +334,14 @@ class IntervalMatcher:
                 matched_idx = best_idx
 
             # Strategy 2: For merged targets, try to merge consecutive LAPs
-            # This handles cases like 5×(90s Z3 + 210s Z2) where LAPs are separate
+            # This handles cases like 5×(90s Z3 + 210s Z2) or 5*(500m Z3 + 1000m Z2)
             # IMPORTANT: Match chronologically - take FIRST valid pair, not best
+            # For distance-based composites, use distance weighting (SOT method)
             if not matched_lap and is_merged_target:
+                # Check if this is a distance-based composite (like 500m + 1000m)
+                target_dist = float(target.get('distance_m', 0))
+                is_distance_composite = target_dist > 0
+
                 for i in range(lap_idx, search_limit - 1):
                     lap1 = work_laps[i]
                     lap2 = work_laps[i + 1]
@@ -329,6 +361,14 @@ class IntervalMatcher:
                     if max(lap1_intensity, lap2_intensity) < intensity_threshold:
                         continue  # Neither lap is intense enough
 
+                    # ===== HR-BASED FILTER FOR COMPOSITES (2026-02-04) =====
+                    # For composites, both laps should have elevated HR (not warmup)
+                    lap1_hr = lap1.get('avg_hr', 0)
+                    lap2_hr = lap2.get('avg_hr', 0)
+                    # Skip if either lap has suspiciously low HR (< 140 for work intervals)
+                    if lap1_hr > 0 and lap1_hr < 135 and lap2_hr > 0 and lap2_hr < 135:
+                        continue  # Both HRs are too low - likely warmup pair
+
                     # PATTERN CHECK for Z3+Z2 fused blocks (Karoly system):
                     # The FIRST lap should be shorter AND more intense (Z3 = hard, short)
                     # The SECOND lap should be longer AND less intense (Z2 = moderate, long)
@@ -340,17 +380,24 @@ class IntervalMatcher:
                         if dur_ratio_laps > 1.5:
                             continue  # Skip this pair, pattern is recovery+work not work+work
 
-                    # Merge the two LAPs
-                    merged = self._merge_laps([lap1, lap2])
+                    # Merge the two LAPs (use distance weighting for distance-based composites)
+                    merged = self._merge_laps([lap1, lap2], weight_by_distance=is_distance_composite)
                     merged_duration = merged['duration']
+                    merged_distance = merged.get('total_distance', 0)
 
-                    # Check if merged duration matches target (±30%)
+                    # Check if merged duration/distance matches target (±30%)
                     dur_ratio = merged_duration / duration_s if duration_s > 0 else 0
-                    if 0.7 <= dur_ratio <= 1.3:
+                    dist_ratio = merged_distance / target_dist if target_dist > 0 else 0
+
+                    # For distance composites, prioritize distance match
+                    duration_ok = 0.7 <= dur_ratio <= 1.3
+                    distance_ok = 0.85 <= dist_ratio <= 1.15 if target_dist > 0 else False
+
+                    if duration_ok or distance_ok:
                         # Calculate confidence for merged LAP
                         confidence = self._calculate_lap_confidence(
                             merged, target_min, duration_s, signal_col,
-                            target_distance=float(target.get('distance_m', 0))
+                            target_distance=target_dist
                         )
                         # Take FIRST valid match (chronological order)
                         if confidence >= self.config.lap_confidence_threshold * 0.9:
@@ -359,11 +406,33 @@ class IntervalMatcher:
                             break  # Stop at first valid match
 
             # Strategy 3: Multi-LAP aggregation for long intervals (e.g., 5km = 5x1km LAPs)
-            # Uses intensity floor (90%) to filter warmup blocks
+            # Uses intensity floor (90%) AND HR floor to filter warmup blocks
             if not matched_lap and duration_s >= 600:  # Only for intervals >= 10 min
                 target_dist = float(target.get('distance_m', 0))
                 multi_lap_candidates = []
                 intensity_floor = target_min * 0.90 if target_min > 0 else 0
+
+                # ===== HR-BASED WARMUP FILTER FOR MULTI-LAP (2026-02-04) =====
+                # Calculate HR floor using all potential work laps in the search range
+                # This is critical for distance-based intervals like 3*5km where each
+                # 5km is made of 5x1km laps - we need to exclude warmup km marks
+                multi_lap_hrs = []
+                for i in range(lap_idx, min(lap_idx + 25, len(work_laps))):
+                    lap_hr = work_laps[i].get('avg_hr', 0)
+                    lap_intensity = work_laps[i].get('avg_speed', 0) if signal_col == 'speed' else work_laps[i].get('avg_power', 0)
+                    # Only include laps that are above intensity floor (potential work laps)
+                    if lap_hr > 100 and lap_intensity >= intensity_floor * 0.85:
+                        multi_lap_hrs.append(lap_hr)
+
+                # Calculate HR floor using median (more robust than Q3 for mixed data)
+                # Work intervals typically have HR 20-40 bpm higher than warmup
+                multi_lap_hr_floor = 0
+                if len(multi_lap_hrs) >= 3:
+                    sorted_hrs = sorted(multi_lap_hrs)
+                    median_idx = len(sorted_hrs) // 2
+                    median_hr = sorted_hrs[median_idx]
+                    # HR floor = 92% of median (filters laps >8% below work HR)
+                    multi_lap_hr_floor = median_hr * 0.92
 
                 # Try to aggregate multiple consecutive LAPs starting from each position
                 for start_i in range(lap_idx, search_limit):
@@ -371,15 +440,22 @@ class IntervalMatcher:
                     total_duration = 0
                     total_distance = 0
                     intensity_sum = 0
+                    hr_sum = 0
                     all_above_floor = True
 
                     # Keep adding consecutive LAPs until we reach target duration/distance
                     for j in range(start_i, min(start_i + 15, len(work_laps))):  # Max 15 LAPs
                         lap = work_laps[j]
                         lap_intensity = lap.get('avg_speed', 0) if signal_col == 'speed' else lap.get('avg_power', 0)
+                        lap_hr = lap.get('avg_hr', 0)
 
                         # Check intensity floor (stop if lap is too slow)
                         if lap_intensity < intensity_floor:
+                            all_above_floor = False
+                            break
+
+                        # ===== NEW: Check HR floor (stop if lap HR is too low = warmup) =====
+                        if multi_lap_hr_floor > 0 and lap_hr > 80 and lap_hr < multi_lap_hr_floor:
                             all_above_floor = False
                             break
 
@@ -394,6 +470,7 @@ class IntervalMatcher:
                         total_duration += lap['duration']
                         total_distance += lap.get('total_distance', 0)
                         intensity_sum += lap_intensity * lap['duration']
+                        hr_sum += (lap_hr or 0) * lap['duration']
 
                         # Check if we've reached target
                         reached_target = False
@@ -413,6 +490,7 @@ class IntervalMatcher:
                         merged_duration = merged['duration']
                         merged_distance = merged.get('total_distance', 0)
                         avg_intensity = intensity_sum / total_duration if total_duration > 0 else 0
+                        avg_hr = hr_sum / total_duration if total_duration > 0 else 0
 
                         # Check if merged block matches target
                         dur_match = 0.7 <= merged_duration / duration_s <= 1.3 if duration_s > 0 else False
@@ -430,6 +508,7 @@ class IntervalMatcher:
                                 'lap_indices': list(range(start_i, start_i + len(laps_to_merge))),
                                 'confidence': confidence,
                                 'avg_intensity': avg_intensity,
+                                'avg_hr': avg_hr,
                                 'intensity_rank': intensity_rank,
                                 'end_idx': start_i + len(laps_to_merge)
                             })
@@ -798,8 +877,14 @@ class IntervalMatcher:
         
         return None, start_lap_idx
 
-    def _merge_laps(self, laps_to_merge: List[Dict]) -> Dict:
-        """Helper to merge multiple lap dicts into one."""
+    def _merge_laps(self, laps_to_merge: List[Dict], weight_by_distance: bool = False) -> Dict:
+        """Helper to merge multiple lap dicts into one.
+
+        Args:
+            laps_to_merge: List of preprocessed lap dicts
+            weight_by_distance: If True, weight averages by distance instead of duration.
+                               Use this for composite intervals where SOT uses distance weighting.
+        """
         if not laps_to_merge: return {}
         first = laps_to_merge[0]
         last = laps_to_merge[-1]
@@ -808,9 +893,16 @@ class IntervalMatcher:
         total_dist = sum(l.get('total_distance', 0) for l in laps_to_merge)
 
         # Weighted averages (handle None values)
-        w_pwr = sum((l.get('avg_power') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
-        w_spd = sum((l.get('avg_speed') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
-        w_hr = sum((l.get('avg_hr') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+        # Use distance weighting for composite intervals (matches SOT calculation)
+        if weight_by_distance and total_dist > 0:
+            w_pwr = sum((l.get('avg_power') or 0) * l.get('total_distance', 0) for l in laps_to_merge) / total_dist
+            w_spd = sum((l.get('avg_speed') or 0) * l.get('total_distance', 0) for l in laps_to_merge) / total_dist
+            w_hr = sum((l.get('avg_hr') or 0) * l.get('total_distance', 0) for l in laps_to_merge) / total_dist
+        else:
+            # Default: weight by duration
+            w_pwr = sum((l.get('avg_power') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+            w_spd = sum((l.get('avg_speed') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
+            w_hr = sum((l.get('avg_hr') or 0) * l['duration'] for l in laps_to_merge) / total_dur if total_dur else 0
 
         return {
             'start_offset': first['start_offset'],
