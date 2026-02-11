@@ -122,3 +122,95 @@ def test_pahr_drift_calculation(basic_physio_profile):
     
     assert result['dur_index'] == pytest.approx(expected_dur, 0.01)
 
+
+def test_multi_block_interval_summary_uses_primary_block(monkeypatch):
+    seconds = 4000
+    df = pd.DataFrame({
+        'timestamp': pd.date_range(start='2026-02-07', periods=seconds, freq='s'),
+        'speed': np.full(seconds, 4.5),
+        'heart_rate': np.full(seconds, 160.0),
+    })
+
+    meta = ActivityMetadata(
+        activity_type="Run",
+        activity_name="5*1Km seuil + 9Km Tempo",
+        start_time=datetime(2026, 2, 7),
+        duration_sec=seconds,
+    )
+    activity = Activity(metadata=meta, streams=df, laps=[])
+
+    profile = PhysioProfile(
+        lt1_hr=140,
+        lt2_hr=170,
+        cp_cs=5.0,
+        valid_from=datetime(2024, 1, 1),
+    )
+
+    calc = MetricsCalculator(MockConfig())
+    calc.classifier.detect_work_type = lambda *args, **kwargs: "intervals"
+    calc.classifier.get_strategy = lambda *args, **kwargs: "auto_training"
+
+    detections = []
+    short_speeds = [5.45, 5.52, 5.57, 5.60, 5.63]
+    for i, spd in enumerate(short_speeds):
+        detections.append({
+            "status": "matched",
+            "source": "lap",
+            "confidence": 0.95,
+            "target_index": i,
+            "start_index": i * 200,
+            "end_index": i * 200 + 180,
+            "duration_sec": 180,
+            "expected_duration": 184,
+            "avg_power": None,
+            "avg_speed": spd,
+            "avg_hr": 165 + i,
+            "respect_score": 105 + i,
+            "target": {"type": "active", "duration": 184, "distance_m": 1000},
+        })
+
+    detections.append({
+        "status": "matched",
+        "source": "lap",
+        "confidence": 0.95,
+        "target_index": 5,
+        "start_index": 1400,
+        "end_index": 3160,
+        "duration_sec": 1760,
+        "expected_duration": 1780,
+        "avg_power": None,
+        "avg_speed": 5.10,
+        "avg_hr": 176,
+        "respect_score": 101,
+        "target": {"type": "active", "duration": 1780, "distance_m": 9000},
+    })
+
+    calc.matcher.match = lambda *args, **kwargs: detections
+
+    result = calc.compute(activity, profile, target_grid=[{"duration": 1}] * 6)
+    blocks = result.get("interval_blocks") or []
+    assert len(blocks) == 2
+    assert blocks[0]["count"] == 5
+    assert blocks[1]["count"] == 1
+    # Legacy metrics should follow the primary block (5x1km), not the long tempo block.
+    assert result["interval_pace_last"] == pytest.approx(2.96, 0.05)
+
+
+def test_prune_leading_singleton_transition_block():
+    calc = MetricsCalculator(MockConfig())
+    entries = [
+        {"order": 0, "duration_sec": 322, "target_duration": 322, "target_distance": 1500, "avg_power": None, "avg_speed": 4.67, "avg_hr": 144, "respect_score": None},
+        {"order": 1, "duration_sec": 182, "target_duration": 182, "target_distance": 1000, "avg_power": None, "avg_speed": 5.53, "avg_hr": 155, "respect_score": None},
+        {"order": 2, "duration_sec": 181, "target_duration": 181, "target_distance": 1000, "avg_power": None, "avg_speed": 5.52, "avg_hr": 158, "respect_score": None},
+        {"order": 3, "duration_sec": 180, "target_duration": 180, "target_distance": 1000, "avg_power": None, "avg_speed": 5.55, "avg_hr": 160, "respect_score": None},
+        {"order": 4, "duration_sec": 179, "target_duration": 179, "target_distance": 1000, "avg_power": None, "avg_speed": 5.54, "avg_hr": 161, "respect_score": None},
+        {"order": 5, "duration_sec": 181, "target_duration": 181, "target_distance": 1000, "avg_power": None, "avg_speed": 5.53, "avg_hr": 163, "respect_score": None},
+        {"order": 6, "duration_sec": 1762, "target_duration": 1762, "target_distance": 9000, "avg_power": None, "avg_speed": 5.12, "avg_hr": 177, "respect_score": None},
+    ]
+
+    blocks = calc._group_and_summarize_interval_entries(entries, "run")
+    assert len(blocks) == 2
+    assert blocks[0]["count"] == 5
+    assert blocks[0]["representative_distance_m"] == 1000.0
+    assert blocks[1]["count"] == 1
+    assert blocks[1]["representative_distance_m"] == 9000.0

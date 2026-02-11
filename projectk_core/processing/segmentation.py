@@ -29,11 +29,28 @@ class SegmentCalculator:
         s = activity_type.lower()
         is_bike = any(x in s for x in ["bike", "ride", "cycling", "vélo", "vtt", "gravel"])
         is_run = any(x in s for x in ["run", "trail", "hiking", "randonnée", "ski", "course", "rando"])
-        
+        is_home_trainer = any(x in s for x in ["home trainer", "home-trainer", "virtual ride", "ht"])
+
         if is_bike:
-            # Karoly ignores 0 power for decoupling analysis usually
-            pwr_series = df['power'][df['power'] > 0] if 'power' in df.columns else pd.Series()
+            # Karoly ignores 0 power for decoupling analysis usually.
+            # HT robustness: filter very low power noise before quarter ratios.
+            pwr_series = df['power'][df['power'] > 0] if 'power' in df.columns else pd.Series(dtype=float)
+            if not pwr_series.empty and is_home_trainer:
+                median_power = float(pwr_series.median())
+                power_floor = max(100.0, median_power * 0.45)
+                filtered = pwr_series[pwr_series >= power_floor]
+                if len(filtered) >= 30:
+                    pwr_series = filtered
             avg_power = float(pwr_series.mean()) if not pwr_series.empty else None
+
+            if is_home_trainer and avg_power is not None and 'heart_rate' in df.columns and 'power' in df.columns:
+                hr_mask = (df['power'] > 0)
+                median_power = float(df.loc[hr_mask, 'power'].median()) if hr_mask.any() else 0.0
+                power_floor = max(100.0, median_power * 0.45) if median_power > 0 else 100.0
+                hr_mask = hr_mask & (df['power'] >= power_floor)
+                hr_series = df.loc[hr_mask, 'heart_rate'].dropna()
+                if len(hr_series) >= 30:
+                    avg_hr = float(hr_series.mean())
             
             avg_torque = float(df['torque'].mean()) if 'torque' in df.columns else None
             

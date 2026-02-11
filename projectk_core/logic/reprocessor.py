@@ -1,5 +1,10 @@
 from typing import Optional
-from tqdm import tqdm
+try:
+    from tqdm import tqdm
+except Exception:
+    # Fallback for minimal environments where tqdm isn't installed.
+    def tqdm(iterable, **kwargs):
+        return iterable
 import pandas as pd
 import tempfile
 import logging
@@ -22,6 +27,7 @@ from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetri
 from projectk_core.db.writer import ActivityWriter
 from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.logic.interval_detector import IntervalDetector
+from projectk_core.logic.session_grouper import SessionGrouper
 
 class ReprocessingEngine:
     """
@@ -38,6 +44,7 @@ class ReprocessingEngine:
         self.profile_manager = ProfileManager(self.db)
         self.classifier = ActivityClassifier()
         self.interval_detector = IntervalDetector()
+        self.session_grouper = SessionGrouper(self.db)
         self.nolio_plan_parser = NolioPlanParser()
         self.text_plan_parser = TextPlanParser()
         self.offline_mode = offline_mode
@@ -66,7 +73,7 @@ class ReprocessingEngine:
         # Only fetch those with a fit_file_path (can't reprocess metadata-only ones efficiently yet)
         # Include activity_name to preserve it if API fails
         acts = self.db.client.table("activities")\
-            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name")\
+            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, load_index, durability_index, decoupling_index")\
             .eq("athlete_id", athlete_id)\
             .not_.is_("fit_file_path", "null")\
             .execute().data
@@ -258,7 +265,23 @@ class ReprocessingEngine:
 
                 # Merge interval metrics into calculator output (only if work_type is intervals)
                 if work_type == "intervals":
-                    metrics_dict.update(interval_metrics)
+                    # Keep calculator interval aggregates as source of truth.
+                    # Only backfill missing fields and session metadata from detector output.
+                    protected_keys = {
+                        "interval_power_last",
+                        "interval_hr_last",
+                        "interval_power_mean",
+                        "interval_hr_mean",
+                        "interval_pace_last",
+                        "interval_pace_mean",
+                        "interval_pahr_mean",
+                        "interval_pahr_last",
+                        "interval_blocks",
+                    }
+                    for k, v in (interval_metrics or {}).items():
+                        if k in protected_keys and metrics_dict.get(k) is not None:
+                            continue
+                        metrics_dict[k] = v
                 else:
                     # Security: Remove any stray interval keys from general calculator
                     interval_keys = ["interval_power_last", "interval_hr_last", "interval_power_mean", "interval_hr_mean"]
@@ -276,7 +299,31 @@ class ReprocessingEngine:
 
                 if completion >= 0.70:
                     print(f"      ⚠️ No profile found, but saving interval metrics ({matched}/{expected} = {completion*100:.0f}%)")
-                    activity.metrics = ActivityMetrics(**interval_metrics)
+                    # Preserve existing non-interval metrics when profile is unavailable.
+                    preserved_metrics = {
+                        "mls_load": act_record.get("load_index"),
+                        "dur_index": act_record.get("durability_index"),
+                        "drift_pahr_percent": act_record.get("decoupling_index"),
+                    }
+                    # Persist interval block breakdown even without a physio profile.
+                    raw_blocks = interval_metrics.get("blocks") or []
+                    if raw_blocks:
+                        sport_l = (sport or "").lower()
+                        interval_blocks = self.calculator._build_interval_blocks_summary_from_detections(raw_blocks, sport_l)
+                        if interval_blocks:
+                            interval_metrics["interval_blocks"] = interval_blocks
+                            primary = self.calculator._pick_primary_interval_block(interval_blocks)
+                            if primary:
+                                interval_metrics["interval_power_mean"] = primary.get("interval_power_mean")
+                                interval_metrics["interval_power_last"] = primary.get("interval_power_last")
+                                interval_metrics["interval_hr_mean"] = primary.get("interval_hr_mean")
+                                interval_metrics["interval_hr_last"] = primary.get("interval_hr_last")
+                                interval_metrics["interval_pace_mean"] = primary.get("interval_pace_mean")
+                                interval_metrics["interval_pace_last"] = primary.get("interval_pace_last")
+                                interval_metrics.setdefault("interval_pahr_mean", primary.get("interval_pahr_mean"))
+                                interval_metrics.setdefault("interval_pahr_last", primary.get("interval_pahr_last"))
+                    merged_metrics = {**preserved_metrics, **interval_metrics}
+                    activity.metrics = ActivityMetrics(**merged_metrics)
                 else:
                     print(f"      ⚠️ No profile + incomplete session ({matched}/{expected} = {completion*100:.0f}% < 70%) -> NULL")
                     # Don't save incomplete interval metrics
@@ -291,6 +338,7 @@ class ReprocessingEngine:
                 file_hash=None, # Don't change hash
                 file_path=path
             )
+            self.session_grouper.group_bricks_for_athlete_date(athlete_id, start_time)
             
         finally:
             if os.path.exists(tmp_path):

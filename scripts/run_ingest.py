@@ -26,6 +26,7 @@ from projectk_core.processing.plan_parser import NolioPlanParser
 from projectk_core.processing.readiness import ReadinessCalculator
 from projectk_core.logic.profile_manager import ProfileManager
 from projectk_core.logic.classifier import ActivityClassifier
+from projectk_core.logic.session_grouper import SessionGrouper
 from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetrics
 from projectk_core.logic.config_manager import AthleteConfig
 from projectk_core.db.writer import ActivityWriter
@@ -46,6 +47,7 @@ class IngestionRobot:
         self.calculator = MetricsCalculator(self.config)
         self.profile_manager = ProfileManager(self.db)
         self.classifier = ActivityClassifier()
+        self.session_grouper = SessionGrouper(self.db)
         self.plan_parser = NolioPlanParser()
         self.readiness_calc = ReadinessCalculator(self.db)
 
@@ -798,6 +800,9 @@ class IngestionRobot:
                 file_hash=file_hash,
                 file_path=storage_path
             )
+            grouped = self.session_grouper.group_bricks_for_athlete_date(athlete_id, meta.start_time)
+            if grouped > 0:
+                print(f"      🔗 Brick grouping updated ({grouped} pair(s))")
         except Exception as e:
             print(f"      ❌ Final DB Save failed for {act_id}: {e}")
 

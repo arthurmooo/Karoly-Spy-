@@ -85,7 +85,8 @@ class ActivityWriter:
             "segmented_metrics": {
                 **(metrics_dict.get("segmented_metrics").model_dump() if hasattr(metrics_dict.get("segmented_metrics"), "model_dump") else (metrics_dict.get("segmented_metrics") or {})),
                 "interval_pahr_mean": metrics_dict.get("interval_pahr_mean"),
-                "interval_pahr_last": metrics_dict.get("interval_pahr_last")
+                "interval_pahr_last": metrics_dict.get("interval_pahr_last"),
+                "interval_blocks": metrics_dict.get("interval_blocks") or []
             },
             
             # Averages

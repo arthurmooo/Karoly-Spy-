@@ -58,6 +58,16 @@ class TestNolioPlanParser(unittest.TestCase):
         target_grid = self.parser.parse(plan_json)
         self.assertEqual(len(target_grid), 2)
 
+    def test_parse_high_pct_cooldown_as_work(self):
+        """High-intensity cooldown labels from Nolio should still be treated as work."""
+        plan_json = [
+            {"intensity_type": "active", "step_duration_type": "distance", "step_duration_value": 1000, "target_type": "pace", "target_value_min": 5.2, "step_percent_low": 101},
+            {"intensity_type": "cooldown", "step_duration_type": "distance", "step_duration_value": 9000, "target_type": "pace", "target_value_min": 5.0, "step_percent_low": 95},
+        ]
+        target_grid = self.parser.parse(plan_json)
+        self.assertEqual(len(target_grid), 2)
+        self.assertEqual(target_grid[1]["distance_m"], 9000)
+
 class TestTextPlanParser(unittest.TestCase):
     def setUp(self):
         self.parser = TextPlanParser()
@@ -92,6 +102,13 @@ class TestTextPlanParser(unittest.TestCase):
         plan = self.parser.parse(title)
         self.assertEqual(len(plan), 8)
         self.assertEqual(plan[0]['distance_m'], 1000)
+
+    def test_parse_multi_block_reps_plus_tempo_distance(self):
+        title = "21Km : 5*1Km seuil + 9Km Tempo"
+        plan = self.parser.parse(title)
+        self.assertEqual(len(plan), 6)
+        self.assertEqual(plan[0]['distance_m'], 1000)
+        self.assertEqual(plan[-1]['distance_m'], 9000)
 
 if __name__ == '__main__':
     unittest.main()

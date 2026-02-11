@@ -58,3 +58,18 @@ def test_auto_split_logic():
     assert len(splits4) == 4
     assert "phase_1" in splits4
     assert "phase_4" in splits4
+
+
+def test_home_trainer_power_filter_stabilizes_ratio():
+    # 90 samples at realistic power + 30 samples of low-power noise.
+    df = pd.DataFrame({
+        'heart_rate': [150.0] * 120,
+        'power': [250.0] * 90 + [20.0] * 30,
+    })
+
+    calc = SegmentCalculator()
+    data = calc.calculate_segment(df, "Vélo - Home Trainer")
+
+    # Low-power noise should be filtered out in HT mode.
+    assert data.power == pytest.approx(250.0, 0.5)
+    assert data.ratio == pytest.approx(0.6, 0.05)

@@ -265,6 +265,7 @@ class MetricsCalculator:
         # New Pa:HR (or Speed:HR) metrics
         interval_pahr_mean = None
         interval_pahr_last = None
+        interval_blocks_summary = []
         
         # Determine which signal to use for efficiency ratio (Power or Speed)
         # KAROLY UPDATE: Run = Vitesse (Always use Speed for Run)
@@ -339,22 +340,12 @@ class MetricsCalculator:
                         perf_detections = detections
 
                     # ===== ROBUST RUN FILTER (2026-02-11) =====
-                    # 1) If a very long block appears in a repeated-interval session
-                    #    (e.g. "5x1km + 9km tempo"), keep only the repeated block family.
-                    # 2) Remove obvious low-speed outliers likely to be recovery bleed.
+                    # Remove obvious low-speed outliers likely to be recovery bleed.
+                    # IMPORTANT: Do NOT remove long blocks here; multi-block sessions are
+                    # now handled as separate interval blocks (5x1km + 9km tempo).
                     if sport == "run" and len(perf_detections) >= 4:
                         run_with_speed = [d for d in perf_detections if d.get('avg_speed') and d.get('avg_speed') > 0]
                         if run_with_speed:
-                            durations = sorted([float(d.get('duration_sec', 0) or 0) for d in run_with_speed if (d.get('duration_sec', 0) or 0) > 0])
-                            if durations:
-                                mid = len(durations) // 2
-                                median_dur = durations[mid] if len(durations) % 2 == 1 else (durations[mid - 1] + durations[mid]) / 2.0
-
-                                # Drop "multi-block" long work (tempo tail) from interval summary.
-                                long_filtered = [d for d in perf_detections if (d.get('duration_sec', 0) or 0) <= median_dur * 1.8]
-                                if len(long_filtered) >= max(3, int(len(perf_detections) * 0.7)):
-                                    perf_detections = long_filtered
-
                             speeds = sorted([float(d.get('avg_speed')) for d in perf_detections if d.get('avg_speed') and d.get('avg_speed') > 0])
                             if len(speeds) >= 4:
                                 mid = len(speeds) // 2
@@ -411,37 +402,19 @@ class MetricsCalculator:
                         match_type = "LAP" if all_laps else "SIGNAL (high-confidence)"
                         print(f"      ✅ Valid {match_type} match: {num_matched}/{num_planned} intervals")
 
-                        # Calculate averages
-                        if valid_p:
-                            avg_intervals_power = sum(valid_p) / len(valid_p)
-                        if valid_h:
-                            avg_intervals_hr = sum(valid_h) / len(valid_h)
-                        if valid_s:
-                            avg_speed = sum(valid_s) / len(valid_s)
-                            avg_intervals_pace = 1000.0 / avg_speed / 60.0 if avg_speed > 0 else None
-                        if valid_r:
-                            global_respect_score = sum(valid_r) / len(valid_r)
+                        interval_blocks_summary = self._build_interval_blocks_summary_from_detections(perf_detections, sport)
+                        primary_block = self._pick_primary_interval_block(interval_blocks_summary)
 
-                        # Get last interval values
-                        if perf_detections:
-                            last_det = perf_detections[-1]
-                            last_interval_power = last_det.get('avg_power') or 0.0
-                            last_interval_hr = last_det.get('avg_hr') or 0.0
-                            last_speed = last_det.get('avg_speed')
-                            if last_speed and last_speed > 0:
-                                last_interval_pace = 1000.0 / last_speed / 60.0
-
-                        # Calculate efficiency (Pa:HR or Speed:HR)
-                        efficiencies = []
-                        for d in perf_detections:
-                            val = d.get('avg_power') if sport == 'bike' else d.get('avg_speed')
-                            hr = d.get('avg_hr')
-                            if val is not None and hr is not None and hr > 0:
-                                efficiencies.append(val / hr)
-
-                        if efficiencies:
-                            interval_pahr_mean = sum(efficiencies) / len(efficiencies)
-                            interval_pahr_last = efficiencies[-1]
+                        if primary_block:
+                            avg_intervals_power = primary_block.get("interval_power_mean")
+                            avg_intervals_hr = primary_block.get("interval_hr_mean")
+                            avg_intervals_pace = primary_block.get("interval_pace_mean")
+                            last_interval_power = primary_block.get("interval_power_last")
+                            last_interval_hr = primary_block.get("interval_hr_last")
+                            last_interval_pace = primary_block.get("interval_pace_last")
+                            global_respect_score = primary_block.get("interval_respect_score_mean")
+                            interval_pahr_mean = primary_block.get("interval_pahr_mean")
+                            interval_pahr_last = primary_block.get("interval_pahr_last")
                     else:
                         # NOT A VALID MATCH: Keep individual detected blocks
                         # but leave summary metrics at NULL
@@ -454,6 +427,7 @@ class MetricsCalculator:
                         interval_pahr_mean = None
                         interval_pahr_last = None
                         global_respect_score = None
+                        interval_blocks_summary = []
 
                         # Log the reason for NULL metrics
                         if not meets_completion_threshold:
@@ -577,38 +551,41 @@ class MetricsCalculator:
                     if efficiencies:
                         interval_pahr_mean = sum(efficiencies) / len(efficiencies)
                         interval_pahr_last = efficiencies[-1]
-                    
-                    if work_laps:
-                        # Use the last WORK lap, not the very last lap of the file
-                        last_lap = work_laps[-1]
-                        last_interval_power = last_lap.get('avg_power')
-                        last_interval_hr = last_lap.get('avg_heart_rate')
-                        last_speed = last_lap.get('avg_speed')
-                        if last_speed and last_speed > 0:
-                            def s_to_p(s): return 1000.0 / s / 60.0 if s and s > 0 else None
-                            last_interval_pace = s_to_p(last_speed)
+
+                    interval_blocks_summary = self._build_interval_blocks_summary_from_laps(work_laps, sport)
+                    primary_block = self._pick_primary_interval_block(interval_blocks_summary)
+                    if primary_block:
+                        avg_intervals_power = primary_block.get("interval_power_mean")
+                        avg_intervals_hr = primary_block.get("interval_hr_mean")
+                        avg_intervals_pace = primary_block.get("interval_pace_mean")
+                        last_interval_power = primary_block.get("interval_power_last")
+                        last_interval_hr = primary_block.get("interval_hr_last")
+                        last_interval_pace = primary_block.get("interval_pace_last")
+                        interval_pahr_mean = primary_block.get("interval_pahr_mean")
+                        interval_pahr_last = primary_block.get("interval_pahr_last")
 
         # 11. Smart Segmentation (Karoly's Request)
         # Determine strategy - Use activity name (title) for keyword detection
         strategy = self.classifier.get_strategy(meta.activity_name or "", nolio_type or "", nolio_comment or "", is_competition_nolio=is_competition_nolio)
         sport_cat = self._get_sport_category(meta.activity_type)
+        seg_activity_type = meta.source_sport or meta.activity_type or sport_cat
         
         seg_output = SegmentationOutput(segmentation_type=strategy)
         
         if strategy == "manual":
             manual_config = self.classifier.parse_splits(nolio_comment)
-            seg_output.manual = self.segmenter.manual_split(df, manual_config, sport_cat)
+            seg_output.manual = self.segmenter.manual_split(df, manual_config, seg_activity_type)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.manual)
         elif strategy == "auto_competition":
             # 2 phases AND 4 phases for competition
-            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport_cat)
-            seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport_cat)
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, seg_activity_type)
+            seg_output.splits_4 = self.segmenter.auto_split(df, 4, seg_activity_type)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
         else: # auto_training
             # Systematic 2 phases AND 4 phases for continuous training
             # (4 phases stored for future dashboard, 2 phases used for primary KPI)
-            seg_output.splits_2 = self.segmenter.auto_split(df, 2, sport_cat)
-            seg_output.splits_4 = self.segmenter.auto_split(df, 4, sport_cat)
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, seg_activity_type)
+            seg_output.splits_4 = self.segmenter.auto_split(df, 4, seg_activity_type)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
 
         # ========== FINAL CLEANUP FOR KAROLY (2026-02-01) ==========
@@ -628,6 +605,7 @@ class MetricsCalculator:
             "interval_respect_score": round(float(global_respect_score), 1) if global_respect_score is not None else None,
             "interval_pahr_mean": round(float(interval_pahr_mean), 3) if interval_pahr_mean is not None else None,
             "interval_pahr_last": round(float(interval_pahr_last), 3) if interval_pahr_last is not None else None,
+            "interval_blocks": interval_blocks_summary,
             "interval_detection_source": interval_detection_source,
             "energy_kj": round(energy_kj, 1) if energy_kj is not None else None,
             "intensity_factor": round(if_mean, 3),
@@ -641,6 +619,185 @@ class MetricsCalculator:
             "segmented_metrics": seg_output,
             "intervals": detected_blocks
         }
+
+    def _to_pace(self, speed_mps: Optional[float]) -> Optional[float]:
+        if speed_mps is None or speed_mps <= 0:
+            return None
+        return 1000.0 / speed_mps / 60.0
+
+    def _build_interval_blocks_summary_from_detections(
+        self,
+        detections: List[Dict[str, Any]],
+        sport: str
+    ) -> List[Dict[str, Any]]:
+        normalized = []
+        for idx, d in enumerate(detections):
+            target = d.get("target") or {}
+            normalized.append({
+                "order": idx,
+                "duration_sec": float(d.get("duration_sec") or 0),
+                "target_duration": float(target.get("duration") or d.get("expected_duration") or 0),
+                "target_distance": float(target.get("distance_m") or 0),
+                "avg_power": d.get("avg_power"),
+                "avg_speed": d.get("avg_speed"),
+                "avg_hr": d.get("avg_hr"),
+                "respect_score": d.get("respect_score")
+            })
+        return self._group_and_summarize_interval_entries(normalized, sport)
+
+    def _build_interval_blocks_summary_from_laps(
+        self,
+        work_laps: List[Dict[str, Any]],
+        sport: str
+    ) -> List[Dict[str, Any]]:
+        normalized = []
+        for idx, lap in enumerate(work_laps):
+            duration = float(lap.get("effective_duration") or lap.get("total_timer_time") or lap.get("total_elapsed_time") or 0)
+            normalized.append({
+                "order": idx,
+                "duration_sec": duration,
+                "target_duration": duration,
+                "target_distance": float(lap.get("total_distance") or 0),
+                "avg_power": lap.get("avg_power"),
+                "avg_speed": lap.get("avg_speed"),
+                "avg_hr": lap.get("avg_heart_rate"),
+                "respect_score": None
+            })
+        return self._group_and_summarize_interval_entries(normalized, sport)
+
+    def _group_and_summarize_interval_entries(
+        self,
+        entries: List[Dict[str, Any]],
+        sport: str
+    ) -> List[Dict[str, Any]]:
+        if not entries:
+            return []
+
+        blocks: List[List[Dict[str, Any]]] = [[entries[0]]]
+        for entry in entries[1:]:
+            current_block = blocks[-1]
+            prev = current_block[-1]
+
+            prev_dist = float(prev.get("target_distance") or 0)
+            curr_dist = float(entry.get("target_distance") or 0)
+            prev_dur = float(prev.get("target_duration") or prev.get("duration_sec") or 0)
+            curr_dur = float(entry.get("target_duration") or entry.get("duration_sec") or 0)
+
+            same_block = False
+            if prev_dist > 0 and curr_dist > 0:
+                ratio = curr_dist / prev_dist if prev_dist > 0 else 0
+                same_block = 0.75 <= ratio <= 1.35
+            elif prev_dur > 0 and curr_dur > 0:
+                ratio = curr_dur / prev_dur if prev_dur > 0 else 0
+                same_block = 0.75 <= ratio <= 1.35
+
+            if same_block:
+                current_block.append(entry)
+            else:
+                blocks.append([entry])
+
+        summaries = []
+        for idx, block in enumerate(blocks, start=1):
+            durations = [float(e.get("duration_sec") or 0) for e in block]
+            total_duration = sum(durations)
+            avg_speed_vals = [e.get("avg_speed") for e in block]
+            avg_power_vals = [e.get("avg_power") for e in block]
+            avg_hr_vals = [e.get("avg_hr") for e in block]
+            respects = [e.get("respect_score") for e in block if e.get("respect_score") is not None]
+
+            sum_speed = sum((e.get("avg_speed") or 0) * (e.get("duration_sec") or 0) for e in block if e.get("avg_speed") is not None)
+            speed_time = sum((e.get("duration_sec") or 0) for e in block if e.get("avg_speed") is not None)
+            mean_speed = (sum_speed / speed_time) if speed_time > 0 else None
+
+            sum_power = sum((e.get("avg_power") or 0) * (e.get("duration_sec") or 0) for e in block if e.get("avg_power") is not None)
+            power_time = sum((e.get("duration_sec") or 0) for e in block if e.get("avg_power") is not None)
+            mean_power = (sum_power / power_time) if power_time > 0 else None
+
+            sum_hr = sum((e.get("avg_hr") or 0) * (e.get("duration_sec") or 0) for e in block if e.get("avg_hr") is not None)
+            hr_time = sum((e.get("duration_sec") or 0) for e in block if e.get("avg_hr") is not None)
+            mean_hr = (sum_hr / hr_time) if hr_time > 0 else None
+
+            last = block[-1]
+            last_speed = last.get("avg_speed")
+            last_power = last.get("avg_power")
+            last_hr = last.get("avg_hr")
+
+            efficiencies = []
+            for e in block:
+                val = e.get("avg_power") if sport == "bike" else e.get("avg_speed")
+                hr = e.get("avg_hr")
+                if val is not None and hr is not None and hr > 0:
+                    efficiencies.append(val / hr)
+
+            target_distances = [float(e.get("target_distance") or 0) for e in block if float(e.get("target_distance") or 0) > 0]
+            representative_distance = target_distances[0] if target_distances else None
+            target_durations = [float(e.get("target_duration") or 0) for e in block if float(e.get("target_duration") or 0) > 0]
+            representative_duration = target_durations[0] if target_durations else (durations[0] if durations else None)
+
+            summaries.append({
+                "block_index": idx,
+                "count": len(block),
+                "total_duration_sec": round(total_duration, 1) if total_duration > 0 else None,
+                "representative_distance_m": round(representative_distance, 1) if representative_distance else None,
+                "representative_duration_sec": round(representative_duration, 1) if representative_duration else None,
+                "interval_power_mean": round(float(mean_power), 1) if mean_power is not None else None,
+                "interval_hr_mean": round(float(mean_hr), 1) if mean_hr is not None else None,
+                "interval_pace_mean": round(float(self._to_pace(mean_speed)), 2) if mean_speed is not None else None,
+                "interval_power_last": round(float(last_power), 1) if last_power is not None else None,
+                "interval_hr_last": round(float(last_hr), 1) if last_hr is not None else None,
+                "interval_pace_last": round(float(self._to_pace(last_speed)), 2) if last_speed is not None else None,
+                "interval_pahr_mean": round(float(sum(efficiencies) / len(efficiencies)), 3) if efficiencies else None,
+                "interval_pahr_last": round(float(efficiencies[-1]), 3) if efficiencies else None,
+                "interval_respect_score_mean": round(float(sum(respects) / len(respects)), 1) if respects else None
+            })
+
+        return self._prune_noise_interval_blocks(summaries)
+
+    def _prune_noise_interval_blocks(self, blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Remove obvious edge noise blocks (e.g., a single transition lap before
+        the true repeated set) while keeping meaningful multi-block sessions.
+        """
+        if len(blocks) <= 2:
+            return blocks
+
+        primary = self._pick_primary_interval_block(blocks)
+        if not primary:
+            return blocks
+
+        primary_count = int(primary.get("count") or 0)
+        primary_pace = primary.get("interval_pace_mean")
+        primary_dist = float(primary.get("representative_distance_m") or 0)
+
+        filtered: List[Dict[str, Any]] = []
+        total = len(blocks)
+        for idx, block in enumerate(blocks):
+            is_edge = idx == 0 or idx == total - 1
+            is_singleton = int(block.get("count") or 0) == 1
+
+            drop_as_leading_transition = False
+            if is_edge and is_singleton and idx == 0 and primary_count >= 3 and primary_pace and primary_dist > 0:
+                blk_pace = block.get("interval_pace_mean")
+                blk_dist = float(block.get("representative_distance_m") or 0)
+                if blk_pace and blk_dist > 0:
+                    dist_close = 0.9 * primary_dist <= blk_dist <= 1.8 * primary_dist
+                    notably_slower = blk_pace > primary_pace * 1.12
+                    drop_as_leading_transition = dist_close and notably_slower
+
+            if not drop_as_leading_transition:
+                filtered.append(block)
+
+        if len(filtered) == len(blocks):
+            return blocks
+
+        for new_idx, block in enumerate(filtered, start=1):
+            block["block_index"] = new_idx
+        return filtered
+
+    def _pick_primary_interval_block(self, blocks: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not blocks:
+            return None
+        return sorted(blocks, key=lambda b: (-int(b.get("count") or 0), int(b.get("block_index") or 9999)))[0]
 
     def _pick_intensity_factor(self, if_val: float) -> float:
         """

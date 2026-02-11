@@ -205,6 +205,16 @@ class NolioPlanParser:
         if duration == 0:
             return False
 
+        # 0c. PRIORITY RULE (2026-02-11):
+        # Nolio sometimes labels high-intensity tempo blocks as "cooldown".
+        # If intensity percentage is high enough, treat as work regardless of label.
+        if pct_low:
+            try:
+                if int(pct_low) >= 90:
+                    return True
+            except (TypeError, ValueError):
+                pass
+
         # 1. Explicit recovery types
         if intensity in ["recovery", "cooldown", "warmup"]:
             return False
@@ -502,10 +512,47 @@ class TextPlanParser:
                     })
                 return intervals
 
+        # ===== NEW PATTERN 0d: Multi-block distance (reps + long tempo) =====
+        # Examples:
+        #   "5*1Km seuil + 9Km Tempo"
+        #   "21Km : 5*1Km seuil + 9Km Tempo"
+        multi_block_dist_match = re.search(
+            r'(\d+)\s*[x*]\s*([\d\.]+)\s*(k?m)\b[^+]*\+\s*([\d\.]+)\s*(k?m)\b',
+            title_lower
+        )
+        if multi_block_dist_match:
+            count = int(multi_block_dist_match.group(1))
+            rep_val = float(multi_block_dist_match.group(2))
+            rep_unit = multi_block_dist_match.group(3)
+            tail_val = float(multi_block_dist_match.group(4))
+            tail_unit = multi_block_dist_match.group(5)
+
+            rep_dist_m = self._parse_distance(rep_val, rep_unit)
+            tail_dist_m = self._parse_distance(tail_val, tail_unit)
+            if rep_dist_m > 0 and tail_dist_m > 0:
+                rep_duration = rep_dist_m * 0.24
+                tail_duration = tail_dist_m * 0.24
+                for _ in range(count):
+                    intervals.append({
+                        "type": "active",
+                        "distance_m": rep_dist_m,
+                        "duration": rep_duration,
+                        "target_type": "distance"
+                    })
+                intervals.append({
+                    "type": "active",
+                    "distance_m": tail_dist_m,
+                    "duration": tail_duration,
+                    "target_type": "distance"
+                })
+                return intervals
+
         # ===== ORIGINAL PATTERN 1: Nx Distance =====
         # (e.g. 3x 2000m, 8*1km, 20x500)
-        # Unit is optional - if missing and value >= 100, assume meters
-        dist_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*(k?m)?(?:\s|$|[^a-z])', title_lower)
+        # Guard: avoid capturing time formats like 10x30/30 or 6*4'
+        dist_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\s*(km|m)\b', title_lower)
+        if not dist_match:
+            dist_match = re.search(r'(\d+)\s*[x*]\s*([\d\.]+)\b(?!\s*[\'"/])', title_lower)
         if dist_match:
             count = int(dist_match.group(1))
             val = float(dist_match.group(2))
@@ -599,3 +646,11 @@ class TextPlanParser:
         if unit in ['"', "s", "sec", ""]:
              return val
         return val
+
+    def _parse_distance(self, val: float, unit: str) -> float:
+        unit = (unit or "").strip().lower()
+        if unit == "km":
+            return val * 1000
+        if unit == "m":
+            return val
+        return val if val >= 100 else val * 1000

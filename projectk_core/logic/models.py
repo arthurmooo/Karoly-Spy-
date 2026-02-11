@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime, date
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
@@ -138,6 +138,9 @@ class ActivityMetrics(BaseModel):
     interval_pace_mean: Optional[float] = None
     interval_respect_score: Optional[float] = None
     interval_detection_source: Optional[str] = Field(None, description="plan, lap, or algo")
+    interval_pahr_mean: Optional[float] = None
+    interval_pahr_last: Optional[float] = None
+    interval_blocks: Optional[List[Dict[str, Any]]] = None
     
     # Smart Segmentation Metrics
     segmented_metrics: Optional[SegmentationOutput] = None
