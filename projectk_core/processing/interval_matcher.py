@@ -1169,11 +1169,19 @@ class IntervalMatcher:
             df, signal_col, final_start, final_end, duration, trim=False
         )
         
-        # Use recalculated metrics from stream (more precise than Lap average)
-        # unless stream is missing data.
+        # Use recalculated metrics from stream by default.
+        # For running pace, Nolio's source of truth aligns better with LAP-native
+        # enhanced_avg_speed than with raw-stream mean on short reps.
         avg_power = plateau_metrics.get('avg_power')
         avg_speed = plateau_metrics.get('avg_speed')
         avg_hr = plateau_metrics.get('avg_hr')
+
+        expected_duration = int(target.get('duration', 0) or 0)
+        lap_native_speed = lap_match.get('avg_speed') or lap_match.get('raw', {}).get('enhanced_avg_speed') or lap_match.get('raw', {}).get('avg_speed')
+        # Apply LAP-native speed on short reps only; keep stream-based speed for long tempo blocks.
+        if expected_duration > 0 and expected_duration <= 600 and lap_native_speed and lap_native_speed > 0:
+            avg_speed = float(lap_native_speed)
+            plateau_metrics['plateau_avg_speed'] = float(lap_native_speed)
         
         # Calculate respect score
         target_min = float(target.get('target_min', 0) or 0)

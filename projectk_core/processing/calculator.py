@@ -338,6 +338,32 @@ class MetricsCalculator:
                     if not perf_detections:
                         perf_detections = detections
 
+                    # ===== ROBUST RUN FILTER (2026-02-11) =====
+                    # 1) If a very long block appears in a repeated-interval session
+                    #    (e.g. "5x1km + 9km tempo"), keep only the repeated block family.
+                    # 2) Remove obvious low-speed outliers likely to be recovery bleed.
+                    if sport == "run" and len(perf_detections) >= 4:
+                        run_with_speed = [d for d in perf_detections if d.get('avg_speed') and d.get('avg_speed') > 0]
+                        if run_with_speed:
+                            durations = sorted([float(d.get('duration_sec', 0) or 0) for d in run_with_speed if (d.get('duration_sec', 0) or 0) > 0])
+                            if durations:
+                                mid = len(durations) // 2
+                                median_dur = durations[mid] if len(durations) % 2 == 1 else (durations[mid - 1] + durations[mid]) / 2.0
+
+                                # Drop "multi-block" long work (tempo tail) from interval summary.
+                                long_filtered = [d for d in perf_detections if (d.get('duration_sec', 0) or 0) <= median_dur * 1.8]
+                                if len(long_filtered) >= max(3, int(len(perf_detections) * 0.7)):
+                                    perf_detections = long_filtered
+
+                            speeds = sorted([float(d.get('avg_speed')) for d in perf_detections if d.get('avg_speed') and d.get('avg_speed') > 0])
+                            if len(speeds) >= 4:
+                                mid = len(speeds) // 2
+                                median_speed = speeds[mid] if len(speeds) % 2 == 1 else (speeds[mid - 1] + speeds[mid]) / 2.0
+                                low_speed_floor = median_speed * 0.85
+                                outlier_filtered = [d for d in perf_detections if (d.get('avg_speed') is None) or (d.get('avg_speed') >= low_speed_floor)]
+                                if len(outlier_filtered) >= max(3, int(len(perf_detections) * 0.7)):
+                                    perf_detections = outlier_filtered
+
                     valid_p = [d['avg_power'] for d in perf_detections if d['avg_power'] is not None]
                     valid_s = [d['avg_speed'] for d in perf_detections if d['avg_speed'] is not None]
                     valid_h = [d['avg_hr'] for d in perf_detections if d['avg_hr'] is not None]
@@ -351,12 +377,19 @@ class MetricsCalculator:
                     num_planned = len(target_grid)
                     num_matched = len(detections)
                     all_laps = all(d.get('source') == 'lap' for d in detections)
+                    lap_ratio = (len([d for d in detections if d.get('source') == 'lap']) / num_matched) if num_matched > 0 else 0.0
 
                     # Check for high-confidence signal match (new)
                     is_high_confidence_signal = is_high_confidence_match(
                         detections,
                         num_planned,
                         threshold=VALIDATION_THRESHOLD
+                    )
+                    single_block_signal_ok = (
+                        num_planned == 1 and
+                        num_matched == 1 and
+                        detections[0].get('source') == 'signal' and
+                        (detections[0].get('confidence', 0) >= 0.60)
                     )
 
                     # ===== COMPLETION THRESHOLD (2026-02-04) =====
@@ -368,7 +401,9 @@ class MetricsCalculator:
                     # Valid match: meets completion AND (all LAPs or high-confidence signal)
                     is_valid_match = meets_completion_threshold and (
                         (num_matched >= num_planned and all_laps) or  # Perfect LAP match
-                        is_high_confidence_signal  # High-confidence signal match
+                        (completion_ratio >= 0.95 and lap_ratio >= 0.90) or  # LAP-dominant near-complete
+                        is_high_confidence_signal or  # High-confidence signal match
+                        single_block_signal_ok  # Single long block with adequate signal confidence
                     )
 
                     if is_valid_match:
