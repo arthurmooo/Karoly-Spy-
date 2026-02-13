@@ -49,6 +49,35 @@ class ReprocessingEngine:
         self.text_plan_parser = TextPlanParser()
         self.offline_mode = offline_mode
 
+    def reprocess_single(self, activity_id: str):
+        """Reprocess a single activity by its UUID."""
+        print(f"Reprocessing single activity: {activity_id}")
+
+        act = self.db.client.table("activities") \
+            .select("id, athlete_id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, load_index, durability_index, decoupling_index") \
+            .eq("id", activity_id) \
+            .execute().data
+
+        if not act:
+            raise ValueError(f"Activity {activity_id} not found")
+        act = act[0]
+
+        if not act.get('fit_file_path'):
+            raise ValueError(f"Activity {activity_id} has no FIT file — cannot reprocess")
+
+        # Get athlete info
+        athlete = self.db.client.table("athletes") \
+            .select("id, first_name, last_name, nolio_id") \
+            .eq("id", act['athlete_id']) \
+            .execute().data
+
+        if not athlete:
+            raise ValueError(f"Athlete not found for activity {activity_id}")
+        athlete = athlete[0]
+
+        print(f"   Athlete: {athlete['first_name']} {athlete['last_name']}")
+        self.recalculate_activity(athlete['id'], act, athlete_nolio_id=athlete.get('nolio_id'))
+
     def run(self, athlete_name_filter: Optional[str] = None, force: bool = False):
         print(f"Starting Reprocessing Engine...")
         
@@ -260,28 +289,44 @@ class ReprocessingEngine:
             # Fetch Profile
             profile = self.profile_manager.get_profile_for_date(athlete_id, sport, start_time)
 
-            if profile and not df.empty:
-                metrics_dict = self.calculator.compute(activity, profile)
+            if not df.empty:
+                target_grid = plan if isinstance(plan, list) else None
+                metrics_dict = self.calculator.compute(activity, profile, target_grid=target_grid)
 
-                # Merge interval metrics into calculator output (only if work_type is intervals)
+                # Merge interval detector metadata (completion/source), but keep calculator
+                # interval aggregates as source of truth when already populated.
                 if work_type == "intervals":
-                    # Keep calculator interval aggregates as source of truth.
-                    # Only backfill missing fields and session metadata from detector output.
-                    protected_keys = {
-                        "interval_power_last",
-                        "interval_hr_last",
-                        "interval_power_mean",
-                        "interval_hr_mean",
-                        "interval_pace_last",
-                        "interval_pace_mean",
-                        "interval_pahr_mean",
-                        "interval_pahr_last",
-                        "interval_blocks",
-                    }
-                    for k, v in (interval_metrics or {}).items():
-                        if k in protected_keys and metrics_dict.get(k) is not None:
-                            continue
-                        metrics_dict[k] = v
+                    completion = None
+                    if interval_metrics:
+                        matched = interval_metrics.get('session_matched_intervals', 0)
+                        expected = interval_metrics.get('session_expected_intervals', 1)
+                        completion = matched / expected if expected > 0 else 0
+
+                        protected_keys = {
+                            "interval_power_last",
+                            "interval_hr_last",
+                            "interval_power_mean",
+                            "interval_hr_mean",
+                            "interval_pace_last",
+                            "interval_pace_mean",
+                            "interval_pahr_mean",
+                            "interval_pahr_last",
+                            "interval_blocks",
+                        }
+                        for k, v in interval_metrics.items():
+                            if k in protected_keys and metrics_dict.get(k) is not None:
+                                continue
+                            metrics_dict[k] = v
+
+                    # Bike: pace is irrelevant for intervals, only power matters.
+                    if sport and sport.lower() == "bike":
+                        metrics_dict["interval_pace_mean"] = None
+                        metrics_dict["interval_pace_last"] = None
+
+                    # Legacy interval guardrail removed (2026-02-13):
+                    # The calculator's validation gate (meets_completion_threshold + is_valid_match)
+                    # is the authority for interval validation. Physio profile availability
+                    # should not gate interval detection/aggregation.
                 else:
                     # Security: Remove any stray interval keys from general calculator
                     interval_keys = ["interval_power_last", "interval_hr_last", "interval_power_mean", "interval_hr_mean"]
@@ -289,44 +334,6 @@ class ReprocessingEngine:
                         metrics_dict.pop(k, None)
 
                 activity.metrics = ActivityMetrics(**metrics_dict)
-            elif work_type == "intervals" and interval_metrics:
-                # ===== FIX 2026-02-04: Save interval metrics even without profile =====
-                # Athletes without profiles can still have valid interval metrics
-                # BUT only if completion threshold is met (70%)
-                matched = interval_metrics.get('session_matched_intervals', 0)
-                expected = interval_metrics.get('session_expected_intervals', 1)
-                completion = matched / expected if expected > 0 else 0
-
-                if completion >= 0.70:
-                    print(f"      ⚠️ No profile found, but saving interval metrics ({matched}/{expected} = {completion*100:.0f}%)")
-                    # Preserve existing non-interval metrics when profile is unavailable.
-                    preserved_metrics = {
-                        "mls_load": act_record.get("load_index"),
-                        "dur_index": act_record.get("durability_index"),
-                        "drift_pahr_percent": act_record.get("decoupling_index"),
-                    }
-                    # Persist interval block breakdown even without a physio profile.
-                    raw_blocks = interval_metrics.get("blocks") or []
-                    if raw_blocks:
-                        sport_l = (sport or "").lower()
-                        interval_blocks = self.calculator._build_interval_blocks_summary_from_detections(raw_blocks, sport_l)
-                        if interval_blocks:
-                            interval_metrics["interval_blocks"] = interval_blocks
-                            primary = self.calculator._pick_primary_interval_block(interval_blocks)
-                            if primary:
-                                interval_metrics["interval_power_mean"] = primary.get("interval_power_mean")
-                                interval_metrics["interval_power_last"] = primary.get("interval_power_last")
-                                interval_metrics["interval_hr_mean"] = primary.get("interval_hr_mean")
-                                interval_metrics["interval_hr_last"] = primary.get("interval_hr_last")
-                                interval_metrics["interval_pace_mean"] = primary.get("interval_pace_mean")
-                                interval_metrics["interval_pace_last"] = primary.get("interval_pace_last")
-                                interval_metrics.setdefault("interval_pahr_mean", primary.get("interval_pahr_mean"))
-                                interval_metrics.setdefault("interval_pahr_last", primary.get("interval_pahr_last"))
-                    merged_metrics = {**preserved_metrics, **interval_metrics}
-                    activity.metrics = ActivityMetrics(**merged_metrics)
-                else:
-                    print(f"      ⚠️ No profile + incomplete session ({matched}/{expected} = {completion*100:.0f}% < 70%) -> NULL")
-                    # Don't save incomplete interval metrics
                 
             # 6. Update DB (Always save if we have a file, even without profile)
             ActivityWriter.update_by_id(

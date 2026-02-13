@@ -392,7 +392,9 @@ class MetricsCalculator:
                     # Valid match: meets completion AND (all LAPs or high-confidence signal)
                     is_valid_match = meets_completion_threshold and (
                         (num_matched >= num_planned and all_laps) or  # Perfect LAP match
+                        (all_laps and completion_ratio >= 0.85) or  # LAP quasi-complete (e.g. 7/8)
                         (completion_ratio >= 0.95 and lap_ratio >= 0.90) or  # LAP-dominant near-complete
+                        (num_matched >= num_planned) or  # All planned intervals found (any source)
                         is_high_confidence_signal or  # High-confidence signal match
                         single_block_signal_ok  # Single long block with adequate signal confidence
                     )
@@ -578,22 +580,27 @@ class MetricsCalculator:
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.manual)
         elif strategy == "auto_competition":
             # 2 phases AND 4 phases for competition
-            seg_output.splits_2 = self.segmenter.auto_split(df, 2, seg_activity_type)
-            seg_output.splits_4 = self.segmenter.auto_split(df, 4, seg_activity_type)
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, seg_activity_type, skip_first_seconds=600)
+            seg_output.splits_4 = self.segmenter.auto_split(df, 4, seg_activity_type, skip_first_seconds=600)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
         else: # auto_training
             # Systematic 2 phases AND 4 phases for continuous training
             # (4 phases stored for future dashboard, 2 phases used for primary KPI)
-            seg_output.splits_2 = self.segmenter.auto_split(df, 2, seg_activity_type)
-            seg_output.splits_4 = self.segmenter.auto_split(df, 4, seg_activity_type)
+            seg_output.splits_2 = self.segmenter.auto_split(df, 2, seg_activity_type, skip_first_seconds=600)
+            seg_output.splits_4 = self.segmenter.auto_split(df, 4, seg_activity_type, skip_first_seconds=600)
             seg_output.drift_percent = self.segmenter.calculate_drift(seg_output.splits_2)
 
         # ========== FINAL CLEANUP FOR KAROLY (2026-02-01) ==========
-        # Rule: Run Power is only reliable with Stryd (CP > 100). 
+        # Rule: Run Power is only reliable with Stryd (CP > 100).
         # If not (Garmin Wrist Power), we force to None to favor Pace display.
         if sport == "run" and not has_ref_power:
             avg_intervals_power = None
             last_interval_power = None
+
+        # Rule: Bike intervals use power only, pace is irrelevant.
+        if sport == "bike":
+            avg_intervals_pace = None
+            last_interval_pace = None
 
         return {
             "interval_power_last": round(float(last_interval_power), 1) if last_interval_power is not None else None,
@@ -742,10 +749,10 @@ class MetricsCalculator:
                 "representative_duration_sec": round(representative_duration, 1) if representative_duration else None,
                 "interval_power_mean": round(float(mean_power), 1) if mean_power is not None else None,
                 "interval_hr_mean": round(float(mean_hr), 1) if mean_hr is not None else None,
-                "interval_pace_mean": round(float(self._to_pace(mean_speed)), 2) if mean_speed is not None else None,
+                "interval_pace_mean": round(float(self._to_pace(mean_speed)), 2) if mean_speed is not None and sport != "bike" else None,
                 "interval_power_last": round(float(last_power), 1) if last_power is not None else None,
                 "interval_hr_last": round(float(last_hr), 1) if last_hr is not None else None,
-                "interval_pace_last": round(float(self._to_pace(last_speed)), 2) if last_speed is not None else None,
+                "interval_pace_last": round(float(self._to_pace(last_speed)), 2) if last_speed is not None and sport != "bike" else None,
                 "interval_pahr_mean": round(float(sum(efficiencies) / len(efficiencies)), 3) if efficiencies else None,
                 "interval_pahr_last": round(float(efficiencies[-1]), 3) if efficiencies else None,
                 "interval_respect_score_mean": round(float(sum(respects) / len(respects)), 1) if respects else None
