@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 from typing import Dict, List, Any, Optional
 from projectk_core.logic.models import SegmentData
 
@@ -30,23 +31,26 @@ class SegmentCalculator:
         is_bike = any(x in s for x in ["bike", "ride", "cycling", "vélo", "vtt", "gravel"])
         is_run = any(x in s for x in ["run", "trail", "hiking", "randonnée", "ski", "course", "rando"])
         is_home_trainer = any(x in s for x in ["home trainer", "home-trainer", "virtual ride", "ht"])
+        is_interval_hint = bool(re.search(r"\d+\s*[x*]\s*\d+", s))
 
         if is_bike:
             # Karoly ignores 0 power for decoupling analysis usually.
-            # HT robustness: filter very low power noise before quarter ratios.
+            # HT/interval robustness: filter very low power noise before quarter ratios.
             pwr_series = df['power'][df['power'] > 0] if 'power' in df.columns else pd.Series(dtype=float)
-            if not pwr_series.empty and is_home_trainer:
+            if not pwr_series.empty and (is_home_trainer or is_interval_hint):
                 median_power = float(pwr_series.median())
-                power_floor = max(100.0, median_power * 0.45)
+                floor_factor = 0.70 if is_interval_hint else 0.45
+                power_floor = max(100.0, median_power * floor_factor)
                 filtered = pwr_series[pwr_series >= power_floor]
                 if len(filtered) >= 30:
                     pwr_series = filtered
             avg_power = float(pwr_series.mean()) if not pwr_series.empty else None
 
-            if is_home_trainer and avg_power is not None and 'heart_rate' in df.columns and 'power' in df.columns:
+            if (is_home_trainer or is_interval_hint) and avg_power is not None and 'heart_rate' in df.columns and 'power' in df.columns:
                 hr_mask = (df['power'] > 0)
                 median_power = float(df.loc[hr_mask, 'power'].median()) if hr_mask.any() else 0.0
-                power_floor = max(100.0, median_power * 0.45) if median_power > 0 else 100.0
+                floor_factor = 0.70 if is_interval_hint else 0.45
+                power_floor = max(100.0, median_power * floor_factor) if median_power > 0 else 100.0
                 hr_mask = hr_mask & (df['power'] >= power_floor)
                 hr_series = df.loc[hr_mask, 'heart_rate'].dropna()
                 if len(hr_series) >= 30:
@@ -80,23 +84,55 @@ class SegmentCalculator:
             torque=avg_torque
         )
 
-    def auto_split(self, df: pd.DataFrame, n_phases: int, activity_type: str) -> Dict[str, SegmentData]:
+    def auto_split(
+        self,
+        df: pd.DataFrame,
+        n_phases: int,
+        activity_type: str,
+        skip_first_seconds: int = 0
+    ) -> Dict[str, SegmentData]:
         """
         Splits the activity into N equal phases based on index.
         """
         if df.empty:
             return {}
+
+        split_df = df
+        if skip_first_seconds > 0 and len(split_df) > (skip_first_seconds + n_phases):
+            split_df = split_df.iloc[int(skip_first_seconds):]
+
+        s = (activity_type or "").lower()
+        is_bike = any(x in s for x in ["bike", "ride", "cycling", "vélo", "vtt", "gravel"])
+        is_home_trainer = any(x in s for x in ["home trainer", "home-trainer", "virtual ride", "ht"])
+        is_interval_hint = bool(re.search(r"\d+\s*[x*]\s*\d+", s))
+
+        # Robustness: on bike interval-like sessions, remove the initial warmup chunk
+        # before quarter splitting and ignore very low-power noise.
+        if is_bike and (is_home_trainer or is_interval_hint):
+            if len(split_df) > 1200:
+                split_df = split_df.iloc[600:]
+            if 'power' in split_df.columns:
+                pwr = split_df['power'].dropna()
+                pwr = pwr[pwr > 0]
+                if not pwr.empty:
+                    floor_factor = 0.70 if is_interval_hint else 0.45
+                    floor = max(100.0, float(pwr.median()) * floor_factor)
+                    filtered = split_df[split_df['power'] >= floor]
+                    if len(filtered) >= max(120, int(len(split_df) * 0.5)):
+                        split_df = filtered
             
-        n = len(df)
+        n = len(split_df)
         step = n // n_phases
         splits = {}
+        if n == 0 or step == 0:
+            return {}
         
         for i in range(n_phases):
             start_idx = i * step
             # For the last phase, take until the end to avoid rounding issues
             end_idx = (i + 1) * step if i < n_phases - 1 else n
             
-            phase_df = df.iloc[start_idx:end_idx]
+            phase_df = split_df.iloc[start_idx:end_idx]
             splits[f"phase_{i+1}"] = self.calculate_segment(phase_df, activity_type)
             
         return splits

@@ -73,3 +73,18 @@ def test_home_trainer_power_filter_stabilizes_ratio():
     # Low-power noise should be filtered out in HT mode.
     assert data.power == pytest.approx(250.0, 0.5)
     assert data.ratio == pytest.approx(0.6, 0.05)
+
+
+def test_auto_split_skips_first_10min_for_q_phases():
+    # 2000 points (~seconds). First 600s are warmup at low speed, then steady.
+    df = pd.DataFrame({
+        'heart_rate': [120.0] * 600 + [160.0] * 1400,
+        'speed': [3.0] * 600 + [5.0] * 1400,
+    })
+
+    calc = SegmentCalculator()
+    splits4 = calc.auto_split(df, 4, "run", skip_first_seconds=600)
+
+    assert len(splits4) == 4
+    # Q1 should be based on post-warmup data.
+    assert splits4["phase_1"].hr == pytest.approx(160.0, 0.1)
