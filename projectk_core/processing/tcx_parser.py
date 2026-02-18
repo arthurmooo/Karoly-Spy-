@@ -112,17 +112,18 @@ class TcxParser:
             laps_data.append(lap_info)
 
             # Process Track (Trackpoints) within this Lap
+            lap_hr_values = []  # accumulate HR per lap to compute avg if absent from LAP summary
             tracks = find_all_recursive(lap, 'Track')
             for track in tracks:
                 tps = find_all_recursive(track, 'Trackpoint')
                 for tp in tps:
                     point = {}
-                    
+
                     # Time (Required)
                     time_elem = find_all_recursive(tp, 'Time')
                     if not time_elem: continue
                     point['timestamp'] = time_elem[0].text # String for now
-                    
+
                     # Position
                     pos_elem = find_all_recursive(tp, 'Position')
                     if pos_elem:
@@ -131,12 +132,12 @@ class TcxParser:
                         if lat_elem and lon_elem:
                             point['lat'] = float(lat_elem[0].text)
                             point['lon'] = float(lon_elem[0].text)
-                    
+
                     # Altitude
                     alt_elem = find_all_recursive(tp, 'AltitudeMeters')
                     if alt_elem:
                         point['altitude'] = float(alt_elem[0].text)
-                        
+
                     # Distance
                     dist_elem = find_all_recursive(tp, 'DistanceMeters')
                     if dist_elem:
@@ -147,8 +148,10 @@ class TcxParser:
                     if hr_elem:
                         val_elem = find_all_recursive(hr_elem[0], 'Value')
                         if val_elem:
-                            point['heart_rate'] = float(val_elem[0].text)
-                            
+                            hr_val = float(val_elem[0].text)
+                            point['heart_rate'] = hr_val
+                            lap_hr_values.append(hr_val)
+
                     # Cadence
                     cad_elem = find_all_recursive(tp, 'Cadence')
                     if cad_elem:
@@ -162,12 +165,19 @@ class TcxParser:
                             speed_elem = find_all_recursive(tpx_elem[0], 'Speed')
                             if speed_elem:
                                 point['speed'] = float(speed_elem[0].text)
-                                
+
                             watts_elem = find_all_recursive(tpx_elem[0], 'Watts')
                             if watts_elem:
                                 point['power'] = float(watts_elem[0].text)
-                                
+
                     trackpoints_data.append(point)
+
+            # Backfill avg_hr on lap_info if absent from TCX LAP summary
+            # (some exports omit AverageHeartRateBpm even when trackpoints have HR)
+            if lap_hr_values and 'avg_heart_rate' not in lap_info:
+                mean_hr = sum(lap_hr_values) / len(lap_hr_values)
+                lap_info['avg_heart_rate'] = mean_hr
+                lap_info['avg_hr'] = mean_hr
 
         if not trackpoints_data:
             raise ValueError("No Trackpoints found in TCX file.")
