@@ -34,4 +34,4 @@ jobs:
           python -c "import rich; import fitdecode; import supabase; print('ALL SYSTEMS GO')"
           
           echo "🚀 STARTING ROBOT V8 (Centralized Token Mode)..."
-          python run_k.py ingest --days 3
+          python run_k.py ingest --days 7
