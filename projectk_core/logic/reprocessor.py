@@ -269,7 +269,8 @@ class ReprocessingEngine:
                 start_time=start_time,
                 duration_sec=len(df),
                 rpe=act_record.get('rpe'),
-                work_type=work_type
+                work_type=work_type,
+                source_json=details if (nolio_id and not self.offline_mode and details) else act_record.get('source_json')
             )
             
             # Fetch Weather (API)
@@ -293,8 +294,10 @@ class ReprocessingEngine:
                 target_grid = plan if isinstance(plan, list) else None
                 metrics_dict = self.calculator.compute(activity, profile, target_grid=target_grid)
 
-                # Merge interval detector metadata (completion/source), but keep calculator
-                # interval aggregates as source of truth when already populated.
+                # Merge interval detector metadata (completion/source).
+                # _adapt_output (interval_detector) is the source of truth for HR/pace
+                # aggregates — it uses distance-weighted pace and robust block filtering.
+                # Calculator keeps authority over power and efficiency metrics.
                 if work_type == "intervals":
                     completion = None
                     if interval_metrics:
@@ -304,11 +307,7 @@ class ReprocessingEngine:
 
                         protected_keys = {
                             "interval_power_last",
-                            "interval_hr_last",
                             "interval_power_mean",
-                            "interval_hr_mean",
-                            "interval_pace_last",
-                            "interval_pace_mean",
                             "interval_pahr_mean",
                             "interval_pahr_last",
                             "interval_blocks",
