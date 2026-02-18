@@ -51,6 +51,7 @@ class ReprocessingEngine:
 
     def reprocess_single(self, activity_id: str):
         """Reprocess a single activity by its UUID."""
+        print(f"[bold]🔧 Reprocessor V3 — source_json + adapt_output priority + interval_blocks rebuild[/bold]")
         print(f"Reprocessing single activity: {activity_id}")
 
         act = self.db.client.table("activities") \
@@ -316,6 +317,26 @@ class ReprocessingEngine:
                             if k in protected_keys and metrics_dict.get(k) is not None:
                                 continue
                             metrics_dict[k] = v
+
+                    # Rebuild interval_blocks from correct flat values so that
+                    # segmented_metrics JSONB (read by Retool view) stays in sync.
+                    if interval_metrics.get('blocks'):
+                        blocks = interval_metrics['blocks']
+                        metrics_dict['interval_blocks'] = [{
+                            "block_index": 1,
+                            "count": len(blocks),
+                            "total_duration_sec": round(sum(b.get('duration_sec', 0) for b in blocks), 1),
+                            "interval_power_mean": metrics_dict.get('interval_power_mean'),
+                            "interval_power_last": metrics_dict.get('interval_power_last'),
+                            "interval_hr_mean": metrics_dict.get('interval_hr_mean'),
+                            "interval_hr_last": metrics_dict.get('interval_hr_last'),
+                            "interval_pace_mean": metrics_dict.get('interval_pace_mean'),
+                            "interval_pace_last": metrics_dict.get('interval_pace_last'),
+                            "interval_pahr_mean": metrics_dict.get('interval_pahr_mean'),
+                            "interval_pahr_last": metrics_dict.get('interval_pahr_last'),
+                            "interval_respect_score_mean": metrics_dict.get('interval_respect_score'),
+                        }]
+                        print(f"      📦 Rebuilt interval_blocks: {len(blocks)} intervals in 1 block")
 
                     # Bike: pace is irrelevant for intervals, only power matters.
                     if sport and sport.lower() == "bike":
