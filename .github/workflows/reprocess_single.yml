@@ -1,0 +1,40 @@
+name: Reprocess Single Activity
+
+on:
+  workflow_dispatch:
+    inputs:
+      activity_id:
+        description: 'Activity UUID to reprocess'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [reprocess-activity]
+
+jobs:
+  reprocess:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install & Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOLIO_CLIENT_ID: ${{ secrets.NOLIO_CLIENT_ID }}
+          NOLIO_CLIENT_SECRET: ${{ secrets.NOLIO_CLIENT_SECRET }}
+          NOLIO_REFRESH_TOKEN: ${{ secrets.NOLIO_REFRESH_TOKEN }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: |
+          pip install --upgrade pip
+          pip install supabase==2.13.0 requests==2.31.0 python-dotenv==1.0.0 pandas==2.1.4 numpy==1.26.2 tqdm==4.66.1 pydantic==2.5.3 fitparse==1.2.0 fitdecode matplotlib==3.8.2 scipy==1.11.4 geopy==2.4.1 fastapi==0.108.0 uvicorn==0.25.0 rich
+
+          # Accept activity_id from workflow_dispatch or repository_dispatch
+          ACTIVITY_ID="${{ github.event.inputs.activity_id || github.event.client_payload.activity_id }}"
+          echo "🔄 Reprocessing activity: $ACTIVITY_ID"
+          python run_k.py reprocess --activity-id "$ACTIVITY_ID"
