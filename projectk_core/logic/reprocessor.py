@@ -325,7 +325,7 @@ class ReprocessingEngine:
                         metrics_dict['interval_blocks'] = [{
                             "block_index": 1,
                             "count": len(blocks),
-                            "total_duration_sec": round(sum(b.get('duration_sec', 0) for b in blocks), 1),
+                            "total_duration_sec": round(float(sum(b.get('duration_sec', 0) for b in blocks)), 1),
                             "interval_power_mean": metrics_dict.get('interval_power_mean'),
                             "interval_power_last": metrics_dict.get('interval_power_last'),
                             "interval_hr_mean": metrics_dict.get('interval_hr_mean'),
