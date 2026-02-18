@@ -45,13 +45,18 @@ def cmd_reprocess(args):
     Re-calculates metrics for existing activities in DB.
     """
     console.print(f"[bold purple]🔄 Launching Reprocessing Engine...[/bold purple]")
-    if args.athlete:
+    if args.activity_id:
+        console.print(f"   • Single activity: [cyan]{args.activity_id}[/cyan]")
+    elif args.athlete:
         console.print(f"   • Filter: [cyan]{args.athlete}[/cyan]")
-    
+
     try:
         from projectk_core.logic.reprocessor import ReprocessingEngine
         engine = ReprocessingEngine()
-        engine.run(athlete_name_filter=args.athlete, force=args.force)
+        if args.activity_id:
+            engine.reprocess_single(args.activity_id)
+        else:
+            engine.run(athlete_name_filter=args.athlete, force=args.force)
         console.print(f"\n[bold green]✅ Reprocessing Complete.[/bold green]")
     except Exception as e:
         console.print(f"\n[bold red]❌ Reprocessing Failed:[/bold red] {e}")
@@ -114,6 +119,7 @@ Examples:
     # --- Command: reprocess ---
     parser_reprocess = subparsers.add_parser("reprocess", help="Re-calculate metrics for existing activities")
     parser_reprocess.add_argument("--athlete", type=str, help="Filter by athlete first name")
+    parser_reprocess.add_argument("--activity-id", type=str, help="Reprocess a single activity by UUID")
     parser_reprocess.add_argument("--force", action="store_true", help="Force re-calculation even if metrics exist")
     parser_reprocess.set_defaults(func=cmd_reprocess)
     
