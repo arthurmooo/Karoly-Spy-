@@ -1091,7 +1091,9 @@ class IntervalMatcher:
                     intensity_score = max(0, intensity_ratio / 0.88 * 0.3)
 
                 # Over-performing is fine (up to 15%)
-                if intensity_ratio > 1.15:
+                # Skip penalty if distance match is confirmed (duration_score >= 0.95)
+                # A perfect distance match validates the lap — going faster is expected
+                if intensity_ratio > 1.15 and duration_score < 0.95:
                     intensity_score = max(0.7, intensity_score - (intensity_ratio - 1.15) * 0.6)
         else:
             intensity_score = 0.2  # No data, small partial credit

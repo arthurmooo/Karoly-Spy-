@@ -392,7 +392,7 @@ class MetricsCalculator:
                     # Valid match: meets completion AND (all LAPs or high-confidence signal)
                     is_valid_match = meets_completion_threshold and (
                         (num_matched >= num_planned and all_laps) or  # Perfect LAP match
-                        (all_laps and completion_ratio >= 0.85) or  # LAP quasi-complete (e.g. 7/8)
+                        (all_laps and completion_ratio >= 0.80) or  # LAP quasi-complete (e.g. 5/6)
                         (completion_ratio >= 0.95 and lap_ratio >= 0.90) or  # LAP-dominant near-complete
                         (num_matched >= num_planned) or  # All planned intervals found (any source)
                         is_high_confidence_signal or  # High-confidence signal match
