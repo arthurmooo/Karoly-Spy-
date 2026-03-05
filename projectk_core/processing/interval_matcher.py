@@ -280,8 +280,10 @@ class IntervalMatcher:
             # Calculate HR floor using 75th percentile (Q3) instead of median
             # This ensures warmup laps (which drag down the median) don't set the floor too low
             # HR floor = 90% of Q3, which filters warmup laps with significantly lower HR
+            # Require >= 6 candidates: with small windows (4-5 laps), Q3 ≈ max value,
+            # making the floor too aggressive (e.g. 173*0.90=155.7 rejects valid 154bpm laps)
             hr_floor = 0
-            if len(candidate_hrs) >= 4:
+            if len(candidate_hrs) >= 6:
                 candidate_hrs_sorted = sorted(candidate_hrs)
                 # Q3 = 75th percentile
                 q3_idx = int(len(candidate_hrs_sorted) * 0.75)
@@ -313,27 +315,12 @@ class IntervalMatcher:
                 if confidence < self.config.lap_confidence_threshold:
                     continue
 
-                # Calculate intensity ratio (how close to target)
-                intensity_ratio = lap_intensity / target_min if target_min > 0 else 1.0
-
-                # Intensity score: bonus for being at or above target
-                if intensity_ratio >= 0.98:
-                    intensity_score = 1.0
-                elif intensity_ratio >= 0.93:
-                    intensity_score = 0.85 + (intensity_ratio - 0.93) / 0.05 * 0.15
-                elif intensity_ratio >= 0.90:
-                    intensity_score = 0.70 + (intensity_ratio - 0.90) / 0.03 * 0.15
-                else:
-                    intensity_score = max(0.3, intensity_ratio)
-
-                # Combined score: confidence (35%) + intensity (65%)
-                # Intensity weighted heavily to prefer faster laps
-                combined_score = 0.35 * confidence + 0.65 * intensity_score
-
-                if combined_score > best_combined_score:
-                    best_lap = {**lap, 'lap_index': i, 'confidence': confidence}
-                    best_combined_score = combined_score
-                    best_idx = i
+                # FIRST VALID: take the first chronological LAP that passes all filters.
+                # This prevents progressive sessions (increasing speed) from skipping
+                # earlier valid LAPs in favor of faster ones later in the window.
+                best_lap = {**lap, 'lap_index': i, 'confidence': confidence}
+                best_idx = i
+                break
 
             if best_lap:
                 matched_lap = best_lap
@@ -450,7 +437,7 @@ class IntervalMatcher:
                     all_above_floor = True
 
                     # Keep adding consecutive LAPs until we reach target duration/distance
-                    for j in range(start_i, min(start_i + 15, len(work_laps))):  # Max 15 LAPs
+                    for j in range(start_i, min(start_i + 40, len(work_laps))):  # Max 40 LAPs
                         lap = work_laps[j]
                         lap_intensity = lap.get('avg_speed', 0) if signal_col == 'speed' else lap.get('avg_power', 0)
                         lap_hr = lap.get('avg_hr', 0)
@@ -526,7 +513,7 @@ class IntervalMatcher:
                 for cand in multi_lap_candidates:
                     if cand['confidence'] >= self.config.lap_confidence_threshold * 0.85:
                         matched_lap = {**cand['merged'], 'lap_index': cand['lap_indices'], 'confidence': cand['confidence']}
-                        matched_idx = cand['end_idx']
+                        matched_idx = cand['end_idx'] - 1  # Last CONSUMED lap index (end_idx is exclusive)
                         break
             
             if matched_lap:
@@ -604,7 +591,13 @@ class IntervalMatcher:
                     # SMART RESYNC: If target not found, the sequence might be broken.
                     current_ptr += duration_s // 2 # Small advance to avoid loop
         
-        return [r for r in detected_intervals if r['status'] == MatchStatus.MATCHED.value]
+        # Filter out signal-detected intervals that start in the last 5% of session
+        # (these are almost always cooldown artifacts, not real intervals)
+        session_len = len(df)
+        return [r for r in detected_intervals
+                if r['status'] == MatchStatus.MATCHED.value
+                and not (r.get('source') == MatchSource.SIGNAL.value
+                         and r.get('start_index', 0) > session_len * 0.95)]
 
     def detect_incomplete_session(
         self,
@@ -1184,6 +1177,12 @@ class IntervalMatcher:
         if expected_duration > 0 and expected_duration <= 600 and lap_native_speed and lap_native_speed > 0:
             avg_speed = float(lap_native_speed)
             plateau_metrics['plateau_avg_speed'] = float(lap_native_speed)
+
+        # Apply LAP-native power on short reps (bike only); same rationale as speed above.
+        lap_native_power = lap_match.get('avg_power') or lap_match.get('raw', {}).get('avg_power')
+        if expected_duration > 0 and expected_duration <= 600 and signal_col == 'power' and lap_native_power and lap_native_power > 0:
+            avg_power = float(lap_native_power)
+            plateau_metrics['plateau_avg_power'] = float(lap_native_power)
         
         # Calculate respect score
         target_min = float(target.get('target_min', 0) or 0)
