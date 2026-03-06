@@ -71,12 +71,34 @@ class IntervalDetector:
 
             try:
                 results = matcher.match(df, target_grid, sport=sport, laps=laps)
-                # print(f"DEBUG Results Type: {type(results)}")
-                # if isinstance(results, list) and results:
-                #      print(f"DEBUG First Result Type: {type(results[0])}")
 
                 # Pass target_grid to compute session completion status
-                return IntervalDetector._adapt_output(results, target_grid=target_grid)
+                output = IntervalDetector._adapt_output(results, target_grid=target_grid)
+
+                # === FALLBACK: Best Segments ===
+                # If matcher V4 returned nothing usable, try best-segments approach
+                if not output and isinstance(target_grid, list) and len(target_grid) > 0:
+                    from projectk_core.processing.interval_matcher import (
+                        find_best_segments_by_distance,
+                        find_best_segments_by_duration,
+                    )
+                    first_target = target_grid[0]
+                    target_type = first_target.get('target_type', 'time')
+                    expected_dist = first_target.get('distance_m', 0)
+                    expected_dur = int(first_target.get('duration', 0) or 0)
+                    n_intervals = len(target_grid)
+
+                    fallback_results = []
+                    if expected_dist and expected_dist > 0:
+                        fallback_results = find_best_segments_by_distance(df, expected_dist, n_intervals)
+                    elif expected_dur and expected_dur > 0:
+                        metric = 'power' if signal_col == 'power' else 'speed'
+                        fallback_results = find_best_segments_by_duration(df, expected_dur, n_intervals, metric=metric)
+
+                    if fallback_results:
+                        output = IntervalDetector._adapt_output(fallback_results, target_grid=target_grid)
+
+                return output
             except AttributeError as e:
                 # Catch the specific 'list object has no attribute get' to identify source
                 if "get" in str(e):
@@ -222,11 +244,6 @@ class IntervalDetector:
         count_hr = 0
         count_speed = 0
 
-        # Get expected duration from target_grid for validation
-        expected_duration = None
-        if target_grid and len(target_grid) > 0:
-            expected_duration = target_grid[0].get('duration', 0)
-
         for m in matched_intervals:
             if m['status'] != 'matched':
                 continue
@@ -237,10 +254,12 @@ class IntervalDetector:
             duration = m.get('duration_sec', 0)
 
             # ===== VALIDATION BASED ON TARGET TYPE (2026-02-04) =====
-            # For time-based targets: validate duration
-            # For distance-based targets: validate distance (not duration!)
-            expected_distance = target_grid[0].get('distance_m', 0) if target_grid else 0
-            target_type = target_grid[0].get('target_type', 'time') if target_grid else 'time'
+            # Use the target corresponding to this interval via target_index
+            tidx = m.get('target_index', 0)
+            current_target = target_grid[tidx] if target_grid and tidx < len(target_grid) else {}
+            expected_distance = current_target.get('distance_m', 0)
+            expected_duration = current_target.get('duration', 0)
+            target_type = current_target.get('target_type', 'time')
 
             if expected_distance > 0 or target_type == 'distance':
                 # DISTANCE-BASED TARGET (e.g., 5km)

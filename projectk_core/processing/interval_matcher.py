@@ -1764,3 +1764,212 @@ class IntervalMatcher:
             "respect_score": None,
             "target": target
         }
+
+
+# ===== BEST SEGMENTS FALLBACK (standalone functions) =====
+# Ported from web/src/services/intervals.ts
+# Used when matcher V4 (LAP + signal) fails to find intervals.
+
+
+def _avg_non_null(series: pd.Series, start: int, end: int) -> Optional[float]:
+    """Average of non-null values in series[start:end+1]."""
+    chunk = series.iloc[start:end + 1].dropna()
+    if chunk.empty:
+        return None
+    return float(chunk.mean())
+
+
+def find_best_segments_by_distance(
+    df: pd.DataFrame,
+    target_dist_m: float,
+    count: int
+) -> List[Dict[str, Any]]:
+    """
+    Find the N best non-overlapping segments covering target_dist_m each.
+
+    Two-pointer on cumulative distance. Selects segments with highest avg speed,
+    then returns them in chronological order.
+
+    Port of findBestSegmentsByDistance (intervals.ts:114-178).
+    """
+    if target_dist_m <= 0 or count <= 0:
+        return []
+    if 'distance' not in df.columns:
+        return []
+
+    dist = df['distance'].interpolate(method='linear').values
+    n = len(dist)
+    if n == 0:
+        return []
+
+    speed = df['speed'].values if 'speed' in df.columns else np.zeros(n)
+
+    # Two-pointer: for each i, find smallest j where dist[j] - dist[i] >= target_dist_m
+    candidates = []
+    j = 0
+    for i in range(n):
+        if np.isnan(dist[i]):
+            continue
+        if j <= i:
+            j = i + 1
+        while j < n and (np.isnan(dist[j]) or dist[j] - dist[i] < target_dist_m):
+            j += 1
+        if j >= n:
+            break
+
+        # avg speed over [i, j] — arithmetic mean of non-null speeds (method A)
+        spd_slice = speed[i:j + 1]
+        valid = spd_slice[~np.isnan(spd_slice) & (spd_slice > 0)]
+        if len(valid) == 0:
+            continue
+        avg_spd = float(np.mean(valid))
+        candidates.append({'start': i, 'end': j, 'avg_speed': avg_spd})
+
+    # Sort by avg_speed descending
+    candidates.sort(key=lambda c: c['avg_speed'], reverse=True)
+
+    # Greedy non-overlapping selection
+    selected = []
+    used_ranges: List[Tuple[int, int]] = []
+    for c in candidates:
+        if len(selected) >= count:
+            break
+        s, e = c['start'], c['end']
+        if any(s <= ue and e >= us for us, ue in used_ranges):
+            continue
+        used_ranges.append((s, e))
+        selected.append(c)
+
+    # Sort chronologically
+    selected.sort(key=lambda c: c['start'])
+
+    # Build result dicts compatible with _adapt_output
+    results = []
+    for idx, seg in enumerate(selected):
+        s, e = seg['start'], seg['end']
+        duration = e - s
+
+        avg_hr = _avg_non_null(df['heart_rate'], s, e) if 'heart_rate' in df.columns else None
+        avg_power = _avg_non_null(df['power'], s, e) if 'power' in df.columns else None
+
+        results.append({
+            'status': 'matched',
+            'source': 'best_segments',
+            'confidence': None,
+            'lap_index': None,
+            'target_index': idx,
+            'start_index': s,
+            'end_index': e,
+            'duration_sec': duration,
+            'expected_duration': duration,
+            'avg_power': float(avg_power) if avg_power is not None else None,
+            'avg_speed': seg['avg_speed'],
+            'avg_hr': float(avg_hr) if avg_hr is not None else None,
+            'plateau_avg_power': float(avg_power) if avg_power is not None else None,
+            'plateau_avg_speed': seg['avg_speed'],
+            'respect_score': None,
+            'target': {},
+        })
+
+    return results
+
+
+def find_best_segments_by_duration(
+    df: pd.DataFrame,
+    duration_sec: int,
+    count: int,
+    metric: str = 'speed'
+) -> List[Dict[str, Any]]:
+    """
+    Find the N best non-overlapping segments of duration_sec seconds.
+
+    Rolling window on speed (or power for bike). Selects windows with highest
+    average, then returns them in chronological order.
+
+    Port of findBestSegments (intervals.ts:34-112).
+    """
+    if duration_sec <= 0 or count <= 0:
+        return []
+    if metric not in df.columns:
+        return []
+
+    values = df[metric].values
+    n = len(values)
+    if n < duration_sec:
+        return []
+
+    # Sliding window averages (handling NaN)
+    window_avgs = []
+    running_sum = 0.0
+    non_null = 0
+    # Init first window
+    for i in range(duration_sec):
+        v = values[i]
+        if not np.isnan(v):
+            running_sum += v
+            non_null += 1
+    if non_null > 0:
+        window_avgs.append({'idx': 0, 'avg': running_sum / non_null})
+
+    # Slide
+    for i in range(1, n - duration_sec + 1):
+        leaving = values[i - 1]
+        entering = values[i + duration_sec - 1]
+        if not np.isnan(leaving):
+            running_sum -= leaving
+            non_null -= 1
+        if not np.isnan(entering):
+            running_sum += entering
+            non_null += 1
+        if non_null > 0:
+            window_avgs.append({'idx': i, 'avg': running_sum / non_null})
+
+    # Sort by avg descending
+    window_avgs.sort(key=lambda w: w['avg'], reverse=True)
+
+    # Greedy non-overlapping selection
+    selected = []
+    used_ranges: List[Tuple[int, int]] = []
+    for w in window_avgs:
+        if len(selected) >= count:
+            break
+        s = w['idx']
+        e = s + duration_sec - 1
+        if any(s <= ue and e >= us for us, ue in used_ranges):
+            continue
+        used_ranges.append((s, e))
+        selected.append({'start': s, 'end': e + 1, 'avg': w['avg']})
+
+    # Sort chronologically
+    selected.sort(key=lambda c: c['start'])
+
+    # Build result dicts
+    results = []
+    for idx, seg in enumerate(selected):
+        s, e = seg['start'], seg['end']
+        duration = e - s
+
+        avg_speed = _avg_non_null(df['speed'], s, e - 1) if 'speed' in df.columns else None
+        avg_hr = _avg_non_null(df['heart_rate'], s, e - 1) if 'heart_rate' in df.columns else None
+        avg_power = _avg_non_null(df['power'], s, e - 1) if 'power' in df.columns else None
+
+        results.append({
+            'status': 'matched',
+            'source': 'best_segments',
+            'confidence': None,
+            'lap_index': None,
+            'target_index': idx,
+            'start_index': s,
+            'end_index': e,
+            'duration_sec': duration,
+            'expected_duration': duration_sec,
+            'avg_power': float(avg_power) if avg_power is not None else None,
+            'avg_speed': float(avg_speed) if avg_speed is not None else None,
+            'avg_hr': float(avg_hr) if avg_hr is not None else None,
+            'plateau_avg_power': float(avg_power) if avg_power is not None else None,
+            'plateau_avg_speed': float(avg_speed) if avg_speed is not None else None,
+            'respect_score': None,
+            'target': {},
+        })
+
+    return results
