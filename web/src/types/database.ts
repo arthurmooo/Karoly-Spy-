@@ -636,6 +636,7 @@ export type Database = {
       }
       view_health_radar: {
         Row: {
+          athlete_id: string | null
           athlete: string | null
           date: string | null
           fc_repos: number | null

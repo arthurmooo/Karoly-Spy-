@@ -35,3 +35,15 @@ export function formatDistance(meters: number | null): string | null {
   if (meters == null) return null
   return `${(meters / 1000).toFixed(1)} km`
 }
+
+/**
+ * Convert pace "M:SS" or "M'SS" (min/km) to speed in m/s.
+ * Returns null if the format is invalid.
+ */
+export function paceToSpeed(paceStr: string): number | null {
+  const match = paceStr.trim().match(/^(\d{1,2})[:''](\d{2})$/)
+  if (!match) return null
+  const totalSeconds = parseInt(match[1]) * 60 + parseInt(match[2])
+  if (totalSeconds <= 0) return null
+  return 1000 / totalSeconds
+}
