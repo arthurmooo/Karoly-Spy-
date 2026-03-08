@@ -1,20 +1,10 @@
 import { ReactNode } from 'react'
 
 type BadgeVariant =
-  | 'sport-run'
-  | 'sport-bike'
-  | 'sport-swim'
-  | 'type-endurance'
-  | 'type-intervals'
-  | 'type-competition'
-  | 'type-recovery'
-  | 'type-test'
-  | 'status-active'
-  | 'status-archived'
-  | 'success'
-  | 'warning'
-  | 'danger'
-  | 'default'
+  | 'sport-run' | 'sport-bike' | 'sport-swim'
+  | 'type-endurance' | 'type-intervals' | 'type-competition' | 'type-recovery' | 'type-test'
+  | 'status-active' | 'status-archived'
+  | 'success' | 'warning' | 'danger' | 'default'
 
 const VARIANT_STYLES: Record<BadgeVariant, string> = {
   'sport-run': 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
@@ -33,32 +23,15 @@ const VARIANT_STYLES: Record<BadgeVariant, string> = {
   default: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
 }
 
-interface BadgeProps {
-  children: ReactNode
-  variant?: BadgeVariant
-  className?: string
-}
+interface BadgeProps { children: ReactNode; variant?: BadgeVariant; className?: string }
 
 export function Badge({ children, variant = 'default', className = '' }: BadgeProps) {
   return (
-    <span
-      className={`inline-block rounded-[var(--radius-full)] px-2.5 py-0.5 text-xs font-medium ${VARIANT_STYLES[variant]} ${className}`}
-    >
+    <span className={`inline-block rounded-[var(--radius-full)] px-2.5 py-0.5 text-xs font-medium ${VARIANT_STYLES[variant]} ${className}`}>
       {children}
     </span>
   )
 }
 
-export const SPORT_BADGE_VARIANT: Record<string, BadgeVariant> = {
-  run: 'sport-run',
-  bike: 'sport-bike',
-  swim: 'sport-swim',
-}
-
-export const TYPE_BADGE_VARIANT: Record<string, BadgeVariant> = {
-  endurance: 'type-endurance',
-  intervals: 'type-intervals',
-  competition: 'type-competition',
-  recovery: 'type-recovery',
-  test: 'type-test',
-}
+export const SPORT_BADGE_VARIANT: Record<string, BadgeVariant> = { run: 'sport-run', bike: 'sport-bike', swim: 'sport-swim' }
+export const TYPE_BADGE_VARIANT: Record<string, BadgeVariant> = { endurance: 'type-endurance', intervals: 'type-intervals', competition: 'type-competition', recovery: 'type-recovery', test: 'type-test' }

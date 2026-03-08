@@ -1,18 +1,15 @@
-'use client'
-
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { Link, useLocation } from 'react-router-dom'
 import { Icon } from '@/components/ui/icon'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
-  { label: 'Activites', href: '/activities', icon: 'cardiology' },
-  { label: 'Sante', href: '/health', icon: 'favorite' },
-  { label: 'Profils', href: '/profiles', icon: 'person' },
+  { label: 'Athlètes', href: '/profiles', icon: 'groups' },
+  { label: 'Séances', href: '/activities', icon: 'exercise' },
+  { label: 'Analytique', href: '/health', icon: 'monitoring' },
 ]
 
 export default function MobileNav() {
-  const pathname = usePathname()
+  const { pathname } = useLocation()
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-[var(--border)] bg-[var(--card)] md:hidden">
@@ -21,10 +18,10 @@ export default function MobileNav() {
         return (
           <Link
             key={item.href}
-            href={item.href}
+            to={item.href}
             className={`flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-medium transition-colors ${
               active
-                ? 'text-[var(--accent)]'
+                ? 'text-[var(--primary)]'
                 : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
             }`}
           >

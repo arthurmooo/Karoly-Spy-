@@ -1,22 +1,21 @@
-'use client'
-
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { Link, useLocation } from 'react-router-dom'
 import { useSyncExternalStore } from 'react'
-import { logout } from '@/app/(auth)/login/actions'
+import { useAuth } from '@/contexts/AuthProvider'
 import { useTheme } from '@/components/theme-provider'
 import { Icon } from '@/components/ui/icon'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
-  { label: 'Activites', href: '/activities', icon: 'cardiology' },
-  { label: 'Sante', href: '/health', icon: 'favorite' },
-  { label: 'Profils', href: '/profiles', icon: 'person' },
+  { label: 'Tableau de bord', href: '/dashboard', icon: 'dashboard' },
+  { label: 'Athlètes', href: '/profiles', icon: 'groups' },
+  { label: 'Séances', href: '/activities', icon: 'exercise' },
+  { label: 'Calendrier', href: '/calendar', icon: 'calendar_month' },
+  { label: 'Analytique', href: '/health', icon: 'monitoring' },
 ]
 
 export default function Sidebar({ userEmail }: { userEmail: string }) {
-  const pathname = usePathname()
+  const { pathname } = useLocation()
   const { theme, toggle } = useTheme()
+  const { signOut } = useAuth()
 
   const collapsed = useSyncExternalStore(
     (cb) => {
@@ -33,6 +32,7 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
     window.dispatchEvent(new StorageEvent('storage'))
   }
 
+  const displayName = userEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   const initials = userEmail
     .split('@')[0]
     .split(/[._-]/)
@@ -43,39 +43,32 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
   return (
     <aside
       className={`hidden md:flex flex-col border-r border-[var(--border)] bg-[var(--card)] transition-[width] duration-200 ${
-        collapsed ? 'w-16' : 'w-60'
+        collapsed ? 'w-16' : 'w-64'
       }`}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 px-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] text-sm font-bold text-white">
-          K
+      <div className="flex h-16 items-center gap-3 px-5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)] text-white">
+          <Icon name="bolt" size={20} />
         </div>
         {!collapsed && (
-          <div className="flex flex-col">
-            <span className="text-sm font-bold leading-tight text-[var(--foreground)]">
-              Project K
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
-              Performance Hub
-            </span>
-          </div>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--primary)]">Projet K</h1>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-4">
+      <nav className="flex-1 px-3 py-2">
         <ul className="flex flex-col gap-0.5">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + '/')
             return (
               <li key={item.href}>
                 <Link
-                  href={item.href}
-                  className={`group relative flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  to={item.href}
+                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                     active
-                      ? 'border-l-[3px] border-[var(--primary)] bg-[rgba(36,0,102,0.05)] text-[var(--primary)] dark:bg-[rgba(167,139,250,0.08)]'
-                      : 'border-l-[3px] border-transparent text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]'
+                      ? 'bg-slate-100 text-[var(--primary)] dark:bg-slate-800'
+                      : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                   }`}
                 >
                   <Icon name={item.icon} size={20} />
@@ -87,50 +80,47 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
         </ul>
       </nav>
 
-      {/* Bottom: user + actions */}
-      <div className="flex flex-col gap-1 border-t border-[var(--border)] px-4 py-4">
-        {!collapsed && (
-          <div className="flex items-center gap-3 py-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
-              {initials}
-            </div>
-            <span className="truncate text-xs font-medium text-[var(--muted-foreground)]" title={userEmail}>
-              {userEmail}
-            </span>
+      {/* Bottom */}
+      <div className="border-t border-[var(--border)] p-3">
+        <button
+          onClick={() => {}}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50 transition-colors cursor-pointer mb-3"
+        >
+          <Icon name="settings" size={20} />
+          {!collapsed && <span className="text-sm font-medium">Paramètres</span>}
+        </button>
+        <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-2 dark:bg-slate-800">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+            {initials}
           </div>
-        )}
-        <form action={logout}>
-          <button
-            type="submit"
-            className="flex w-full items-center gap-3 rounded-[var(--radius)] py-2 px-1 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-          >
-            <Icon name="logout" size={20} />
-            {!collapsed && <span className="text-sm font-medium">Deconnexion</span>}
-          </button>
-        </form>
-        <div className={`mt-1 flex items-center ${collapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-[var(--foreground)]">{displayName}</p>
+              <p className="truncate text-xs text-slate-500">Premium Plan</p>
+            </div>
+          )}
+        </div>
+        <div className={`mt-2 flex items-center ${collapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
           <button
             onClick={toggle}
-            className="flex items-center gap-3 rounded-[var(--radius)] py-2 px-1 text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
-            aria-label={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+            className="flex items-center gap-3 rounded-lg py-2 px-1 text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors cursor-pointer"
+            aria-label={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
           >
-            <Icon name={theme === 'dark' ? 'light_mode' : 'dark_mode'} size={20} />
-            {!collapsed && (
-              <span className="text-sm font-medium">
-                {theme === 'dark' ? 'Mode Clair' : 'Mode Sombre'}
-              </span>
-            )}
+            <Icon name={theme === 'dark' ? 'light_mode' : 'dark_mode'} size={18} />
+          </button>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-3 rounded-lg py-2 px-1 text-[var(--muted-foreground)] hover:text-red-500 transition-colors cursor-pointer"
+            aria-label="Déconnexion"
+          >
+            <Icon name="logout" size={18} />
           </button>
           <button
             onClick={toggleCollapse}
-            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-            aria-label={collapsed ? 'Ouvrir le menu' : 'Reduire le menu'}
+            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+            aria-label={collapsed ? 'Ouvrir le menu' : 'Réduire le menu'}
           >
-            <Icon
-              name="chevron_left"
-              size={20}
-              className={`transition-transform ${collapsed ? 'rotate-180' : ''}`}
-            />
+            <Icon name="chevron_left" size={18} className={`transition-transform ${collapsed ? 'rotate-180' : ''}`} />
           </button>
         </div>
       </div>
