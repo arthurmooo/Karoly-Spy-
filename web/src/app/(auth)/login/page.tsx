@@ -2,69 +2,76 @@
 
 import { useActionState } from 'react'
 import { login } from './actions'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, null)
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-      <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <h1 className="mb-1 text-xl font-bold text-zinc-900 dark:text-zinc-100">
-          Project K
-        </h1>
-        <p className="mb-6 text-sm text-zinc-500">
-          Connectez-vous pour acceder au dashboard
+    <div className="flex min-h-screen items-start justify-center bg-[var(--background)] px-4">
+      <div className="mt-[20vh] w-full max-w-sm rounded-[var(--radius-xl)] bg-[var(--card)] p-8 shadow-[var(--shadow-elevated)]">
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--primary)] text-lg font-bold text-white">
+            K
+          </div>
+          <h1 className="text-lg font-bold text-[var(--foreground)]">Project K</h1>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+            Performance Hub
+          </p>
+        </div>
+
+        <h2 className="mb-1 text-xl font-bold text-[var(--foreground)]">
+          Connexion
+        </h2>
+        <p className="mb-6 text-sm text-[var(--muted-foreground)]">
+          Accedez a votre tableau de bord
         </p>
 
         <form action={formAction} className="space-y-4">
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Mot de passe
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            />
-          </div>
+          <Input
+            icon="mail"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="email@exemple.com"
+          />
+          <Input
+            icon="lock"
+            name="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="Mot de passe"
+          />
 
           {state?.error && (
-            <p className="text-sm text-red-600 dark:text-red-400">
+            <p className="rounded-[var(--radius)] bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400">
               {state.error}
             </p>
           )}
 
-          <button
+          <Button
             type="submit"
+            variant="accent"
             disabled={pending}
-            className="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className="mt-2 w-full"
           >
             {pending ? 'Connexion...' : 'Se connecter'}
-          </button>
+          </Button>
         </form>
+
+        <div className="mt-6 flex justify-between text-xs text-[var(--muted-foreground)]">
+          <span>Mot de passe oublie?</span>
+          <a
+            href="mailto:contact@karolyspy.com"
+            className="font-medium text-[var(--primary)] hover:underline"
+          >
+            Demander un acces
+          </a>
+        </div>
       </div>
     </div>
   )
