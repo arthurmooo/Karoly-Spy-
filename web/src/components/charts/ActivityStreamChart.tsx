@@ -8,14 +8,17 @@ import {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
+  ReferenceArea,
   ResponsiveContainer,
 } from "recharts";
 import type { StreamPoint, GarminLap } from "@/types/activity";
+import type { DetectedSegment } from "@/services/manualIntervals.service";
 
 interface Props {
   streams: StreamPoint[];
   laps?: GarminLap[] | null;
   sportType: string;
+  highlightedSegments?: DetectedSegment[];
   /** Render prop: receives toggle buttons to place in parent layout */
   renderHeader?: (toggles: ReactNode) => ReactNode;
 }
@@ -52,9 +55,23 @@ function smooth(values: (number | null)[], window = 3): (number | null)[] {
   });
 }
 
+/** Map data range to occupy a specific vertical band of the chart (0=bottom, 1=top). */
+function bandDomain(dataMin: number, dataMax: number, bandStart: number, bandEnd: number): [number, number] {
+  const range = dataMax - dataMin || 1;
+  const bandSize = bandEnd - bandStart;
+  const totalRange = range / bandSize;
+  return [dataMin - bandStart * totalRange, dataMax + (1 - bandEnd) * totalRange];
+}
+
 type CurveKey = "hr" | "pace" | "power" | "alt";
 
-export function ActivityStreamChart({ streams, laps, sportType, renderHeader }: Props) {
+export function ActivityStreamChart({
+  streams,
+  laps,
+  sportType,
+  highlightedSegments = [],
+  renderHeader,
+}: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
 
   const [visibleCurves, setVisibleCurves] = useState<Set<CurveKey>>(
@@ -120,6 +137,26 @@ export function ActivityStreamChart({ streams, laps, sportType, renderHeader }: 
   const showSecondary = visibleCurves.has(secondaryKey);
   const showAlt = hasAlt && visibleCurves.has("alt");
 
+  // Strava-like band separation: each metric gets its own vertical band
+  const activeCount = [showHr, showSecondary, showAlt].filter(Boolean).length;
+  const useBands = activeCount >= 2;
+
+  const hrDomain: [number, number] = useBands
+    ? bandDomain(hrMin, hrMax, 0.55, 0.90)
+    : [hrMin, hrMax];
+  // For run (reversed axis): visual band [0.25,0.60] requires domain band [0.40,0.75]
+  const secondaryDomain: [number, number] = useBands
+    ? bandDomain(
+        isBike ? secMin - 20 : Math.max(secMin - 0.5, 0),
+        isBike ? secMax + 20 : secMax + 0.5,
+        isBike ? 0.25 : 0.40,
+        isBike ? 0.60 : 0.75,
+      )
+    : isBike ? [secMin - 20, secMax + 20] : [Math.max(secMin - 0.5, 0), secMax + 0.5];
+  const altBandDomain: [number, number] = useBands
+    ? bandDomain(altMin, altMax, 0.0, 0.25)
+    : [altMin, altMax];
+
   const toggleButtons: { key: CurveKey; label: string; color: string }[] = [
     { key: "hr", label: "FC", color: "#ef4444" },
     ...(isBike
@@ -155,57 +192,38 @@ export function ActivityStreamChart({ streams, laps, sportType, renderHeader }: 
     <div className="w-full">
       {renderHeader ? renderHeader(togglesNode) : togglesNode}
 
-      <div className="h-[340px] w-full">
+      <div className="h-[400px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} className="dark:opacity-20" />
 
             <XAxis
+              type="number"
               dataKey="t"
+              domain={[0, maxT]}
               tick={{ fontSize: 11, fill: "#64748b" }}
               tickLine={false}
               axisLine={false}
               tickFormatter={formatTime}
-              interval={Math.max(1, Math.floor(tickInterval / 5))}
+              ticks={Array.from({ length: Math.floor(maxT / tickInterval) + 1 }, (_, index) => index * tickInterval)}
+              allowDuplicatedCategory={false}
             />
 
-            {/* Left Y axis: Heart Rate */}
-            <YAxis
-              yAxisId="left"
-              domain={[hrMin, hrMax]}
-              tick={showHr ? { fontSize: 11, fill: "#ef4444" } : { fontSize: 0 }}
-              tickLine={false}
-              axisLine={false}
-              label={
-                showHr
-                  ? { value: "bpm", angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#ef4444" } }
-                  : undefined
-              }
-            />
+            {/* Left Y axis: Heart Rate — no ticks, tooltip provides values */}
+            <YAxis yAxisId="left" domain={hrDomain} allowDataOverflow hide />
 
-            {/* Right Y axis: Pace or Power */}
+            {/* Right Y axis: Pace or Power — no ticks, tooltip provides values */}
             <YAxis
               yAxisId="right"
               orientation="right"
-              domain={isBike ? [secMin - 20, secMax + 20] : [secMax + 0.5, Math.max(secMin - 0.5, 0)]}
-              tick={showSecondary ? { fontSize: 11, fill: isBike ? "#22c55e" : "#3b82f6" } : { fontSize: 0 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: number) => (isBike ? `${v}W` : formatPace(v))}
-              label={
-                showSecondary
-                  ? {
-                      value: isBike ? "Watts" : "min/km",
-                      angle: 90,
-                      position: "insideRight",
-                      style: { fontSize: 10, fill: isBike ? "#22c55e" : "#3b82f6" },
-                    }
-                  : undefined
-              }
+              domain={secondaryDomain}
+              reversed={!isBike}
+              allowDataOverflow
+              hide
             />
 
             {/* Hidden Y axis for altitude */}
-            <YAxis yAxisId="alt" domain={[altMin, altMax]} hide />
+            <YAxis yAxisId="alt" domain={altBandDomain} allowDataOverflow hide />
 
             <Tooltip
               contentStyle={{
@@ -226,6 +244,19 @@ export function ActivityStreamChart({ streams, laps, sportType, renderHeader }: 
             />
 
             {/* Lap transitions */}
+            {highlightedSegments.map((segment) => (
+              <ReferenceArea
+                key={segment.id}
+                x1={segment.startSec}
+                x2={segment.endSec}
+                yAxisId="left"
+                strokeOpacity={0}
+                fill={isBike ? "#22c55e" : "#f97316"}
+                fillOpacity={0.12}
+                ifOverflow="extendDomain"
+              />
+            ))}
+
             {lapLines.map((sec, i) => (
               <ReferenceLine
                 key={`lap-${i}`}

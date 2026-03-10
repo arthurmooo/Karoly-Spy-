@@ -19,6 +19,7 @@ import { LapsTable } from "@/components/tables/LapsTable";
 import { useActivityDetail } from "@/hooks/useActivityDetail";
 import type { Activity, ActivityInterval, ActivitySourceJson, IntervalBlock } from "@/types/activity";
 import { useState, useEffect } from "react";
+import type { DetectedSegment } from "@/services/manualIntervals.service";
 import {
   formatDistance,
   formatDuration,
@@ -136,12 +137,17 @@ export function ActivityDetailPage() {
     saveManualDetectorOverride,
   } = useActivityDetail(id);
   const [coachNote, setCoachNote] = useState("");
+  const [highlightedSegments, setHighlightedSegments] = useState<DetectedSegment[]>([]);
 
   useEffect(() => {
     if (activity?.coach_comment != null) {
       setCoachNote(activity.coach_comment);
     }
   }, [activity?.coach_comment]);
+
+  useEffect(() => {
+    setHighlightedSegments([]);
+  }, [activity?.id]);
 
   if (isLoading) {
     return (
@@ -283,10 +289,8 @@ export function ActivityDetailPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="space-y-8 lg:col-span-2">
-          <Card>
-            <CardContent className="space-y-5 p-6">
+      <Card>
+        <CardContent className="space-y-5 p-6">
               {isLoadingStreams ? (
                 <>
                   <div className="flex items-center justify-between gap-4">
@@ -308,6 +312,7 @@ export function ActivityDetailPage() {
                   streams={activity.activity_streams!}
                   laps={activity.garmin_laps}
                   sportType={activity.sport_type}
+                  highlightedSegments={highlightedSegments}
                   renderHeader={(toggles) => (
                     <div className="flex items-center justify-between gap-4 mb-4">
                       <div className="flex items-center gap-3">
@@ -419,9 +424,11 @@ export function ActivityDetailPage() {
                   status="backend"
                 />
               )}
-            </CardContent>
-          </Card>
+        </CardContent>
+      </Card>
 
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="space-y-8 lg:col-span-2">
           <Card>
             <CardContent className="overflow-hidden p-0">
               <div className="flex items-center justify-between border-b border-slate-200 p-6 dark:border-slate-800">
@@ -501,7 +508,7 @@ export function ActivityDetailPage() {
                 <div className="flex items-center justify-between border-b border-slate-200 p-6 dark:border-slate-800">
                   <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
                     <Icon name="timer" className="text-slate-400" />
-                    Laps Garmin
+                    Laps montres
                   </h2>
                   <Badge variant="emerald">{activity.garmin_laps!.length} laps</Badge>
                 </div>
@@ -529,6 +536,7 @@ export function ActivityDetailPage() {
                 activity={activity}
                 isLoadingStreams={isLoadingStreams}
                 onSave={saveManualDetectorOverride}
+                onDetectedSegmentsChange={setHighlightedSegments}
               />
             </CardContent>
           </Card>
@@ -613,10 +621,7 @@ export function ActivityDetailPage() {
                 <p className="text-xs font-medium text-red-600 dark:text-red-400">{saveError}</p>
               )}
               {nolioSynced === true && (
-                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Synchronisé avec Nolio</p>
-              )}
-              {nolioSynced === false && !saveError && (
-                <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Enregistré localement, sync Nolio échouée</p>
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Note enregistrée</p>
               )}
             </CardContent>
           </Card>
