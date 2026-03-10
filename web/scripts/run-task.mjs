@@ -9,7 +9,7 @@ if (!task) {
 }
 
 const cwd = getSafeWebDir();
-const shell = process.env.SHELL || "/bin/zsh";
+const shell = process.env.SHELL || "/bin/sh";
 
 function shellEscape(value) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
@@ -17,7 +17,7 @@ function shellEscape(value) {
 
 function run(script) {
   return new Promise((resolve, reject) => {
-    const child = spawn(shell, ["-lc", `cd -L ${shellEscape(cwd)} && ${script}`], {
+    const child = spawn(shell, ["-c", `cd -L ${shellEscape(cwd)} && ${script}`], {
       stdio: "inherit",
     });
 
@@ -36,7 +36,7 @@ function run(script) {
 }
 
 function runLong(script) {
-  const child = spawn(shell, ["-lc", `cd -L ${shellEscape(cwd)} && exec ${script}`], {
+  const child = spawn(shell, ["-c", `cd -L ${shellEscape(cwd)} && exec ${script}`], {
     stdio: "inherit",
   });
 
