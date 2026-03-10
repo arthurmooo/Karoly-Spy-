@@ -1,40 +1,36 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from './contexts/AuthProvider'
-import CoachLayout from './layouts/CoachLayout'
-import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
-import ActivitiesPage from './pages/ActivitiesPage'
-import ActivityDetailPage from './pages/ActivityDetailPage'
-import HealthPage from './pages/HealthPage'
-import ProfilesPage from './pages/ProfilesPage'
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) return <div className="flex h-screen items-center justify-center text-[var(--muted-foreground)]">Chargement...</div>
-  if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
-}
-
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) return <div className="flex h-screen items-center justify-center text-[var(--muted-foreground)]">Chargement...</div>
-  if (user) return <Navigate to="/dashboard" replace />
-  return <>{children}</>
-}
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { CoachLayout } from "@/components/layout/CoachLayout";
+import { LoginPage } from "@/pages/LoginPage";
+import { DashboardPage } from "@/pages/DashboardPage";
+import { ActivitiesPage } from "@/pages/ActivitiesPage";
+import { ActivityDetailPage } from "@/pages/ActivityDetailPage";
+import { ProfilesPage } from "@/pages/ProfilesPage";
+import { HealthPage } from "@/pages/HealthPage";
+import { AthleteTrendsPage } from "@/pages/AthleteTrendsPage";
+import { CalendarPage } from "@/pages/CalendarPage";
+import { useTheme } from "@/hooks/useTheme";
 
 export default function App() {
+  useTheme(); // Initialize theme
+
   return (
-    <Routes>
-      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-      <Route path="/" element={<ProtectedRoute><CoachLayout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="activities" element={<ActivitiesPage />} />
-        <Route path="activities/:id" element={<ActivityDetailPage />} />
-        <Route path="health" element={<HealthPage />} />
-        <Route path="profiles" element={<ProfilesPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<CoachLayout />}>
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/activities" element={<ActivitiesPage />} />
+            <Route path="/activities/:id" element={<ActivityDetailPage />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/profiles" element={<ProfilesPage />} />
+            <Route path="/health" element={<HealthPage />} />
+            <Route path="/athletes/:id/trends" element={<AthleteTrendsPage />} />
+          </Route>
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 }

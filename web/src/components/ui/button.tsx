@@ -1,41 +1,34 @@
-import { ButtonHTMLAttributes, ReactNode } from 'react'
-import { Icon } from './icon'
+import { ButtonHTMLAttributes, forwardRef } from "react";
+import { cn } from "@/lib/cn";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  children: ReactNode
-  variant?: 'primary' | 'accent' | 'outline' | 'ghost'
-  size?: 'sm' | 'md' | 'lg'
-  icon?: string
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "secondary" | "outline" | "ghost";
+  size?: "sm" | "md" | "lg";
 }
 
-export function Button({
-  children,
-  variant = 'primary',
-  size = 'md',
-  icon,
-  className = '',
-  ...props
-}: ButtonProps) {
-  const baseStyles =
-    'inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer'
-
-  const variants = {
-    primary: 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] shadow-sm',
-    accent: 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] shadow-sm',
-    outline: 'border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--muted)]',
-    ghost: 'bg-transparent text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]',
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = "primary", size = "md", ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        className={cn(
+          "inline-flex items-center justify-center gap-2 rounded-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none",
+          {
+            "bg-primary text-white hover:bg-primary-light": variant === "primary",
+            "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800":
+              variant === "secondary",
+            "border border-primary text-primary hover:bg-primary/5": variant === "outline",
+            "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200": variant === "ghost",
+            "px-2.5 py-1.5 text-xs": size === "sm",
+            "px-4 py-2 text-sm": size === "md",
+            "px-5 py-2.5 text-sm": size === "lg",
+          },
+          className
+        )}
+        {...props}
+      />
+    );
   }
+);
 
-  const sizes = {
-    sm: 'h-8 px-3 text-xs',
-    md: 'h-10 px-4 text-sm',
-    lg: 'h-12 px-6 text-base',
-  }
-
-  return (
-    <button className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
-      {icon && <Icon name={icon} size={size === 'sm' ? 14 : size === 'lg' ? 20 : 16} />}
-      {children}
-    </button>
-  )
-}
+Button.displayName = "Button";

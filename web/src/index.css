@@ -1,77 +1,31 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss" source(none);
+@source "./**/*.{ts,tsx}";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --background: #f6f5f8;
-  --foreground: #0f172a;
-  --primary: #240066;
-  --primary-hover: #1a004d;
-  --accent: #ff6b00;
-  --accent-hover: #e66000;
-  --accent-green: #0bda6f;
-  --border: #e2e8f0;
-  --muted: #f8fafc;
-  --muted-foreground: #64748b;
-  --card: #ffffff;
-  --card-hover: #f8fafc;
-  --ring: #240066;
-  --radius-sm: 4px;
-  --radius: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-full: 9999px;
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --sidebar-width: 240px;
-  --sidebar-collapsed-width: 64px;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: 'Lexend', sans-serif;
-  --color-primary: var(--primary);
-  --color-accent: var(--accent);
-}
-
-.dark {
-  --background: #160f23;
-  --foreground: #f1f5f9;
-  --border: #1e293b;
-  --muted: #0f172a;
-  --muted-foreground: #94a3b8;
-  --card: #2e273a;
-  --card-hover: #372f45;
-  --ring: #a78bfa;
+@theme {
+  --color-primary: #0f172a; /* slate-900 */
+  --color-primary-light: #334155; /* slate-700 */
+  --color-accent-orange: #ea580c; /* orange-600 */
+  --color-accent-green: #059669; /* emerald-600 */
+  --color-accent-blue: #2563eb; /* blue-600 */
+  --color-bg-light: #f8fafc; /* slate-50 */
+  --color-bg-dark: #020617; /* slate-950 */
+  --color-card-dark: #0f172a; /* slate-900 */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: 'Lexend', Arial, sans-serif;
-}
-
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-light);
+  color: #1e293b; /* slate-800 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: 'liga';
-  font-variation-settings:
-    'FILL' 0,
-    'wght' 400,
-    'GRAD' 0,
-    'opsz' 24;
+}
+
+.dark body {
+  background-color: var(--color-bg-dark);
+  color: #f8fafc; /* slate-50 */
 }

@@ -1,350 +1,274 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
-import { formatDuration, formatDistance, speedToPace } from '@/lib/utils'
-import { Icon } from '@/components/ui/icon'
+import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import { Icon } from "@/components/ui/Icon";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent } from "@/components/ui/Card";
+import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { SPORT_ICONS, SPORT_COLORS } from "@/lib/constants";
+import { useActivities } from "@/hooks/useActivities";
+import { useAthletes } from "@/hooks/useAthletes";
 
-const PAGE_SIZE = 15
+const SPORT_OPTIONS = [
+  { value: "CAP", label: "Course à pied" },
+  { value: "VELO", label: "Vélo" },
+  { value: "NAT", label: "Natation" },
+  { value: "SKI", label: "Ski de fond" },
+  { value: "TRI", label: "Triathlon" },
+  { value: "MUSC", label: "Musculation" },
+];
 
-const SPORT_ICONS: Record<string, { icon: string; color: string }> = {
-  run: { icon: 'directions_run', color: 'text-[var(--primary)]' },
-  bike: { icon: 'directions_bike', color: 'text-blue-600' },
-  swim: { icon: 'pool', color: 'text-teal-600' },
-}
+export function ActivitiesPage() {
+  const navigate = useNavigate();
+  const {
+    activities,
+    total,
+    page,
+    perPage,
+    isLoading,
+    setPage,
+    setAthlete,
+    setSport,
+    setDateFrom,
+    setSearch,
+  } = useActivities();
+  const { athletes } = useAthletes();
 
-const TYPE_BADGE: Record<string, { bg: string; text: string }> = {
-  endurance: { bg: 'bg-[var(--primary)]/10', text: 'text-[var(--primary)]' },
-  intervals: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400' },
-  competition: { bg: 'bg-[var(--accent)]/10', text: 'text-[var(--accent)]' },
-  recovery: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400' },
-  test: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
-}
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const rangeStart = total === 0 ? 0 : page * perPage + 1;
+  const rangeEnd = Math.min((page + 1) * perPage, total);
 
-function formatDateFr(iso: string): string {
-  const d = new Date(iso)
-  const months = ['Jan.', 'Fév.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.']
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`
-}
-
-function formatDurationHMS(sec: number | null): string {
-  if (sec == null) return '—'
-  const h = Math.floor(sec / 3600)
-  const m = Math.floor((sec % 3600) / 60)
-  const s = Math.round(sec % 60)
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-}
-
-function formatAllurePower(sport: string, avgPower: number | null, distM: number | null, durationSec: number | null): string {
-  if (sport === 'bike' && avgPower != null) return `${Math.round(avgPower)} W`
-  if (sport === 'swim' && distM && durationSec && distM > 0) {
-    const per100 = (durationSec / (distM / 100))
-    const min = Math.floor(per100 / 60)
-    const sec = Math.round(per100 % 60)
-    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')} /100m`
-  }
-  if (sport === 'run' && distM && durationSec && distM > 0) {
-    const perKm = durationSec / (distM / 1000)
-    const min = Math.floor(perKm / 60)
-    const sec = Math.round(perKm % 60)
-    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')} /km`
-  }
-  if (avgPower != null) return `${Math.round(avgPower)} W`
-  return '—'
-}
-
-export default function ActivitiesPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [activities, setActivities] = useState<any[]>([])
-  const [athletes, setAthletes] = useState<any[]>([])
-  const [count, setCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
-  const athleteFilter = searchParams.get('athlete') ?? ''
-  const sportFilter = searchParams.get('sport') ?? ''
-  const dateFilter = searchParams.get('date') ?? ''
-
-  const updateFilter = useCallback((key: string, value: string) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      if (value) next.set(key, value); else next.delete(key)
-      next.delete('page')
-      return next
-    })
-  }, [setSearchParams])
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      const from = (page - 1) * PAGE_SIZE
-      const to = from + PAGE_SIZE - 1
-
-      let query = supabase.from('activities').select(
-        'id, session_date, sport_type, work_type, activity_name, duration_sec, distance_m, load_index, avg_hr, avg_power, rpe, athletes!inner(first_name, last_name)',
-        { count: 'exact' }
-      )
-
-      if (athleteFilter) query = query.eq('athlete_id', athleteFilter)
-      if (sportFilter) query = query.eq('sport_type', sportFilter)
-      if (dateFilter) query = query.lte('session_date', dateFilter)
-
-      const [activitiesRes, athletesRes] = await Promise.all([
-        query.order('session_date', { ascending: false }).range(from, to),
-        supabase.from('athletes').select('id, first_name, last_name').eq('is_active', true).order('last_name'),
-      ])
-
-      setActivities(activitiesRes.data ?? [])
-      setCount(activitiesRes.count ?? 0)
-      setAthletes(athletesRes.data ?? [])
-      setLoading(false)
-    }
-    load()
-  }, [page, athleteFilter, sportFilter, dateFilter])
-
-  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
-
-  /* ─── Weekly stats ─── */
-  const weekStats = useMemo(() => {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
-    const weekActs = activities.filter(a => a.session_date >= weekAgo)
-    const totalDist = weekActs.reduce((s, a) => s + (a.distance_m ?? 0), 0)
-    const totalDur = weekActs.reduce((s, a) => s + (a.duration_sec ?? 0), 0)
-    const avgMLS = weekActs.length > 0
-      ? weekActs.reduce((s, a) => s + (a.load_index ?? 0), 0) / weekActs.length
-      : 0
-    return { totalDist, totalDur, avgMLS }
-  }, [activities])
-
-  const goToPage = (p: number) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      next.set('page', String(p))
-      return next
-    })
-  }
+  // Compute stats from current page activities
+  const avgMls =
+    activities.filter((a) => a.mls != null).length > 0
+      ? (
+          activities
+            .filter((a) => a.mls != null)
+            .reduce((sum, a) => sum + (a.mls ?? 0), 0) /
+          activities.filter((a) => a.mls != null).length
+        ).toFixed(1)
+      : "--";
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* ─── Title ─── */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">Journal d'Activités</h2>
-          <p className="text-[var(--muted-foreground)] mt-1">Gérez et analysez les performances de vos athlètes en temps réel.</p>
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-2">
+            <span>Accueil</span>
+            <Icon name="chevron_right" className="text-lg" />
+            <span className="text-primary font-semibold">Journal d'Activités</span>
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Journal d'Activités</h1>
+          <p className="text-sm text-slate-500 mt-1">Gérez et analysez les performances de vos athlètes en temps réel.</p>
         </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-[var(--foreground)]">
-            <Icon name="download" size={18} />
+        <div className="flex items-center gap-4">
+          <Button
+            variant="secondary"
+            disabled
+            title="L'export CSV n'est pas branché dans cette version de la web app."
+          >
+            <Icon name="download" />
             Exporter CSV
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-all shadow-sm">
-            <Icon name="add" size={18} />
+          </Button>
+          <Button
+            disabled
+            title="La création de séance n'est pas branchée dans cette version de la web app."
+          >
+            <Icon name="add" />
             Nouvelle Activité
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* ─── Filter Bar ─── */}
-      <div className="bg-[var(--card)] p-4 rounded-xl border border-[var(--border)] flex flex-wrap items-end gap-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-col gap-1 min-w-[200px]">
-          <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)] tracking-wider">Athlète</label>
-          <div className="relative">
-            <select
-              value={athleteFilter}
-              onChange={(e) => updateFilter('athlete', e.target.value)}
-              className="w-full pl-3 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-[var(--primary)] appearance-none cursor-pointer text-[var(--foreground)]"
-            >
-              <option value="">Tous les athlètes</option>
-              {athletes.map((a: any) => (
-                <option key={a.id} value={a.id}>{a.first_name} {a.last_name}</option>
-              ))}
-            </select>
-            <Icon name="expand_more" size={18} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] pointer-events-none" />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)] tracking-wider">Sport</label>
-          <div className="relative">
-            <select
-              value={sportFilter}
-              onChange={(e) => updateFilter('sport', e.target.value)}
-              className="w-full pl-3 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-[var(--primary)] appearance-none cursor-pointer text-[var(--foreground)]"
-            >
-              <option value="">Choisir un sport...</option>
-              <option value="run">Course</option>
-              <option value="bike">Vélo</option>
-              <option value="swim">Natation</option>
-            </select>
-            <Icon name="expand_more" size={18} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] pointer-events-none" />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1 min-w-[180px]">
-          <label className="text-[10px] font-bold uppercase text-[var(--muted-foreground)] tracking-wider">Période</label>
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => updateFilter('date', e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]"
-          />
-        </div>
-        <div className="flex-1 flex justify-end">
-          <div className="relative w-64">
-            <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)] text-[var(--foreground)]"
-              placeholder="Rechercher une séance..."
-              type="text"
-            />
-          </div>
-        </div>
-      </div>
+      <FeatureNotice
+        title="Actions visibles mais non branchées"
+        description="Cette page est reliée aux activités Supabase, mais l'export CSV et la création manuelle de séance n'ont pas encore de backend exploitable dans la web app."
+        status="partial"
+      />
 
-      {/* ─── Data Table ─── */}
-      {loading ? (
-        <div className="flex items-center gap-2 py-12 text-sm text-[var(--muted-foreground)]">
-          <Icon name="progress_activity" size={16} className="animate-spin" />Chargement...
-        </div>
-      ) : activities.length === 0 ? (
-        <p className="py-12 text-center text-sm text-[var(--muted-foreground)]">Aucune activité trouvée.</p>
-      ) : (
-        <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-card)] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[var(--primary)] text-white">
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Athlète</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-center">Sport</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right">Durée</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right hidden md:table-cell">Distance</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right hidden md:table-cell">MLS</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right hidden lg:table-cell">FC Moy</th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-right hidden lg:table-cell">Allure/Pui</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {activities.map((a: any) => {
-                  const sport = SPORT_ICONS[a.sport_type] ?? { icon: 'sports', color: 'text-[var(--muted-foreground)]' }
-                  const typeBadge = TYPE_BADGE[a.work_type] ?? TYPE_BADGE.endurance
-                  return (
-                    <tr
-                      key={a.id}
-                      className="transition-colors cursor-pointer hover:bg-[rgba(36,0,102,0.03)] dark:hover:bg-[rgba(167,139,250,0.04)]"
-                    >
-                      <td className="px-6 py-4 text-sm font-medium text-[var(--muted-foreground)] whitespace-nowrap">
-                        <Link to={`/activities/${a.id}`}>{formatDateFr(a.session_date)}</Link>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Link to={`/activities/${a.id}`} className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-500 shrink-0">
-                            {a.athletes.first_name[0]}
-                          </div>
-                          <span className="text-sm font-bold text-[var(--foreground)]">
-                            {a.athletes.first_name} {a.athletes.last_name}
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Icon name={sport.icon} size={22} className={sport.color} />
-                      </td>
-                      <td className="px-6 py-4">
-                        {a.work_type ? (
-                          <span className={`px-2.5 py-1 rounded-full ${typeBadge.bg} ${typeBadge.text} text-[10px] font-bold uppercase tracking-wide`}>
-                            {a.work_type}
-                          </span>
-                        ) : (
-                          <span className="text-[var(--muted-foreground)]">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right font-mono text-[var(--foreground)]">
-                        {formatDurationHMS(a.duration_sec)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right font-semibold text-[var(--foreground)] hidden md:table-cell">
-                        {a.distance_m ? `${(a.distance_m / 1000).toFixed(2)} km` : '—'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right text-[var(--muted-foreground)] hidden md:table-cell">
-                        {a.load_index != null ? a.load_index.toFixed(1) : '—'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right text-[var(--muted-foreground)] hidden lg:table-cell">
-                        {a.avg_hr != null ? `${Math.round(a.avg_hr)} bpm` : '—'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right font-semibold text-[var(--primary)] hidden lg:table-cell">
-                        {formatAllurePower(a.sport_type, a.avg_power, a.distance_m, a.duration_sec)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <select
+          onChange={(e) => setAthlete(e.target.value || null)}
+          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        >
+          <option value="">Tous les athlètes</option>
+          {athletes.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.first_name} {a.last_name}
+            </option>
+          ))}
+        </select>
 
-          {/* ─── Pagination ─── */}
-          <div className="p-4 border-t border-[var(--border)] flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/30">
-            <p className="text-xs text-[var(--muted-foreground)]">
-              Affichage de <span className="font-bold text-[var(--foreground)]">{activities.length}</span> sur{' '}
-              <span className="font-bold text-[var(--foreground)]">{count}</span> activités
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => goToPage(page - 1)}
-                disabled={page <= 1}
-                className="p-1 border border-[var(--border)] rounded-md text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors disabled:opacity-30"
-              >
-                <Icon name="chevron_left" size={20} />
-              </button>
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const p = i + 1
-                return (
-                  <button
-                    key={p}
-                    onClick={() => goToPage(p)}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
-                      p === page
-                        ? 'bg-[var(--primary)] text-white'
-                        : 'text-[var(--muted-foreground)] hover:bg-slate-200 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                )
-              })}
-              <button
-                onClick={() => goToPage(page + 1)}
-                disabled={page >= totalPages}
-                className="p-1 border border-[var(--border)] rounded-md text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors disabled:opacity-30"
-              >
-                <Icon name="chevron_right" size={20} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <select
+          onChange={(e) => setSport(e.target.value || null)}
+          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        >
+          <option value="">Tous les sports</option>
+          {SPORT_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
 
-      {/* ─── Bottom Stats ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatBottom label="Distance Totale (Semaine)" value={`${(weekStats.totalDist / 1000).toFixed(1)} km`} />
-        <StatBottom label="Charge MLS Moyenne" value={weekStats.avgMLS > 0 ? weekStats.avgMLS.toFixed(1) : '—'} sub="Stable" />
-        <StatBottom
-          label="Volume d'Entraînement"
-          value={weekStats.totalDur > 0 ? `${Math.floor(weekStats.totalDur / 3600)}h ${Math.round((weekStats.totalDur % 3600) / 60)}m` : '—'}
+        <Input
+          type="date"
+          onChange={(e) => setDateFrom(e.target.value || null)}
         />
-        <StatBottom label="Score de Récupération" value="—" />
-      </div>
-    </div>
-  )
-}
 
-function StatBottom({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-[var(--card)] p-6 rounded-xl border border-[var(--border)] shadow-[var(--shadow-card)]">
-      <p className="text-[10px] font-bold uppercase text-[var(--muted-foreground)] tracking-wider">{label}</p>
-      <div className="mt-2 flex items-baseline gap-2">
-        <h3 className="text-2xl font-bold text-[var(--foreground)]">{value}</h3>
-        {sub && <span className="text-xs font-bold text-[var(--muted-foreground)]">{sub}</span>}
+        <Input
+          icon="search"
+          placeholder="Rechercher une séance..."
+          onChange={(e) => setSearch(e.target.value || null)}
+        />
+      </div>
+
+      {/* Table */}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Athlète</th>
+                <th className="px-4 py-3">Sport</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Durée</th>
+                <th className="px-4 py-3">Distance</th>
+                <th className="px-4 py-3">MLS</th>
+                <th className="px-4 py-3">FC Moy</th>
+                <th className="px-4 py-3">Allure / Puissance</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <Icon name="progress_activity" className="text-3xl text-primary animate-spin" />
+                      <span className="text-sm text-slate-500">Chargement des activités...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : activities.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-12 text-center">
+                    <span className="text-sm text-slate-500">Aucune activité trouvée.</span>
+                  </td>
+                </tr>
+              ) : (
+                activities.map((act) => (
+                  <tr
+                    key={act.id}
+                    onClick={() => navigate(`/activities/${act.id}`)}
+                    className="hover:bg-primary/5 dark:hover:bg-primary/10 cursor-pointer transition-colors"
+                  >
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                      {format(new Date(act.date), "dd MMM yyyy", { locale: fr })}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                          {act.athlete.charAt(0)}
+                        </div>
+                        {act.athlete}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Icon name={SPORT_ICONS[act.sport] ?? "exercise"} className={SPORT_COLORS[act.sport] ?? ""} />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{act.sport}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge
+                        variant={
+                          act.work_type === "Compétition" ? "orange" : act.work_type === "Endurance" ? "primary" : "slate"
+                        }
+                      >
+                        {act.work_type}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.duration}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.distance}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {act.mls != null ? (
+                        <Badge variant={act.mls > 7 ? "red" : act.mls > 5 ? "orange" : act.mls > 3 ? "amber" : "emerald"}>
+                          {act.mls.toFixed(1)}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-slate-400">--</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.hr}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.pace}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+          <span className="text-sm text-slate-500">
+            {total === 0
+              ? "Aucune activité"
+              : `Affichage de ${rangeStart} à ${rangeEnd} sur ${total} activités`}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={page === 0}
+              onClick={() => setPage(page - 1)}
+            >
+              <Icon name="chevron_left" />
+            </Button>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 px-2">
+              {page + 1} / {totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              <Icon name="chevron_right" />
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Total Activités</p>
+            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">{total}</h3>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">MLS Moyen</p>
+            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">{avgMls}</h3>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Volume</p>
+            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">--</h3>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Score de Récupération</p>
+            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">--</h3>
+          </CardContent>
+        </Card>
       </div>
     </div>
-  )
+  );
 }

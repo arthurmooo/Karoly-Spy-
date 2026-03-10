@@ -1,39 +1,30 @@
-import { InputHTMLAttributes, forwardRef } from 'react'
-import { Icon } from './icon'
+import { InputHTMLAttributes, forwardRef } from "react";
+import { cn } from "@/lib/cn";
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label?: string
-  icon?: string
-  error?: string
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  icon?: string;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, icon, error, className = '', ...props }, ref) => {
+  ({ className, icon, ...props }, ref) => {
     return (
-      <div className={`flex flex-col gap-1.5 ${className}`}>
-        {label && (
-          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            {label}
-          </label>
+      <div className="relative w-full">
+        {icon && (
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            {icon}
+          </span>
         )}
-        <div className="relative">
-          {icon && (
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]">
-              <Icon name={icon} size={16} />
-            </span>
+        <input
+          ref={ref}
+          className={cn(
+            "w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder:text-slate-400 disabled:opacity-50 disabled:cursor-not-allowed",
+            { "pl-10": icon },
+            className
           )}
-          <input
-            ref={ref}
-            className={`w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none transition-all focus:border-[var(--primary)] focus:ring-2 focus:ring-[rgba(36,0,102,0.2)] hover:border-[var(--muted-foreground)]/30 dark:focus:ring-[rgba(167,139,250,0.2)] ${
-              icon ? 'pl-9' : ''
-            } ${error ? 'border-red-500' : ''}`}
-            {...props}
-          />
-        </div>
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          {...props}
+        />
       </div>
-    )
+    );
   }
-)
-
-Input.displayName = 'Input'
+);
+Input.displayName = "Input";

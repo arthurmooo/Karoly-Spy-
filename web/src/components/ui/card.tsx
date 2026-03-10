@@ -1,30 +1,45 @@
-import { ReactNode } from 'react'
+import { HTMLAttributes, forwardRef } from "react";
+import { cn } from "@/lib/cn";
 
-interface CardProps {
-  children: ReactNode
-  className?: string
-  padding?: 'none' | 'sm' | 'md' | 'lg'
-  elevated?: boolean
-}
-
-const PADDING = { none: '', sm: 'p-4', md: 'p-6', lg: 'p-8' }
-
-export function Card({ children, className = '', padding = 'md', elevated = false }: CardProps) {
-  return (
+export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
     <div
-      className={`rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] ${
-        elevated ? 'shadow-[var(--shadow-elevated)]' : 'shadow-[var(--shadow-card)]'
-      } ${PADDING[padding]} ${className}`}
-    >
-      {children}
-    </div>
+      ref={ref}
+      className={cn(
+        "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-none",
+        className
+      )}
+      {...props}
+    />
   )
-}
+);
+Card.displayName = "Card";
 
-export function CardHeader({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`border-b border-[var(--border)] bg-[var(--muted)] px-5 py-3.5 text-sm font-bold uppercase tracking-tight text-[var(--foreground)] ${className}`}>
-      {children}
-    </div>
+export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn("flex flex-col space-y-1.5 p-6", className)}
+      {...props}
+    />
   )
-}
+);
+CardHeader.displayName = "CardHeader";
+
+export const CardTitle = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLHeadingElement>>(
+  ({ className, ...props }, ref) => (
+    <h3
+      ref={ref}
+      className={cn("font-semibold leading-none tracking-tight", className)}
+      {...props}
+    />
+  )
+);
+CardTitle.displayName = "CardTitle";
+
+export const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+  )
+);
+CardContent.displayName = "CardContent";

@@ -1,309 +1,363 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
-import { Icon } from '@/components/ui/icon'
-import { parseAndImportCsv, type ImportResult } from '@/lib/csv-import'
+import { useState, useRef } from "react";
+import { Link } from "react-router-dom";
+import { format, parseISO } from "date-fns";
+import { fr } from "date-fns/locale";
+import { Icon } from "@/components/ui/Icon";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { useReadiness } from "@/hooks/useReadiness";
+import { useAthletes } from "@/hooks/useAthletes";
+import { insertHrvBatch } from "@/repositories/readiness.repository";
+import { parseHrvCsv, matchEmailToAthlete } from "@/services/hrv.service";
 
-const PAGE_SIZE = 10
+type ImportStatus = "idle" | "importing" | "success" | "error";
 
-function formatDateFr(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`
-}
+export function HealthPage() {
+  const [selectedAthleteId, setSelectedAthleteId] = useState("all");
+  const { healthData, isLoading } = useReadiness();
+  const { athletes } = useAthletes();
 
-export default function HealthPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const athleteId = searchParams.get('athlete') ?? ''
-  const [athletes, setAthletes] = useState<any[]>([])
-  const [rows, setRows] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('')
-  const [page, setPage] = useState(0)
-  const [dragOver, setDragOver] = useState(false)
-  const [importStatus, setImportStatus] = useState<'idle' | 'uploading' | 'done'>('idle')
-  const [importResult, setImportResult] = useState<ImportResult | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importStatus, setImportStatus] = useState<ImportStatus>("idle");
+  const [importMessage, setImportMessage] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      const [athletesRes, radarRes] = await Promise.all([
-        supabase.from('athletes').select('id, first_name, last_name').eq('is_active', true).order('last_name'),
-        supabase.from('view_health_radar').select('*').order('date', { ascending: false }),
-      ])
-      setAthletes(athletesRes.data ?? [])
-      const allRows = radarRes.data ?? []
-      setRows(athleteId ? allRows.filter((r: any) => r.athlete_id === athleteId) : allRows)
-      setLoading(false)
-    }
-    load()
-  }, [athleteId])
+  /* ---------- Filtered data ---------- */
+  const filteredData =
+    selectedAthleteId === "all"
+      ? healthData
+      : healthData.filter((r) => r.athlete_id === selectedAthleteId);
 
-  const filteredRows = filter
-    ? rows.filter((r: any) => r.athlete?.toLowerCase().includes(filter.toLowerCase()))
-    : rows
+  /* ---------- KPI computations ---------- */
+  const alertCount = healthData.filter(
+    (r) => r.tendance_rmssd_pct !== null && r.tendance_rmssd_pct < -10
+  ).length;
 
-  const pagedRows = filteredRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE)
+  const okCount = healthData.filter(
+    (r) => r.tendance_rmssd_pct === null || r.tendance_rmssd_pct > -5
+  ).length;
+  const readinessPct =
+    healthData.length > 0
+      ? Math.round((okCount / healthData.length) * 100)
+      : 0;
 
-  const alertCount = rows.filter((r: any) => r.tendance_rmssd_pct != null && r.tendance_rmssd_pct < -10).length
-  const rmssdRows = rows.filter((r: any) => r.rmssd_matinal != null)
-  const avgReadiness = rmssdRows.length > 0
-    ? Math.round((rmssdRows.reduce((a: number, r: any) => a + r.rmssd_matinal, 0) / rmssdRows.length))
-    : null
+  const lastSyncRow = healthData.length
+    ? healthData.reduce((latest, r) => (r.date > latest.date ? r : latest))
+    : null;
 
-  const lastSync = rows.length > 0 ? rows[0] : null
+  const lastSyncLabel = lastSyncRow
+    ? format(parseISO(lastSyncRow.date), "dd/MM/yyyy", { locale: fr })
+    : "--";
 
-  const handleFile = useCallback(async (file: File) => {
-    if (!file.name.endsWith('.csv')) return
-    setImportStatus('uploading')
-    setImportResult(null)
+  /* ---------- CSV import handler ---------- */
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportStatus("importing");
+    setImportMessage("");
+
     try {
-      const text = await file.text()
-      const result = await parseAndImportCsv(text)
-      setImportResult(result)
-      // Reload data if rows were imported
-      if (result.imported > 0) {
-        const { data } = await supabase.from('view_health_radar').select('*').order('date', { ascending: false })
-        const allRows = data ?? []
-        setRows(athleteId ? allRows.filter((r: any) => r.athlete_id === athleteId) : allRows)
-      }
-    } catch {
-      setImportResult({ imported: 0, skipped: 0, errors: ['Erreur inattendue lors de l\'import'] })
-    }
-    setImportStatus('done')
-  }, [athleteId])
+      const text = await file.text();
+      const parsed = parseHrvCsv(text);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
-  }, [handleFile])
+      const batch: Array<{
+        athlete_id: string;
+        date: string;
+        rmssd: number | null;
+        resting_hr: number | null;
+      }> = [];
+
+      let skipped = 0;
+      for (const row of parsed) {
+        const matched = matchEmailToAthlete(row.email, athletes);
+        if (!matched) {
+          skipped++;
+          continue;
+        }
+        batch.push({
+          athlete_id: matched.id,
+          date: row.date,
+          rmssd: row.rmssd,
+          resting_hr: row.resting_hr,
+        });
+      }
+
+      if (batch.length === 0) {
+        setImportStatus("error");
+        setImportMessage(
+          `Aucune ligne importable (${skipped} lignes sans correspondance email).`
+        );
+        return;
+      }
+
+      await insertHrvBatch(batch);
+      setImportStatus("success");
+      setImportMessage(
+        `${batch.length} mesure${batch.length > 1 ? "s" : ""} importée${batch.length > 1 ? "s" : ""}` +
+          (skipped > 0 ? ` (${skipped} ignorée${skipped > 1 ? "s" : ""})` : "")
+      );
+    } catch (err) {
+      setImportStatus("error");
+      setImportMessage(
+        err instanceof Error ? err.message : "Erreur lors de l'import."
+      );
+    } finally {
+      // Reset the input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  /* ---------- Format helpers ---------- */
+  const formatDate = (iso: string) => {
+    try {
+      return format(parseISO(iso), "dd/MM/yyyy", { locale: fr });
+    } catch {
+      return iso;
+    }
+  };
+
+  /* ---------- Render ---------- */
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Icon name="progress_activity" className="animate-spin text-primary text-3xl" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* ─── HRV4Training Import Zone ─── */}
-      <section className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 shadow-[var(--shadow-card)]">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--muted-foreground)] flex items-center gap-2">
-            <Icon name="upload_file" size={18} />
-            Import de données HRV4Training
-          </h3>
-          <span className="text-[11px] text-[var(--muted-foreground)] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
-            Format CSV requis
-          </span>
-        </div>
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => fileRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer group transition-colors ${
-            dragOver
-              ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-              : 'border-[var(--border)] hover:border-[var(--primary)]'
-          }`}
-        >
-          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
-          <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-            <Icon name="cloud_upload" size={24} className="text-[var(--primary)]" />
-          </div>
-          <p className="text-sm font-medium text-[var(--foreground)] mb-1">Glissez-déposez votre export HRV4Training ici</p>
-          <p className="text-xs text-[var(--muted-foreground)] mb-4">Ou cliquez pour parcourir vos fichiers</p>
-          <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--muted-foreground)] bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded border border-[var(--border)]">
-            Format: email ; date ; heure ; FC repos ; rMSSD
-          </div>
-        </div>
-
-        {/* Import feedback */}
-        {importStatus === 'uploading' && (
-          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40 px-4 py-3 text-sm text-blue-800 dark:text-blue-300 flex items-center gap-2">
-            <Icon name="progress_activity" size={16} className="animate-spin" /> Import en cours...
-          </div>
-        )}
-        {importStatus === 'done' && importResult && (
-          <div className="mt-4 space-y-2">
-            {importResult.imported > 0 && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
-                {importResult.imported} ligne{importResult.imported !== 1 ? 's' : ''} importée{importResult.imported !== 1 ? 's' : ''}
-                {importResult.skipped > 0 && `, ${importResult.skipped} ignorée${importResult.skipped !== 1 ? 's' : ''}`}
-              </div>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+          <Icon name="analytics" className="text-slate-400" />
+          Suivi Biometrique & Readiness
+        </h2>
+        <div className="flex items-center gap-4">
+          <select
+            value={selectedAthleteId}
+            onChange={(e) => setSelectedAthleteId(e.target.value)}
+            className="w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            <option value="all">Tous les athletes</option>
+            {athletes.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.first_name} {a.last_name}
+              </option>
+            ))}
+          </select>
+          <button className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+            <Icon name="notifications" className="text-2xl" />
+            {alertCount > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-accent-orange rounded-full border-2 border-white dark:border-slate-900" />
             )}
-            {importResult.errors.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-                <p className="mb-1 font-medium">Avertissements :</p>
-                <ul className="list-inside list-disc space-y-0.5">
-                  {importResult.errors.map((err, i) => (
-                    <li key={i}>{err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {importResult.imported === 0 && importResult.errors.length === 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-                Aucune ligne importée.
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* ─── Data Table ─── */}
-      <section className="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-card)] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[var(--border)] flex justify-between items-center">
-          <h3 className="font-bold text-[var(--foreground)]">Dernières Mesures Biométriques</h3>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-              <input
-                value={filter}
-                onChange={(e) => { setFilter(e.target.value); setPage(0) }}
-                className="pl-9 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--card)] dark:bg-slate-900 w-48 focus:ring-2 focus:ring-[var(--primary)] focus:outline-none text-[var(--foreground)]"
-                placeholder="Filtrer..."
-                type="text"
-              />
-            </div>
-            <button className="p-1.5 rounded border border-[var(--border)] hover:bg-slate-50 dark:hover:bg-slate-800">
-              <Icon name="filter_list" size={16} className="text-[var(--muted-foreground)]" />
-            </button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center gap-2 p-8 text-sm text-[var(--muted-foreground)]">
-            <Icon name="progress_activity" size={16} className="animate-spin" />Chargement...
-          </div>
-        ) : pagedRows.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[var(--muted-foreground)]">Aucune donnée santé disponible.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/50 text-[var(--muted-foreground)] font-medium">
-                  <th className="px-6 py-4 border-b border-[var(--border)]">Athlète</th>
-                  <th className="px-6 py-4 border-b border-[var(--border)]">Date</th>
-                  <th className="px-6 py-4 border-b border-[var(--border)] text-center">rMSSD (ms)</th>
-                  <th className="px-6 py-4 border-b border-[var(--border)] text-center">FC repos (bpm)</th>
-                  <th className="px-6 py-4 border-b border-[var(--border)] text-center">Tendance rMSSD</th>
-                  <th className="px-6 py-4 border-b border-[var(--border)] text-center">Poids (kg)</th>
-                  <th className="px-6 py-4 border-b border-[var(--border)]"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {pagedRows.map((r: any, i: number) => (
-                  <tr key={`${r.athlete_id}-${r.date}-${i}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-[var(--foreground)]">{r.athlete ?? '—'}</td>
-                    <td className="px-6 py-4 text-[var(--muted-foreground)]">{r.date ? formatDateFr(r.date) : '—'}</td>
-                    <td className="px-6 py-4 text-center font-mono font-medium text-[var(--foreground)]">
-                      {r.rmssd_matinal != null ? r.rmssd_matinal.toFixed(1) : '—'}
-                    </td>
-                    <td className="px-6 py-4 text-center text-[var(--muted-foreground)]">
-                      {r.fc_repos != null ? `${Math.round(r.fc_repos)} bpm` : '—'}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      {r.tendance_rmssd_pct != null ? (
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
-                          r.tendance_rmssd_pct >= 0
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
-                        }`}>
-                          <Icon name={r.tendance_rmssd_pct >= 0 ? 'trending_up' : 'trending_down'} size={14} />
-                          {r.tendance_rmssd_pct >= 0 ? '+' : ''}{r.tendance_rmssd_pct.toFixed(1)}%
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-6 py-4 text-center text-[var(--muted-foreground)]">
-                      {r.poids != null ? `${r.poids} kg` : '—'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors">
-                        <Icon name="more_horiz" size={20} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/30 border-t border-[var(--border)] flex items-center justify-between">
-          <p className="text-xs text-[var(--muted-foreground)]">
-            Affichage de {pagedRows.length} sur {filteredRows.length} mesures enregistrées
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="px-3 py-1 rounded border border-[var(--border)] text-xs font-medium bg-[var(--card)] disabled:opacity-50 text-[var(--foreground)]"
-            >
-              Précédent
-            </button>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              className="px-3 py-1 rounded border border-[var(--border)] text-xs font-medium bg-[var(--card)] disabled:opacity-50 text-[var(--foreground)]"
-            >
-              Suivant
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Bottom Summary Cards ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Alertes de Santé */}
-        <div className="bg-[var(--card)] rounded-xl p-6 border border-[var(--border)] shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
-              <Icon name="health_and_safety" size={22} className="text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <h4 className="font-bold text-sm text-[var(--foreground)]">Alertes de Santé</h4>
-          </div>
-          <p className={`text-2xl font-bold ${alertCount > 0 ? 'text-[var(--accent)]' : 'text-emerald-600 dark:text-emerald-400'}`}>
-            {alertCount}
-          </p>
-          <p className="text-xs text-[var(--muted-foreground)] mt-1">
-            {alertCount === 0
-              ? 'Aucune anomalie détectée sur les dernières 48h.'
-              : `${alertCount} anomalie${alertCount > 1 ? 's' : ''} détectée${alertCount > 1 ? 's' : ''}.`}
-          </p>
-        </div>
-
-        {/* Readiness Cohorte */}
-        <div className="bg-[var(--card)] rounded-xl p-6 border border-[var(--border)] shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
-              <Icon name="groups" size={22} className="text-[var(--primary)]" />
-            </div>
-            <h4 className="font-bold text-sm text-[var(--foreground)]">Readiness Cohorte</h4>
-          </div>
-          <p className="text-2xl font-bold text-[var(--foreground)]">
-            {avgReadiness != null ? `${avgReadiness}%` : '—'}
-          </p>
-          <p className="text-xs text-[var(--muted-foreground)] mt-1">
-            État de forme global optimal pour l'entraînement intensif.
-          </p>
-        </div>
-
-        {/* Dernière Sync */}
-        <div className="bg-[var(--card)] rounded-xl p-6 border border-[var(--border)] shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-              <Icon name="history" size={22} className="text-amber-600 dark:text-amber-400" />
-            </div>
-            <h4 className="font-bold text-sm text-[var(--foreground)]">Dernière Sync</h4>
-          </div>
-          <p className="text-2xl font-bold text-[var(--foreground)]">
-            {lastSync?.date ? (new Date(lastSync.date).toDateString() === new Date().toDateString() ? "Aujourd'hui" : formatDateFr(lastSync.date)) : '—'}
-          </p>
-          <p className="text-xs text-[var(--muted-foreground)] mt-1">
-            {lastSync ? `${lastSync.athlete ?? 'Inconnu'} via HRV4T` : 'Aucune synchronisation récente.'}
-          </p>
+          </button>
+          <Button
+            disabled
+            title="L'export PDF n'est pas branché dans cette version de la web app."
+          >
+            <Icon name="download" />
+            Exporter PDF
+          </Button>
         </div>
       </div>
+
+      <FeatureNotice
+        title="Export santé non branché"
+        description="Le tableau et l'import CSV HRV4Training sont actifs. L'export PDF reste visible mais n'est pas relié à un générateur de document dans cette web app."
+        status="partial"
+      />
+
+      {/* Import Section */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Icon name="upload_file" className="text-primary text-xl" />
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Import de donnees HRV4Training</h3>
+            <Badge variant="slate">Format CSV requis</Badge>
+            {importStatus === "success" && (
+              <Badge variant="emerald">{importMessage}</Badge>
+            )}
+            {importStatus === "error" && (
+              <Badge variant="red">{importMessage}</Badge>
+            )}
+            {importStatus === "importing" && (
+              <Icon name="progress_activity" className="animate-spin text-primary text-sm" />
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <div
+            className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors rounded-sm p-8 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50/50 dark:bg-slate-900/50"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const file = e.dataTransfer.files[0];
+              if (file && fileInputRef.current) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInputRef.current.files = dt.files;
+                fileInputRef.current.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            }}
+          >
+            <div className="bg-accent-blue/10 rounded-sm p-4 mb-4">
+              <Icon name="cloud_upload" className="text-accent-blue text-3xl" />
+            </div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1">Glissez-deposez votre export HRV4Training ici</p>
+            <p className="text-xs text-slate-500 mb-4">Ou cliquez pour parcourir vos fichiers</p>
+            <div className="font-mono bg-slate-100 dark:bg-slate-800 rounded p-2 text-xs text-slate-600 dark:text-slate-400">
+              Format: email ; date ; heure ; FC repos ; rMSSD
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Grille resume medical */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="p-6 flex items-start gap-4">
+            <div className={`${alertCount > 0 ? "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400" : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"} p-3 rounded-sm`}>
+              <Icon name="health_and_safety" className="text-2xl" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Alertes de Sante</p>
+              <h3 className={`text-2xl font-semibold font-mono ${alertCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>{alertCount}</h3>
+              <p className={`text-xs font-medium mt-1 ${alertCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {alertCount > 0
+                  ? `${alertCount} athlete${alertCount > 1 ? "s" : ""} en baisse rMSSD > 10%`
+                  : "Aucune anomalie detectee"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 flex items-start gap-4">
+            <div className="bg-primary/10 text-primary p-3 rounded-sm">
+              <Icon name="groups" className="text-2xl" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Readiness Cohorte</p>
+              <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">{readinessPct}%</h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                {readinessPct >= 80
+                  ? "Etat de forme global optimal pour l'entrainement"
+                  : "Vigilance recommandee sur le groupe"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 flex items-start gap-4">
+            <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 p-3 rounded-sm">
+              <Icon name="history" className="text-2xl" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Derniere Sync</p>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">{lastSyncLabel}</h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">{lastSyncRow?.athlete ?? "--"}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tableau biometrique */}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                <th className="px-6 py-3">Athlete</th>
+                <th className="px-6 py-3">Date</th>
+                <th className="px-6 py-3">rMSSD (ms)</th>
+                <th className="px-6 py-3">FC repos</th>
+                <th className="px-6 py-3">Tendance rMSSD</th>
+                <th className="px-6 py-3">Poids</th>
+                <th className="px-6 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-500">
+                    Aucune donnee de readiness disponible.
+                  </td>
+                </tr>
+              ) : (
+                filteredData.map((row) => {
+                  const trend = row.tendance_rmssd_pct;
+                  return (
+                    <tr key={`${row.athlete_id}-${row.date}`} className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors">
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        <Link to={`/athletes/${row.athlete_id}/trends`} className="flex items-center gap-2 hover:text-primary transition-colors">
+                          <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                            {row.athlete.charAt(0)}
+                          </div>
+                          <span className="text-sm font-semibold text-slate-900 dark:text-white">{row.athlete}</span>
+                        </Link>
+                      </td>
+                      <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">{formatDate(row.date)}</td>
+                      <td className="px-6 py-3 text-sm font-mono text-slate-900 dark:text-white font-semibold whitespace-nowrap">
+                        {row.rmssd_matinal !== null ? row.rmssd_matinal.toFixed(1) : "--"}
+                      </td>
+                      <td className="px-6 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {row.fc_repos !== null ? `${row.fc_repos} bpm` : "--"}
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        {trend !== null && trend > 0 ? (
+                          <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100/50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                            <Icon name="trending_up" className="text-sm" />
+                            +{trend.toFixed(1)}%
+                          </div>
+                        ) : trend !== null && trend < -5 ? (
+                          <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-100/50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 text-xs font-medium">
+                            <Icon name="trending_down" className="text-sm" />
+                            {trend.toFixed(1)}%
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1 px-2 py-1 text-slate-500 text-xs font-medium">
+                            <Icon name="horizontal_rule" className="text-sm" />
+                            {trend !== null ? `${trend.toFixed(1)}%` : "--"}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {row.poids !== null ? `${row.poids} kg` : "--"}
+                      </td>
+                      <td className="px-6 py-3 text-right whitespace-nowrap">
+                        <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                          <Icon name="more_horiz" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+          <span className="text-sm text-slate-500 font-medium">
+            Affichage de 1 a {filteredData.length} sur {filteredData.length} mesure{filteredData.length !== 1 ? "s" : ""}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" disabled>Precedent</Button>
+            <Button variant="secondary" size="sm" disabled>Suivant</Button>
+          </div>
+        </div>
+      </Card>
     </div>
-  )
+  );
 }

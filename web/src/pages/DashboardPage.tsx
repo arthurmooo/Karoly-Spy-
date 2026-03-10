@@ -1,395 +1,319 @@
-import { useEffect, useState, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Card } from '@/components/ui/card'
-import { Icon } from '@/components/ui/icon'
-import { Link } from 'react-router-dom'
-import { formatDuration } from '@/lib/utils'
+import { useState, useEffect, useMemo } from "react";
+import { Icon } from "@/components/ui/Icon";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent } from "@/components/ui/Card";
+import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { MLS_LEVEL, SPORT_ICONS } from "@/lib/constants";
+import { useLoad } from "@/hooks/useLoad";
+import { useAthletes } from "@/hooks/useAthletes";
+import { useReadiness } from "@/hooks/useReadiness";
+import { getRecentActivities } from "@/repositories/activity.repository";
+import { formatDuration } from "@/services/format.service";
 
-/* ─── Types ──────────────────────────────────────────── */
+type RecentActivity = Awaited<ReturnType<typeof getRecentActivities>>[number];
 
-interface Athlete {
-  id: string
-  first_name: string
-  last_name: string
-}
+export function DashboardPage() {
+  const { athletes, isLoading: athletesLoading } = useAthletes();
+  const { heatmapData, isLoading: loadLoading } = useLoad(12);
+  const { healthData, isLoading: readinessLoading } = useReadiness();
 
-interface WeeklyMLS {
-  athlete: string
-  week_start: string
-  mls_hebdo: number | null
-}
-
-interface RecentActivity {
-  id: string
-  athlete_name: string
-  sport_type: string
-  duration_sec: number | null
-  load_index: number | null
-  session_date: string
-}
-
-interface FleetAlert {
-  athlete_id: string
-  athlete_name: string
-  type: 'inactive'
-  message: string
-  badge: string
-  badgeColor: string
-}
-
-/* ─── Helpers ────────────────────────────────────────── */
-
-const SPORT_ICON: Record<string, string> = {
-  run: 'directions_run',
-  bike: 'pedal_bike',
-  swim: 'pool',
-}
-
-const HEATMAP_COLORS = [
-  'bg-slate-100 dark:bg-slate-700',        // 0 - repos
-  'bg-blue-200 dark:bg-blue-900/60',        // 1
-  'bg-blue-400 dark:bg-blue-700',           // 2
-  'bg-orange-400 dark:bg-orange-600',       // 3
-  'bg-orange-600 dark:bg-orange-500',       // 4 - critique
-]
-
-function mlsToLevel(mls: number | null): number {
-  if (mls == null || mls <= 0) return 0
-  if (mls < 200) return 1
-  if (mls < 400) return 2
-  if (mls < 600) return 3
-  return 4
-}
-
-function getWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-}
-
-/* ─── Component ──────────────────────────────────────── */
-
-export default function DashboardPage() {
-  const [athletes, setAthletes] = useState<Athlete[]>([])
-  const [weeklyData, setWeeklyData] = useState<WeeklyMLS[]>([])
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
-  const [alerts, setAlerts] = useState<FleetAlert[]>([])
-  const [loading, setLoading] = useState(true)
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      const since48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString().slice(0, 10)
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    getRecentActivities(5)
+      .then(setRecentActivities)
+      .catch(console.error)
+      .finally(() => setRecentLoading(false));
+  }, []);
 
-      const [athletesRes, weeklyRes, activitiesRes, allAthletesRes, recentActsRes] = await Promise.all([
-        supabase.from('athletes').select('id, first_name, last_name').eq('is_active', true),
-        supabase.from('view_weekly_monitoring').select('*').order('week_start', { ascending: false }).limit(500),
-        supabase.from('activities')
-          .select('id, session_date, sport_type, duration_sec, load_index, athletes!inner(first_name, last_name)')
-          .gte('session_date', since48h)
-          .order('session_date', { ascending: false })
-          .limit(10),
-        supabase.from('athletes').select('id, first_name, last_name').eq('is_active', true),
-        supabase.from('activities').select('athlete_id').gte('session_date', sevenDaysAgo),
-      ])
+  // KPI: sessions this week (ISO week, Mon-Sun)
+  const sessionsThisWeek = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((day + 6) % 7));
+    monday.setHours(0, 0, 0, 0);
+    return recentActivities.filter(
+      (a) => new Date(a.session_date) >= monday
+    ).length;
+  }, [recentActivities]);
 
-      setAthletes(athletesRes.data ?? [])
-      setWeeklyData((weeklyRes.data ?? []) as WeeklyMLS[])
+  // Alertes: athletes with negative rMSSD trends
+  const alerts = useMemo(() => {
+    return healthData
+      .filter((r) => r.tendance_rmssd_pct !== null && r.tendance_rmssd_pct < -5)
+      .sort((a, b) => (a.tendance_rmssd_pct ?? 0) - (b.tendance_rmssd_pct ?? 0));
+  }, [healthData]);
 
-      const acts = (activitiesRes.data ?? []).map((a: any) => ({
-        id: a.id,
-        athlete_name: `${a.athletes.first_name} ${a.athletes.last_name}`,
-        sport_type: a.sport_type,
-        duration_sec: a.duration_sec,
-        load_index: a.load_index,
-        session_date: a.session_date,
-      }))
-      setRecentActivities(acts)
-
-      const activeIds = new Set((recentActsRes.data ?? []).map((a: any) => a.athlete_id))
-      const alertList: FleetAlert[] = []
-      for (const athlete of (allAthletesRes.data ?? [])) {
-        if (!activeIds.has(athlete.id)) {
-          alertList.push({
-            athlete_id: athlete.id,
-            athlete_name: `${athlete.first_name} ${athlete.last_name}`,
-            type: 'inactive',
-            message: 'Aucune activité depuis +7 jours',
-            badge: 'RECUP',
-            badgeColor: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-          })
-        }
-      }
-      setAlerts(alertList)
-      setLoading(false)
-    }
-    load()
-  }, [])
-
-  /* ─── Heatmap data: last 12 weeks per athlete ─── */
-  const { heatmapRows, weeks, currentWeek } = useMemo(() => {
-    const now = new Date()
-    const currentWeek = getWeekNumber(now)
-    const weeksList: string[] = []
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * 7 * 24 * 3600 * 1000)
-      const monday = new Date(d)
-      monday.setDate(d.getDate() - (d.getDay() || 7) + 1)
-      weeksList.push(monday.toISOString().slice(0, 10))
-    }
-
-    const rows = athletes.map((ath) => {
-      const name = `${ath.first_name.charAt(0)}. ${ath.last_name}`
-      const cells = weeksList.map((weekStart, idx) => {
-        const entry = weeklyData.find(
-          (w) => w.athlete === `${ath.first_name} ${ath.last_name}` && w.week_start === weekStart
-        )
-        const level = mlsToLevel(entry?.mls_hebdo ?? null)
-        const isCurrentWeek = idx === weeksList.length - 1
-        return { level, isCurrentWeek }
-      })
-      return { id: ath.id, name, cells }
-    })
-
-    return { heatmapRows: rows, weeks: weeksList, currentWeek }
-  }, [athletes, weeklyData])
-
-  const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
-  const weekSessions = recentActivities.filter((a) => a.session_date >= weekAgo).length
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 py-12 text-sm text-[var(--muted-foreground)]">
-        <Icon name="progress_activity" size={16} className="animate-spin" />
-        Chargement...
-      </div>
-    )
-  }
+  const criticalAlertCount = useMemo(() => {
+    return healthData.filter(
+      (r) => r.tendance_rmssd_pct !== null && r.tendance_rmssd_pct < -10
+    ).length;
+  }, [healthData]);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* ─── KPI Cards ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <KpiCard
-          label="Athlètes actifs"
-          value={athletes.length}
-          icon="groups"
-          trend={null}
-        />
-        <KpiCard
-          label="Séances cette semaine"
-          value={weekSessions}
-          icon="calendar_today"
-          trend={null}
-        />
-        <KpiCard
-          label="Alertes critiques"
-          value={String(alerts.length).padStart(2, '0')}
-          icon="error"
-          isAlert={alerts.length > 0}
-          badgeText={alerts.length > 0 ? 'URGENT' : undefined}
-        />
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+          <span>/ Vue d'ensemble</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="w-64">
+            <Input
+              icon="search"
+              placeholder="Recherche globale non branchée"
+              disabled
+              title="La recherche globale n'est pas branchée dans cette version de la web app."
+            />
+          </div>
+          <button className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+            <Icon name="notifications" className="text-2xl" />
+            {criticalAlertCount > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-accent-orange rounded-full border-2 border-white dark:border-slate-900" />
+            )}
+          </button>
+          <Button
+            disabled
+            title="La création de séance n'est pas branchée dans cette version de la web app."
+          >
+            Nouvelle séance
+          </Button>
+        </div>
       </div>
 
-      {/* ─── Charge MLS Heatmap ─── */}
-      <section className="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-card)] p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="font-bold text-xl text-[var(--foreground)]">Analyse de la Charge MLS (12 dernières semaines)</h3>
-            <p className="text-sm text-[var(--muted-foreground)] mt-1">Vue d'ensemble de la charge d'entraînement par athlète</p>
-          </div>
-          <button className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-blue-600 transition-colors border border-[var(--border)]">
-            <Icon name="open_in_full" size={20} />
-          </button>
-        </div>
+      <FeatureNotice
+        title="Dashboard partiellement branché"
+        description="Les KPI, alertes et activités récentes viennent bien de Supabase. La recherche, les regroupements de cohortes et la création de séance restent visibles mais non branchés."
+        status="partial"
+      />
 
-        {heatmapRows.length === 0 ? (
-          <p className="text-sm text-[var(--muted-foreground)] py-4">Aucune donnée de charge disponible.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <div className="min-w-[700px] space-y-5">
-              {heatmapRows.map((row) => (
-                <div key={row.id} className="flex items-center gap-6">
-                  <div className="w-36 flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
-                      {row.name.charAt(0)}
-                    </div>
-                    <span className="text-sm font-semibold text-[var(--foreground)] truncate">{row.name}</span>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Athlètes actifs</p>
+                <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
+                  {athletesLoading ? "—" : athletes.length}
+                </h3>
+              </div>
+              <div className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <Icon name="group" className="text-sm" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Séances cette semaine</p>
+                <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
+                  {recentLoading ? "—" : sessionsThisWeek}
+                </h3>
+              </div>
+              <div className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <Icon name="trending_up" className="text-sm" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Alertes critiques</p>
+                <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
+                  {readinessLoading ? "—" : criticalAlertCount}
+                </h3>
+              </div>
+              {criticalAlertCount > 0 && (
+                <Badge variant="orange" className="mt-1">URGENT</Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Heatmap Section */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+              <Icon name="monitoring" className="text-slate-400" />
+              Analyse de la Charge MLS (12 dernières semaines)
+            </h2>
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-1 rounded-sm border border-slate-200 dark:border-slate-800">
+              <button className="px-3 py-1 text-xs font-medium rounded-sm bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white">TOUS</button>
+              <button
+                disabled
+                className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400"
+                title="Le filtrage par groupe n'est pas branché."
+              >
+                GROUPE A
+              </button>
+              <button
+                disabled
+                className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400"
+                title="Le filtrage par groupe n'est pas branché."
+              >
+                GROUPE B
+              </button>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="p-6 overflow-x-auto">
+              <div className="min-w-[600px]">
+                {loadLoading || !heatmapData ? (
+                  <div className="flex items-center justify-center py-12 text-slate-400">
+                    <Icon name="progress_activity" className="text-2xl animate-spin mr-2" />
+                    Chargement...
                   </div>
-                  <div className="flex gap-2 flex-1 justify-between">
-                    {row.cells.map((cell, i) => (
-                      <div
-                        key={i}
-                        className={`w-6 h-6 rounded ${HEATMAP_COLORS[cell.level]} ${
-                          cell.isCurrentWeek ? 'ring-2 ring-[var(--primary)] ring-offset-2 dark:ring-offset-[var(--card)]' : ''
-                        } transition-colors`}
-                        title={`S${getWeekNumber(new Date(weeks[i]))}: MLS niveau ${cell.level}`}
-                      />
+                ) : (
+                  <div className="space-y-2">
+                    {heatmapData.athletes.map((athlete) => (
+                      <div key={athlete} className="flex items-center gap-4">
+                        <div className="w-32 flex items-center gap-2 shrink-0">
+                          <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-medium border border-slate-200 dark:border-slate-700">
+                            {athlete.charAt(0)}
+                          </div>
+                          <span className="text-sm font-medium truncate">{athlete}</span>
+                        </div>
+                        <div className="flex-1 grid gap-1" style={{ gridTemplateColumns: `repeat(${heatmapData.weeks.length}, minmax(0, 1fr))` }}>
+                          {heatmapData.weeks.map((week) => {
+                            const mls = heatmapData.getValue(athlete, week);
+                            const level = MLS_LEVEL(mls);
+                            return (
+                              <div
+                                key={week}
+                                className="h-6 rounded-none cursor-pointer hover:opacity-80 transition-opacity"
+                                style={{ backgroundColor: level.bg }}
+                                title={`${week} - MLS: ${mls.toFixed(1)}`}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
                     ))}
                   </div>
+                )}
+
+                <div className="mt-6 flex items-center justify-center gap-4 text-xs font-medium text-slate-500">
+                  <span>Repos</span>
+                  <div className="flex gap-1">
+                    <div className="w-4 h-4 rounded-none bg-[#f1f5f9]" />
+                    <div className="w-4 h-4 rounded-none bg-[#bfdbfe]" />
+                    <div className="w-4 h-4 rounded-none bg-[#60a5fa]" />
+                    <div className="w-4 h-4 rounded-none bg-[#f97316]" />
+                    <div className="w-4 h-4 rounded-none bg-[#ea580c]" />
+                  </div>
+                  <span>Critique</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Legend */}
-        <div className="mt-10 pt-6 border-t border-[var(--border)] flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <p className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase tracking-widest">Légende de Charge</p>
-            <div className="flex items-center gap-2">
-              {HEATMAP_COLORS.map((color, i) => (
-                <div key={i} className={`w-4 h-4 rounded ${color}`} />
-              ))}
-              <span className="text-[11px] font-medium text-[var(--muted-foreground)] ml-2">
-                Faible (Repos) → Critique (Surcompensation)
-              </span>
-            </div>
-          </div>
-          <p className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase tracking-widest italic">
-            Semaine actuelle: S{currentWeek}
-          </p>
-        </div>
-      </section>
-
-      {/* ─── Bottom Grid: Alerts + Recent Activity ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Alerts */}
-        <section className="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-card)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-            <h3 className="font-bold text-[var(--foreground)]">Alertes d'attention</h3>
-            <button className="text-xs text-blue-600 font-semibold hover:underline">Tout voir</button>
-          </div>
-          <div className="divide-y divide-[var(--border)]">
-            {alerts.length === 0 ? (
-              <div className="p-6 flex items-center gap-3">
-                <Icon name="check_circle" size={20} className="text-green-600 dark:text-green-400" />
-                <span className="text-sm font-medium text-green-700 dark:text-green-400">Aucune alerte — tout est OK</span>
               </div>
-            ) : (
-              alerts.slice(0, 5).map((alert) => (
-                <div key={alert.athlete_id} className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
-                    {alert.athlete_name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--foreground)]">{alert.athlete_name}</p>
-                    <p className="text-xs text-[var(--muted-foreground)]">{alert.message}</p>
-                  </div>
-                  <span className={`px-2 py-1 text-[10px] font-bold rounded ${alert.badgeColor}`}>
-                    {alert.badge}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Recent Activity */}
-        <section className="bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-[var(--shadow-card)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
-            <h3 className="font-bold text-[var(--foreground)]">Activité récente</h3>
-            <div className="flex gap-2">
-              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded cursor-pointer">TOUT</span>
-              <span className="px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 text-[10px] font-bold rounded cursor-pointer">NAT</span>
-              <span className="px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 text-[10px] font-bold rounded cursor-pointer">VELO</span>
+        {/* Right Column */}
+        <div className="space-y-8">
+          {/* Alertes */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+                Alertes d'attention
+              </h2>
+              <span className="text-sm font-medium text-slate-400">Vue détaillée non branchée</span>
+            </div>
+            <div className="space-y-3">
+              {readinessLoading ? (
+                <div className="flex items-center justify-center py-8 text-slate-400">
+                  <Icon name="progress_activity" className="text-2xl animate-spin mr-2" />
+                  Chargement...
+                </div>
+              ) : alerts.length === 0 ? (
+                <p className="text-sm text-slate-400 py-4 text-center">Aucune alerte</p>
+              ) : (
+                alerts.slice(0, 5).map((alert) => {
+                  const pct = alert.tendance_rmssd_pct ?? 0;
+                  const isCritical = pct < -10;
+                  return (
+                    <Card key={alert.athlete_id}>
+                      <CardContent className="p-3 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0">
+                          {alert.athlete.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{alert.athlete}</p>
+                          <p className="text-xs text-slate-500 truncate">rMSSD baisse {Math.abs(pct).toFixed(0)}%</p>
+                        </div>
+                        <Badge variant={isCritical ? "red" : "orange"}>
+                          {isCritical ? "URGENT" : "RECUP"}
+                        </Badge>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
             </div>
           </div>
-          <div className="p-4 space-y-3">
-            {recentActivities.length === 0 ? (
-              <p className="py-4 text-sm text-[var(--muted-foreground)]">Aucune activité récente.</p>
-            ) : (
-              recentActivities.slice(0, 8).map((a) => (
-                <Link
-                  key={a.id}
-                  to={`/activities/${a.id}`}
-                  className="flex items-center justify-between text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg px-2 py-1.5 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon
-                      name={SPORT_ICON[a.sport_type] ?? 'sports'}
-                      size={16}
-                      className={a.sport_type === 'bike' ? 'text-[var(--accent)]' : 'text-blue-600'}
-                    />
-                    <span className="font-medium text-[var(--foreground)]">{a.athlete_name}</span>
-                  </div>
-                  <span className="text-[var(--muted-foreground)]">
-                    {a.duration_sec ? formatDuration(a.duration_sec) : '—'}
-                  </span>
-                  {a.load_index != null && (
-                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-bold text-[10px] ${
-                      a.load_index > 150
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                        : a.load_index > 80
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                    }`}>
-                      {Math.round(a.load_index)}
-                    </span>
-                  )}
-                </Link>
-              ))
-            )}
+
+          {/* Activité récente */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+                Activité récente
+              </h2>
+            </div>
+            <div className="flex items-center gap-2 mb-4">
+              <button className="px-3 py-1 text-xs font-medium rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">TOUT</button>
+              <button disabled className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400">NAT</button>
+              <button disabled className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400">VELO</button>
+              <button disabled className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400">CAP</button>
+            </div>
+            <div className="space-y-2">
+              {recentLoading ? (
+                <div className="flex items-center justify-center py-8 text-slate-400">
+                  <Icon name="progress_activity" className="text-2xl animate-spin mr-2" />
+                  Chargement...
+                </div>
+              ) : recentActivities.length === 0 ? (
+                <p className="text-sm text-slate-400 py-4 text-center">Aucune activité récente</p>
+              ) : (
+                recentActivities.map((act) => {
+                  const athleteData = act.athletes as unknown as { first_name: string; last_name: string } | null;
+                  const athleteName = athleteData
+                    ? `${athleteData.first_name} ${athleteData.last_name?.charAt(0) ?? ""}.`
+                    : "—";
+                  const sportIcon = SPORT_ICONS[act.sport_type] ?? "exercise";
+                  const mls = act.load_index ?? 0;
+                  const duration = act.duration_sec ? formatDuration(act.duration_sec) : "—";
+
+                  return (
+                    <div key={act.id} className="flex items-center justify-between p-2 rounded-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                      <div className="flex items-center gap-3">
+                        <Icon name={sportIcon} className="text-slate-400" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white">{athleteName}</p>
+                          <p className="text-xs text-slate-500 font-mono">{duration}</p>
+                        </div>
+                      </div>
+                      <Badge variant={mls > 5 ? "orange" : "slate"}>{mls.toFixed(1)}</Badge>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </section>
+        </div>
       </div>
     </div>
-  )
-}
-
-/* ─── KPI Card sub-component ─── */
-
-function KpiCard({
-  label,
-  value,
-  icon,
-  trend,
-  isAlert,
-  badgeText,
-}: {
-  label: string
-  value: string | number
-  icon: string
-  trend?: string | null
-  isAlert?: boolean
-  badgeText?: string
-}) {
-  return (
-    <div
-      className={`bg-[var(--card)] p-6 rounded-xl border shadow-[var(--shadow-card)] ${
-        isAlert
-          ? 'border-[var(--accent)]/20 bg-gradient-to-br from-[var(--card)] to-orange-50/30 dark:to-orange-950/10'
-          : 'border-[var(--border)]'
-      }`}
-    >
-      <div className="flex justify-between items-start mb-4">
-        <span className="text-[var(--muted-foreground)] text-sm font-medium">{label}</span>
-        <span
-          className={`p-2 rounded-lg ${
-            isAlert
-              ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
-              : 'bg-blue-600/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400'
-          }`}
-        >
-          <Icon name={icon} size={20} />
-        </span>
-      </div>
-      <div className="flex items-end gap-2">
-        <span className={`text-4xl font-bold ${isAlert ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'}`}>
-          {value}
-        </span>
-        {badgeText && (
-          <span className="px-2 py-1 bg-[var(--accent)] text-white text-[10px] font-bold rounded uppercase tracking-wider mb-2">
-            {badgeText}
-          </span>
-        )}
-        {trend && (
-          <span className="text-emerald-500 text-sm font-medium mb-1.5 flex items-center">
-            <Icon name="trending_up" size={14} /> {trend}
-          </span>
-        )}
-      </div>
-    </div>
-  )
+  );
 }
