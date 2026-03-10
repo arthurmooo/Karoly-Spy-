@@ -4,6 +4,37 @@ import type { ManualBlockOverridePayload } from "@/services/manualIntervals.serv
 
 const PER_PAGE = 25;
 
+const SPORT_FILTER_ALIASES: Record<string, string[]> = {
+  CAP: ["CAP", "Run", "run", "Course", "Course à pied", "course à pied"],
+  VELO: ["VELO", "VÉLO", "Bike", "bike", "Cycling", "cycling", "VTT", "vtt"],
+  NAT: ["NAT", "Swim", "swim", "Natation", "natation"],
+  SKI: ["SKI", "Ski", "ski", "Ski de fond", "ski de fond"],
+  TRI: ["TRI", "Tri", "tri", "Triathlon", "triathlon"],
+  MUSC: ["MUSC", "Strength", "strength", "Musculation", "musculation"],
+};
+
+function getSportFilterValues(sportType: string): string[] {
+  return SPORT_FILTER_ALIASES[sportType] ?? [sportType];
+}
+
+function toUtcDayBoundary(date: string, boundary: "start" | "end"): string {
+  const [yearPart, monthPart, dayPart] = date.split("-");
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  const day = Number(dayPart);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return date;
+  }
+
+  const value =
+    boundary === "start"
+      ? new Date(year, month - 1, day, 0, 0, 0, 0)
+      : new Date(year, month - 1, day, 23, 59, 59, 999);
+
+  return value.toISOString();
+}
+
 export async function getActivities(filters: ActivityFilters = {}) {
   const page = filters.page ?? 0;
   const perPage = filters.per_page ?? PER_PAGE;
@@ -27,13 +58,16 @@ export async function getActivities(filters: ActivityFilters = {}) {
     query = query.eq("athlete_id", filters.athlete_id);
   }
   if (filters.sport_type) {
-    query = query.eq("sport_type", filters.sport_type);
+    query = query.in("sport_type", getSportFilterValues(filters.sport_type));
+  }
+  if (filters.work_type) {
+    query = query.eq("work_type", filters.work_type);
   }
   if (filters.date_from) {
-    query = query.gte("session_date", filters.date_from);
+    query = query.gte("session_date", toUtcDayBoundary(filters.date_from, "start"));
   }
   if (filters.date_to) {
-    query = query.lte("session_date", filters.date_to);
+    query = query.lte("session_date", toUtcDayBoundary(filters.date_to, "end"));
   }
   if (filters.search) {
     query = query.ilike("activity_name", `%${filters.search}%`);
@@ -91,11 +125,12 @@ export async function getActivityDetail(id: string) {
 }
 
 export async function updateCoachComment(activityId: string, comment: string) {
-  const response = await supabase.functions.invoke("update-coach-comment", {
+  const { data, error } = await supabase.functions.invoke("update-coach-comment", {
     body: { activity_id: activityId, comment },
   });
-  if (response.error) throw response.error;
-  return response.data as { success: boolean; nolio_synced: boolean };
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return { success: true, nolio_synced: data?.nolio_synced ?? false };
 }
 
 export async function fetchActivityStreams(activityId: string) {
@@ -110,15 +145,11 @@ export async function updateManualIntervalOverrides(
   activityId: string,
   payload: ManualBlockOverridePayload
 ) {
-  const { data, error } = await supabase
-    .from("activities")
-    .update(payload)
-    .eq("id", activityId)
-    .select("id")
-    .single();
-
+  const { data, error } = await supabase.functions.invoke("update-manual-overrides", {
+    body: { activity_id: activityId, overrides: payload },
+  });
   if (error) throw error;
-  return data;
+  if (data?.error) throw new Error(data.error);
 }
 
 export async function getRecentActivities(limit = 10) {
@@ -134,4 +165,18 @@ export async function getRecentActivities(limit = 10) {
 
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getActivitiesCountForDay(day: Date) {
+  const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  const startOfNextDay = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+
+  const { count, error } = await supabase
+    .from("activities")
+    .select("id", { count: "exact", head: true })
+    .gte("session_date", startOfDay.toISOString())
+    .lt("session_date", startOfNextDay.toISOString());
+
+  if (error) throw error;
+  return count ?? 0;
 }

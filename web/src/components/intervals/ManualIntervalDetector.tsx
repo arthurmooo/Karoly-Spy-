@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -21,15 +21,13 @@ interface Props {
   activity: Activity;
   isLoadingStreams: boolean;
   onSave: (payload: ReturnType<typeof buildManualBlockPayload>) => Promise<void>;
+  onDetectedSegmentsChange?: (segments: DetectedSegment[]) => void;
 }
 
 interface MetricOption {
   value: ManualDetectionMetric;
   label: string;
 }
-
-const SELECT_CLASSNAME =
-  "h-10 w-full rounded-sm border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
 
 function formatMetricValue(
   segment: DetectedSegment,
@@ -67,9 +65,15 @@ function formatBlockSubtitle(activity: Activity, blockIndex: 1 | 2) {
   return parts.join(" · ") || "Bloc manuel";
 }
 
-export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: Props) {
+export function ManualIntervalDetector({
+  activity,
+  isLoadingStreams,
+  onSave,
+  onDetectedSegmentsChange,
+}: Props) {
   const isBike = isBikeSport(activity.sport_type);
   const streams = activity.activity_streams ?? [];
+  const justInjectedRef = useRef(false);
   const [selectedBlock, setSelectedBlock] = useState<1 | 2>(1);
   const [mode, setMode] = useState<ManualDetectionMode>("duration");
   const [metric, setMetric] = useState<ManualDetectionMetric>(isBike ? "power" : "speed");
@@ -90,12 +94,12 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
 
     if (isBike) {
       if (hasPower) options.push({ value: "power", label: "Puissance" });
+      if (hasSpeed) options.push({ value: "speed", label: "Vitesse" });
       if (hasHr) options.push({ value: "heart_rate", label: "FC" });
-      if (!hasPower && hasSpeed) options.push({ value: "speed", label: "Vitesse" });
     } else {
       if (hasSpeed) options.push({ value: "speed", label: "Allure" });
+      if (hasPower) options.push({ value: "power", label: "Puissance" });
       if (hasHr) options.push({ value: "heart_rate", label: "FC" });
-      if (!hasSpeed && hasPower) options.push({ value: "power", label: "Puissance" });
     }
 
     return options;
@@ -107,6 +111,13 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
   }, [isBike, metric, metricOptions]);
 
   useEffect(() => {
+    // After inject, the optimistic update changes interval_blocks reference —
+    // skip resetting segments so the detected table stays visible.
+    if (justInjectedRef.current) {
+      justInjectedRef.current = false;
+      return;
+    }
+
     const block = activity.segmented_metrics?.interval_blocks?.[selectedBlock - 1];
     const defaults = getBlockDefaults(block);
 
@@ -128,7 +139,8 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
     setSelectedIds([]);
     setError(null);
     setStatus(null);
-  }, [activity.segmented_metrics?.interval_blocks, selectedBlock]);
+    onDetectedSegmentsChange?.([]);
+  }, [activity.segmented_metrics?.interval_blocks, onDetectedSegmentsChange, selectedBlock]);
 
   const selectedSegments = useMemo(
     () => segments.filter((segment) => selectedIds.includes(segment.id)),
@@ -201,6 +213,7 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
 
     setSegments(detected);
     setSelectedIds(detected.map((segment) => segment.id));
+    onDetectedSegmentsChange?.(detected);
 
     if (detected.length === 0) {
       setError("Aucun segment exploitable trouvé avec ces paramètres.");
@@ -229,6 +242,7 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
     setStatus(null);
 
     try {
+      justInjectedRef.current = true;
       const payload = buildManualBlockPayload(activity, selectedBlock, selectedSegments);
       await onSave(payload);
       setStatus(`Bloc ${selectedBlock} mis à jour.`);
@@ -249,6 +263,7 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
       await onSave(payload);
       setSegments([]);
       setSelectedIds([]);
+      onDetectedSegmentsChange?.([]);
       setStatus(`Bloc ${selectedBlock} réinitialisé.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Échec de la réinitialisation.");
@@ -259,151 +274,183 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
 
   const currentBlockHasOverride = hasManualBlockOverride(activity, selectedBlock);
   const canSearch = streams.length > 0 && !isLoadingStreams && metricOptions.length > 0;
+  const hasDistanceStream = streams.some((point) => point.spd != null && point.spd > 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {[1, 2].map((value) => {
-          const blockIndex = value as 1 | 2;
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50">
+        <Icon name="target" className="text-primary text-base" />
+        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 tracking-wide">
+          Détecteur Manuel
+        </span>
+      </div>
+
+      {/* Bloc selector — tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-700">
+        {([1, 2] as const).map((blockIndex) => {
           const active = selectedBlock === blockIndex;
           return (
             <button
               key={blockIndex}
               type="button"
               onClick={() => setSelectedBlock(blockIndex)}
-              className={`rounded-sm border px-3 py-2 text-left transition-colors ${
-                active
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-              }`}
+              className={`relative flex-1 py-2.5 px-3 text-left transition-all
+                ${active
+                  ? "border-b-2 border-primary text-primary bg-primary/5"
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                }`}
             >
+              <span className="block text-[10px] tracking-widest uppercase opacity-60 mb-0.5">BLOC</span>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">Bloc {blockIndex}</span>
-                {hasManualBlockOverride(activity, blockIndex) && <Badge variant="orange">manuel</Badge>}
+                <span className={`font-mono text-sm ${active ? "font-semibold" : ""}`}>{blockIndex}</span>
+                {hasManualBlockOverride(activity, blockIndex) && (
+                  <Badge variant="orange" className="text-[9px] px-1.5 py-0">manuel</Badge>
+                )}
               </div>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <span className="block text-[10px] text-slate-400 mt-0.5">
                 {formatBlockSubtitle(activity, blockIndex)}
-              </p>
+              </span>
             </button>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Mode
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={mode === "duration" ? "primary" : "secondary"}
-              onClick={() => setMode("duration")}
-            >
-              Durée
-            </Button>
-            <Button
-              type="button"
-              variant={mode === "distance" ? "primary" : "secondary"}
-              onClick={() => setMode("distance")}
-              disabled={!streams.some((point) => point.spd != null && point.spd > 0)}
-            >
-              Distance
-            </Button>
+      {/* Paramètres */}
+      <div className="p-4 space-y-4">
+
+        {/* Mode + Métrique en ligne */}
+        <div className="flex items-start gap-5 flex-wrap">
+
+          {/* Mode — pill segmenté */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+              Mode
+            </label>
+            <div className="inline-flex rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+              {(["duration", "distance"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={m === "distance" && !hasDistanceStream}
+                  onClick={() => setMode(m)}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors
+                    ${mode === m
+                      ? "bg-primary text-white"
+                      : "bg-transparent text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                    }
+                    disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
+                  {m === "duration" ? "Durée" : "Distance"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Métrique — chips */}
+          {metricOptions.length > 0 && (
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                Métrique
+              </label>
+              <div className="flex gap-1.5 flex-wrap">
+                {metricOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setMetric(option.value)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors
+                      ${metric === option.value
+                        ? "border-primary bg-primary text-white"
+                        : "border-slate-200 text-slate-600 hover:border-primary/50 dark:border-slate-700 dark:text-slate-400 dark:hover:border-primary/50"
+                      }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Reps + Cible côte à côte */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              Répétitions
+            </label>
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              value={repetitions}
+              onChange={(event) => setRepetitions(event.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              {mode === "duration" ? "Durée (MM:SS)" : "Distance (m)"}
+            </label>
+            {mode === "duration" ? (
+              <Input value={durationInput} onChange={(event) => setDurationInput(event.target.value)} />
+            ) : (
+              <Input
+                type="number"
+                min={100}
+                step={50}
+                value={distanceInput}
+                onChange={(event) => setDistanceInput(event.target.value)}
+              />
+            )}
           </div>
         </div>
 
-        <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Métrique
-          </label>
-          <select
-            className={SELECT_CLASSNAME}
-            value={metric}
-            onChange={(event) => setMetric(event.target.value as ManualDetectionMetric)}
-          >
-            {metricOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Répétitions
-          </label>
-          <Input
-            type="number"
-            min={1}
-            max={20}
-            value={repetitions}
-            onChange={(event) => setRepetitions(event.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            {mode === "duration" ? "Durée cible (MM:SS)" : "Distance cible (m)"}
-          </label>
-          {mode === "duration" ? (
-            <Input value={durationInput} onChange={(event) => setDurationInput(event.target.value)} />
-          ) : (
-            <Input
-              type="number"
-              min={100}
-              step={50}
-              value={distanceInput}
-              onChange={(event) => setDistanceInput(event.target.value)}
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" className="w-full sm:w-auto" onClick={handleSearch} disabled={!canSearch}>
+        {/* CTA principal — orange */}
+        <button
+          type="button"
+          onClick={handleSearch}
+          disabled={!canSearch}
+          className="w-full py-2.5 rounded-md bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed
+            text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+        >
           <Icon name="analytics" className="text-base" />
           Lancer l'analyse
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full sm:w-auto"
-          onClick={handleInject}
-          disabled={selectedSegments.length === 0 || isSaving}
-        >
-          <Icon name="bolt" className="text-base" />
-          Injecter le bloc
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="w-full sm:w-auto"
-          onClick={handleReset}
-          disabled={(!currentBlockHasOverride && selectedSegments.length === 0) || isSaving}
-        >
-          <Icon name="restart_alt" className="text-base" />
-          Réinitialiser
-        </Button>
+        </button>
+
+        {/* État streams */}
+        {isLoadingStreams && (
+          <p className="text-xs text-slate-500 text-center">Chargement des streams FIT…</p>
+        )}
+        {!isLoadingStreams && streams.length === 0 && (
+          <p className="text-xs text-slate-500 text-center">
+            Aucun stream exploitable. Le détecteur reste indisponible.
+          </p>
+        )}
       </div>
 
-      {isLoadingStreams && (
-        <p className="text-sm text-slate-500">Chargement des streams FIT pour le détecteur...</p>
+      {/* Feedback error */}
+      {error && (
+        <div className="px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border-t border-red-100 dark:border-red-800 text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+          <Icon name="error" className="text-base flex-shrink-0" />
+          {error}
+        </div>
       )}
-      {!isLoadingStreams && streams.length === 0 && (
-        <p className="text-sm text-slate-500">
-          Aucun stream exploitable pour cette séance. Le détecteur manuel reste indisponible.
-        </p>
-      )}
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {status && <p className="text-sm text-emerald-700 dark:text-emerald-400">{status}</p>}
 
+      {/* Feedback success */}
+      {status && (
+        <div className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border-t border-emerald-100 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+          <Icon name="check_circle" className="text-base flex-shrink-0" />
+          {status}
+        </div>
+      )}
+
+      {/* Summary */}
       {summary && (
-        <div className="grid grid-cols-2 gap-3 rounded-sm border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Moyenne</p>
-            <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">
+        <div className="border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-700">
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Moyenne</p>
+            <p className="text-base font-mono font-semibold text-slate-800 dark:text-slate-100">
               {isBike
                 ? summary.meanPower != null
                   ? `${Math.round(summary.meanPower)} W`
@@ -412,13 +459,13 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
                   ? formatPaceDecimal(speedToPaceDecimal(summary.meanSpeed) ?? 0)
                   : "--"}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 mt-0.5">
               FC {summary.meanHr != null ? `${Math.round(summary.meanHr)} bpm` : "--"}
             </p>
           </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Dernier</p>
-            <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Dernier</p>
+            <p className="text-base font-mono font-semibold text-slate-800 dark:text-slate-100">
               {isBike
                 ? summary.lastPower != null
                   ? `${Math.round(summary.lastPower)} W`
@@ -427,60 +474,73 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
                   ? formatPaceDecimal(speedToPaceDecimal(summary.lastSpeed) ?? 0)
                   : "--"}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 mt-0.5">
               FC {summary.lastHr != null ? `${Math.round(summary.lastHr)} bpm` : "--"}
             </p>
           </div>
         </div>
       )}
 
+      {/* Table résultats */}
       {segments.length > 0 && (
-        <div className="overflow-x-auto rounded-sm border border-slate-200 dark:border-slate-800">
+        <div className="border-t border-slate-200 dark:border-slate-700 overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                <th className="px-4 py-3">Garder</th>
-                <th className="px-4 py-3">Début</th>
-                <th className="px-4 py-3">Fin</th>
-                <th className="px-4 py-3">Durée</th>
-                <th className="px-4 py-3">Distance</th>
-                <th className="px-4 py-3">Valeur</th>
-                <th className="px-4 py-3">FC</th>
-                <th className="px-4 py-3">{isBike ? "Puissance" : "Allure"}</th>
+                <th className="px-3 py-2.5">#</th>
+                <th className="px-3 py-2.5">Début</th>
+                <th className="px-3 py-2.5">Fin</th>
+                <th className="px-3 py-2.5">Durée</th>
+                <th className="px-3 py-2.5">Dist.</th>
+                <th className="px-3 py-2.5">Valeur</th>
+                <th className="px-3 py-2.5">FC</th>
+                <th className="px-3 py-2.5">{isBike ? "Watt" : "Allure"}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {segments.map((segment) => {
+              {segments.map((segment, index) => {
                 const checked = selectedIds.includes(segment.id);
                 return (
-                  <tr key={segment.id} className={checked ? "bg-white dark:bg-slate-900/40" : "opacity-60"}>
-                    <td className="px-4 py-2.5">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSegment(segment.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
-                      />
+                  <tr
+                    key={segment.id}
+                    onClick={() => toggleSegment(segment.id)}
+                    className={`cursor-pointer transition-colors ${
+                      checked
+                        ? "bg-white dark:bg-slate-900/40 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                        : "opacity-50 hover:opacity-70"
+                    }`}
+                  >
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSegment(segment.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary"
+                        />
+                        <span className="font-mono text-xs text-slate-400">{index + 1}</span>
+                      </div>
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">
                       {formatDuration(segment.startSec)}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-slate-700 dark:text-slate-300">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">
                       {formatDuration(segment.endSec)}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">
                       {formatDuration(segment.durationSec)}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">
                       {segment.distanceM > 0 ? formatDetectorDistance(segment.distanceM) : "--"}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-slate-900 dark:text-white">
+                    <td className="px-3 py-2 font-mono text-xs font-semibold text-slate-900 dark:text-white">
                       {formatMetricValue(segment, metric, isBike)}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">
                       {segment.avgHr != null ? `${Math.round(segment.avgHr)} bpm` : "--"}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">
                       {isBike
                         ? segment.avgPower != null
                           ? `${Math.round(segment.avgPower)} W`
@@ -496,6 +556,30 @@ export function ManualIntervalDetector({ activity, isLoadingStreams, onSave }: P
           </table>
         </div>
       )}
+
+      {/* Actions secondaires */}
+      <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2 bg-slate-50/50 dark:bg-slate-800/30">
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1"
+          onClick={handleInject}
+          disabled={selectedSegments.length === 0 || isSaving}
+        >
+          <Icon name="bolt" className="text-base" />
+          Injecter le bloc
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleReset}
+          disabled={(!currentBlockHasOverride && selectedSegments.length === 0) || isSaving}
+        >
+          <Icon name="restart_alt" className="text-base" />
+          Réinitialiser
+        </Button>
+      </div>
+
     </div>
   );
 }

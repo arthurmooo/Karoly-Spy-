@@ -7,6 +7,12 @@ interface Props {
 
 const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
+function normalizeDisplayedCadence(cadence: number | null | undefined, isBike: boolean): number | null {
+  if (cadence == null) return null;
+  if (isBike) return cadence;
+  return cadence <= 130 ? cadence * 2 : cadence;
+}
+
 function formatDur(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
@@ -79,7 +85,7 @@ export function LapsTable({ laps, sportType }: Props) {
                 {lap.max_hr ? `${lap.max_hr} bpm` : "--"}
               </td>
               <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
-                {lap.avg_cadence ?? "--"}
+                {normalizeDisplayedCadence(lap.avg_cadence, isBike) ?? "--"}
               </td>
             </tr>
           ))}

@@ -20,6 +20,12 @@ const SPORT_OPTIONS = [
   { value: "MUSC", label: "Musculation" },
 ];
 
+const WORK_TYPE_OPTIONS = [
+  { value: "endurance", label: "Endurance" },
+  { value: "competition", label: "Compétition" },
+  { value: "intervals", label: "Fractionné" },
+];
+
 export function ActivitiesPage() {
   const navigate = useNavigate();
   const {
@@ -31,7 +37,9 @@ export function ActivitiesPage() {
     setPage,
     setAthlete,
     setSport,
+    setWorkType,
     setDateFrom,
+    setDateTo,
     setSearch,
   } = useActivities();
   const { athletes } = useAthletes();
@@ -90,7 +98,7 @@ export function ActivitiesPage() {
       />
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <select
           onChange={(e) => setAthlete(e.target.value || null)}
           className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
@@ -115,9 +123,26 @@ export function ActivitiesPage() {
           ))}
         </select>
 
+        <select
+          onChange={(e) => setWorkType(e.target.value || null)}
+          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        >
+          <option value="">Tous les types</option>
+          {WORK_TYPE_OPTIONS.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
+        </select>
+
         <Input
           type="date"
           onChange={(e) => setDateFrom(e.target.value || null)}
+        />
+
+        <Input
+          type="date"
+          onChange={(e) => setDateTo(e.target.value || null)}
         />
 
         <Input
@@ -161,53 +186,62 @@ export function ActivitiesPage() {
                   </td>
                 </tr>
               ) : (
-                activities.map((act) => (
-                  <tr
-                    key={act.id}
-                    onClick={() => navigate(`/activities/${act.id}`)}
-                    className="hover:bg-primary/5 dark:hover:bg-primary/10 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">
-                      {format(new Date(act.date), "dd MMM yyyy", { locale: fr })}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
-                          {act.athlete.charAt(0)}
+                activities.map((act) => {
+                  const sportKey = act.sport.toUpperCase();
+
+                  return (
+                    <tr
+                      key={act.id}
+                      onClick={() => navigate(`/activities/${act.id}`)}
+                      className="hover:bg-primary/5 dark:hover:bg-primary/10 cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                        {format(new Date(act.date), "dd MMM yyyy", { locale: fr })}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                            {act.athlete.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="whitespace-nowrap">{act.athlete}</div>
+                            <div className="max-w-[130px] truncate text-xs text-slate-500 dark:text-slate-400">
+                              {act.title}
+                            </div>
+                          </div>
                         </div>
-                        {act.athlete}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Icon name={SPORT_ICONS[act.sport] ?? "exercise"} className={SPORT_COLORS[act.sport] ?? ""} />
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{act.sport}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <Badge
-                        variant={
-                          act.work_type === "Compétition" ? "orange" : act.work_type === "Endurance" ? "primary" : "slate"
-                        }
-                      >
-                        {act.work_type}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.duration}</td>
-                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.distance}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {act.mls != null ? (
-                        <Badge variant={act.mls > 7 ? "red" : act.mls > 5 ? "orange" : act.mls > 3 ? "amber" : "emerald"}>
-                          {act.mls.toFixed(1)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Icon name={SPORT_ICONS[sportKey] ?? "exercise"} className={SPORT_COLORS[sportKey] ?? ""} />
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{act.sport}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Badge
+                          variant={
+                            act.work_type === "Compétition" ? "orange" : act.work_type === "Endurance" ? "primary" : "slate"
+                          }
+                        >
+                          {act.work_type}
                         </Badge>
-                      ) : (
-                        <span className="text-sm text-slate-400">--</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.hr}</td>
-                    <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.pace}</td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.duration}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.distance}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {act.mls != null ? (
+                          <Badge variant={act.mls > 7 ? "red" : act.mls > 5 ? "orange" : act.mls > 3 ? "amber" : "emerald"}>
+                            {act.mls.toFixed(1)}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-slate-400">--</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.hr}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.pace}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

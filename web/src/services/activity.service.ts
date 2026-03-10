@@ -2,11 +2,45 @@ import { speedToPace, formatDuration, formatDistance } from "./format.service";
 
 const SPORT_LABELS: Record<string, string> = {
   CAP: "Course",
+  RUN: "Course",
+  RUNNING: "Course",
+  "COURSE À PIED": "Course",
+  "COURSE A PIED": "Course",
+  COURSE: "Course",
+  BIKE: "Vélo",
   VELO: "Vélo",
+  VÉLO: "Vélo",
+  CYCLING: "Vélo",
+  BICYCLE: "Vélo",
+  SWIM: "Natation",
   NAT: "Natation",
+  NATATION: "Natation",
+  STRENGTH: "Musculation",
   SKI: "Ski de fond",
   TRI: "Triathlon",
   MUSC: "Musculation",
+};
+
+const SPORT_CANONICAL_KEYS: Record<string, string> = {
+  CAP: "CAP",
+  RUN: "CAP",
+  RUNNING: "CAP",
+  "COURSE À PIED": "CAP",
+  "COURSE A PIED": "CAP",
+  COURSE: "CAP",
+  BIKE: "VELO",
+  VELO: "VELO",
+  VÉLO: "VELO",
+  CYCLING: "VELO",
+  BICYCLE: "VELO",
+  VTT: "VELO",
+  SWIM: "NAT",
+  NAT: "NAT",
+  NATATION: "NAT",
+  STRENGTH: "MUSC",
+  SKI: "SKI",
+  TRI: "TRI",
+  MUSC: "MUSC",
 };
 
 const WORK_TYPE_LABELS: Record<string, string> = {
@@ -16,7 +50,13 @@ const WORK_TYPE_LABELS: Record<string, string> = {
 };
 
 export function mapSportLabel(sport: string): string {
-  return SPORT_LABELS[sport] ?? sport;
+  const normalized = sport.trim().toUpperCase();
+  return SPORT_LABELS[normalized] ?? sport;
+}
+
+export function normalizeSportKey(sport: string): string {
+  const normalized = sport.trim().toUpperCase();
+  return SPORT_CANONICAL_KEYS[normalized] ?? normalized;
 }
 
 export function mapWorkTypeLabel(workType: string | null): string {
@@ -29,7 +69,9 @@ export function formatPaceOrPower(
   avgSpeed: number | null,
   avgPower: number | null
 ): string {
-  if (sport === "VELO" || sport === "VTT") {
+  const normalizedSport = sport.trim().toUpperCase();
+
+  if (normalizedSport === "VELO" || normalizedSport === "VTT" || normalizedSport === "BIKE") {
     return avgPower ? `${Math.round(avgPower)} W` : "--";
   }
   // Run / swim / etc. → pace
@@ -41,11 +83,13 @@ export function formatActivityRow(row: Record<string, unknown>) {
   return {
     id: row.id as string,
     date: row.session_date as string,
+    title: ((row.manual_activity_name as string | null) || (row.activity_name as string | null) || "Séance")
+      .trim(),
     athlete: athletes
       ? `${athletes.first_name} ${(athletes.last_name as string).charAt(0)}.`
       : "Inconnu",
     athlete_id: row.athlete_id as string,
-    sport: row.sport_type as string,
+    sport: mapSportLabel((row.sport_type as string) ?? ""),
     work_type: mapWorkTypeLabel(row.work_type as string | null),
     duration: formatDuration((row.duration_sec as number) ?? 0),
     distance: formatDistance((row.distance_m as number) ?? 0),

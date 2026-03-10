@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -9,37 +10,43 @@ import { MLS_LEVEL, SPORT_ICONS } from "@/lib/constants";
 import { useLoad } from "@/hooks/useLoad";
 import { useAthletes } from "@/hooks/useAthletes";
 import { useReadiness } from "@/hooks/useReadiness";
-import { getRecentActivities } from "@/repositories/activity.repository";
+import { getActivitiesCountForDay, getRecentActivities } from "@/repositories/activity.repository";
 import { formatDuration } from "@/services/format.service";
+import { normalizeSportKey } from "@/services/activity.service";
 
 type RecentActivity = Awaited<ReturnType<typeof getRecentActivities>>[number];
+type RecentActivityTab = "TOUT" | "NAT" | "VELO" | "CAP";
+
+const RECENT_ACTIVITY_TABS: RecentActivityTab[] = ["TOUT", "NAT", "VELO", "CAP"];
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { athletes, isLoading: athletesLoading } = useAthletes();
   const { heatmapData, isLoading: loadLoading } = useLoad(12);
   const { healthData, isLoading: readinessLoading } = useReadiness();
 
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [recentTab, setRecentTab] = useState<RecentActivityTab>("TOUT");
   const [recentLoading, setRecentLoading] = useState(true);
+  const [todaySessionsCount, setTodaySessionsCount] = useState<number | null>(null);
+  const [todaySessionsLoading, setTodaySessionsLoading] = useState(true);
 
   useEffect(() => {
-    getRecentActivities(5)
+    getRecentActivities(24)
       .then(setRecentActivities)
       .catch(console.error)
       .finally(() => setRecentLoading(false));
   }, []);
 
-  // KPI: sessions this week (ISO week, Mon-Sun)
-  const sessionsThisWeek = useMemo(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((day + 6) % 7));
-    monday.setHours(0, 0, 0, 0);
-    return recentActivities.filter(
-      (a) => new Date(a.session_date) >= monday
-    ).length;
-  }, [recentActivities]);
+  useEffect(() => {
+    getActivitiesCountForDay(new Date())
+      .then(setTodaySessionsCount)
+      .catch((error) => {
+        console.error(error);
+        setTodaySessionsCount(0);
+      })
+      .finally(() => setTodaySessionsLoading(false));
+  }, []);
 
   // Alertes: athletes with negative rMSSD trends
   const alerts = useMemo(() => {
@@ -53,6 +60,15 @@ export function DashboardPage() {
       (r) => r.tendance_rmssd_pct !== null && r.tendance_rmssd_pct < -10
     ).length;
   }, [healthData]);
+
+  const filteredRecentActivities = useMemo(() => {
+    const scopedActivities =
+      recentTab === "TOUT"
+        ? recentActivities
+        : recentActivities.filter((activity) => normalizeSportKey(activity.sport_type ?? "") === recentTab);
+
+    return scopedActivities.slice(0, 5);
+  }, [recentActivities, recentTab]);
 
   return (
     <div className="space-y-8">
@@ -113,9 +129,9 @@ export function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Séances cette semaine</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Séances du jour</p>
                 <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
-                  {recentLoading ? "—" : sessionsThisWeek}
+                  {todaySessionsLoading ? "—" : todaySessionsCount}
                 </h3>
               </div>
               <div className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
@@ -170,7 +186,7 @@ export function DashboardPage() {
           </div>
 
           <Card>
-            <CardContent className="p-6 overflow-x-auto">
+            <CardContent className="p-6 overflow-x-auto overflow-y-visible">
               <div className="min-w-[600px]">
                 {loadLoading || !heatmapData ? (
                   <div className="flex items-center justify-center py-12 text-slate-400">
@@ -179,7 +195,9 @@ export function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {heatmapData.athletes.map((athlete) => (
+                    {heatmapData.athletes.map((athlete) => {
+                      const thresholds = heatmapData.getAthleteThresholds(athlete);
+                      return (
                       <div key={athlete} className="flex items-center gap-4">
                         <div className="w-32 flex items-center gap-2 shrink-0">
                           <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-medium border border-slate-200 dark:border-slate-700">
@@ -189,33 +207,72 @@ export function DashboardPage() {
                         </div>
                         <div className="flex-1 grid gap-1" style={{ gridTemplateColumns: `repeat(${heatmapData.weeks.length}, minmax(0, 1fr))` }}>
                           {heatmapData.weeks.map((week) => {
-                            const mls = heatmapData.getValue(athlete, week);
-                            const level = MLS_LEVEL(mls);
+                            const cell = heatmapData.getCell(athlete, week);
+                            const mls = cell?.mls ?? 0;
+                            const level = MLS_LEVEL(mls, thresholds);
+                            const weekLabel = new Date(week + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
                             return (
                               <div
                                 key={week}
-                                className="h-6 rounded-none cursor-pointer hover:opacity-80 transition-opacity"
+                                className="relative group h-6 rounded-none cursor-pointer hover:opacity-80 transition-opacity"
                                 style={{ backgroundColor: level.bg }}
-                                title={`${week} - MLS: ${mls.toFixed(1)}`}
-                              />
+                              >
+                                {cell && mls > 0 && (
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                    <div className="bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-xl px-3 py-2 min-w-[140px] whitespace-nowrap">
+                                      <p className="font-semibold text-slate-200 mb-1">Sem. du {weekLabel}</p>
+                                      <p className="flex justify-between gap-3">
+                                        <span className="text-slate-400">Charge MLS</span>
+                                        <span className="font-medium">{Math.round(mls).toLocaleString("fr-FR")}</span>
+                                      </p>
+                                      {cell.heures != null && (
+                                        <p className="flex justify-between gap-3">
+                                          <span className="text-slate-400">Heures</span>
+                                          <span className="font-medium">{cell.heures.toFixed(1)} h</span>
+                                        </p>
+                                      )}
+                                      {cell.nb_seances != null && (
+                                        <p className="flex justify-between gap-3">
+                                          <span className="text-slate-400">Séances</span>
+                                          <span className="font-medium">{cell.nb_seances}</span>
+                                        </p>
+                                      )}
+                                      {cell.mls_moyen_intervalles != null && (
+                                        <p className="flex justify-between gap-3">
+                                          <span className="text-slate-400">MLS intv.</span>
+                                          <span className="font-medium">{Math.round(cell.mls_moyen_intervalles).toLocaleString("fr-FR")}</span>
+                                        </p>
+                                      )}
+                                      <p className="mt-1 pt-1 border-t border-slate-700 dark:border-slate-600 text-center" style={{ color: level.bg }}>
+                                        {level.label}
+                                      </p>
+                                    </div>
+                                    <div className="w-2 h-2 bg-slate-900 dark:bg-slate-700 rotate-45 mx-auto -mt-1" />
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
 
-                <div className="mt-6 flex items-center justify-center gap-4 text-xs font-medium text-slate-500">
-                  <span>Repos</span>
-                  <div className="flex gap-1">
-                    <div className="w-4 h-4 rounded-none bg-[#f1f5f9]" />
-                    <div className="w-4 h-4 rounded-none bg-[#bfdbfe]" />
-                    <div className="w-4 h-4 rounded-none bg-[#60a5fa]" />
-                    <div className="w-4 h-4 rounded-none bg-[#f97316]" />
-                    <div className="w-4 h-4 rounded-none bg-[#ea580c]" />
+                <div className="mt-6 flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
+                    <span>Repos</span>
+                    <div className="flex gap-1">
+                      <div className="w-4 h-4 rounded-none bg-[#f1f5f9]" />
+                      <div className="w-4 h-4 rounded-none bg-[#bfdbfe]" />
+                      <div className="w-4 h-4 rounded-none bg-[#60a5fa]" />
+                      <div className="w-4 h-4 rounded-none bg-[#f97316]" />
+                      <div className="w-4 h-4 rounded-none bg-[#ea580c]" />
+                    </div>
+                    <span>Critique</span>
                   </div>
-                  <span>Critique</span>
+                  <p className="text-[10px] text-slate-400 italic">niveaux relatifs à l'historique de chaque athlète</p>
                 </div>
               </div>
             </CardContent>
@@ -273,10 +330,23 @@ export function DashboardPage() {
               </h2>
             </div>
             <div className="flex items-center gap-2 mb-4">
-              <button className="px-3 py-1 text-xs font-medium rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">TOUT</button>
-              <button disabled className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400">NAT</button>
-              <button disabled className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400">VELO</button>
-              <button disabled className="px-3 py-1 text-xs font-medium rounded-sm text-slate-400">CAP</button>
+              {RECENT_ACTIVITY_TABS.map((tab) => {
+                const isActive = tab === recentTab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setRecentTab(tab)}
+                    className={
+                      isActive
+                        ? "px-3 py-1 text-xs font-medium rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                        : "px-3 py-1 text-xs font-medium rounded-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60 transition-colors"
+                    }
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
             </div>
             <div className="space-y-2">
               {recentLoading ? (
@@ -284,29 +354,43 @@ export function DashboardPage() {
                   <Icon name="progress_activity" className="text-2xl animate-spin mr-2" />
                   Chargement...
                 </div>
-              ) : recentActivities.length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center">Aucune activité récente</p>
+              ) : filteredRecentActivities.length === 0 ? (
+                <p className="text-sm text-slate-400 py-4 text-center">
+                  {recentTab === "TOUT"
+                    ? "Aucune activité récente"
+                    : `Aucune activité récente pour ${recentTab}`}
+                </p>
               ) : (
-                recentActivities.map((act) => {
+                filteredRecentActivities.map((act) => {
                   const athleteData = act.athletes as unknown as { first_name: string; last_name: string } | null;
                   const athleteName = athleteData
                     ? `${athleteData.first_name} ${athleteData.last_name?.charAt(0) ?? ""}.`
                     : "—";
-                  const sportIcon = SPORT_ICONS[act.sport_type] ?? "exercise";
-                  const mls = act.load_index ?? 0;
+                  const sportKey = normalizeSportKey(act.sport_type ?? "");
+                  const sportIcon = SPORT_ICONS[sportKey] ?? "exercise";
+                  const averageHr = act.avg_hr != null ? `${Math.round(act.avg_hr)} bpm` : null;
                   const duration = act.duration_sec ? formatDuration(act.duration_sec) : "—";
 
                   return (
-                    <div key={act.id} className="flex items-center justify-between p-2 rounded-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
-                      <div className="flex items-center gap-3">
+                    <button
+                      key={act.id}
+                      type="button"
+                      onClick={() => navigate(`/activities/${act.id}`)}
+                      className="w-full flex items-center justify-between p-2 rounded-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700 text-left"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
                         <Icon name={sportIcon} className="text-slate-400" />
-                        <div>
-                          <p className="text-sm font-medium text-slate-900 dark:text-white">{athleteName}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{athleteName}</p>
                           <p className="text-xs text-slate-500 font-mono">{duration}</p>
                         </div>
                       </div>
-                      <Badge variant={mls > 5 ? "orange" : "slate"}>{mls.toFixed(1)}</Badge>
-                    </div>
+                      {averageHr ? (
+                        <Badge variant="slate">{averageHr}</Badge>
+                      ) : (
+                        <span className="text-sm text-slate-400 font-mono">--</span>
+                      )}
+                    </button>
                   );
                 })
               )}

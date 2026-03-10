@@ -14,6 +14,8 @@ import type { PhysioProfile } from "@/types/physio";
 export function ProfilesPage() {
   const { athletes, isLoading: athletesLoading } = useAthletes();
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
+  const [bikeArchiveOpen, setBikeArchiveOpen] = useState(false);
+  const [runArchiveOpen, setRunArchiveOpen] = useState(false);
   const { activeProfiles, archivedProfiles, addProfile, isLoading: physioLoading } = usePhysio(selectedAthleteId);
 
   // Default to first athlete when athletes load
@@ -256,33 +258,44 @@ export function ProfilesPage() {
             </Card>
 
             {/* Profils Archivés */}
-            <div className="space-y-3">
-              {archivedBike.length === 0 ? (
-                <p className="text-xs text-slate-400">Aucun profil archivé</p>
-              ) : (
-                archivedBike.map((prof) => (
-                  <Card key={prof.id} className="bg-white/60 dark:bg-slate-900/60 opacity-75">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Icon name="history" className="text-slate-400" />
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white">Profil Précédent</p>
-                          <p className="text-xs text-slate-500 font-medium">
-                            {formatDate(prof.valid_from)} → {formatDate(prof.valid_to)}
-                          </p>
+            {archivedBike.length === 0 ? (
+              <p className="text-xs text-slate-400">Aucun profil archivé</p>
+            ) : (
+              <div className="rounded-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <button
+                  onClick={() => setBikeArchiveOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon name="history" className="text-slate-400" />
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {archivedBike.length} profil{archivedBike.length > 1 ? "s" : ""} archivé{archivedBike.length > 1 ? "s" : ""}
+                    </span>
+                    <Badge variant="slate">ARCHIVÉ</Badge>
+                  </div>
+                  <Icon name={bikeArchiveOpen ? "expand_less" : "expand_more"} className="text-slate-400" />
+                </button>
+                {bikeArchiveOpen && (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {archivedBike.map((prof) => (
+                      <div key={prof.id} className="px-4 py-3 flex items-center justify-between bg-white/40 dark:bg-slate-900/40 opacity-80">
+                        <div className="flex items-center gap-3">
+                          <div className="w-5" />
+                          <div>
+                            <p className="text-xs text-slate-500 font-medium">
+                              {formatDate(prof.valid_from)} → {formatDate(prof.valid_to)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-lg font-semibold font-mono text-slate-700 dark:text-slate-300">
+                        <span className="text-sm font-semibold font-mono text-slate-600 dark:text-slate-400">
                           {prof.cp_cs != null ? `${prof.cp_cs} W` : "--"}
                         </span>
-                        <Badge variant="slate">ARCHIVÉ</Badge>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Colonne Course */}
@@ -369,33 +382,44 @@ export function ProfilesPage() {
             </Card>
 
             {/* Profils Archivés */}
-            <div className="space-y-3">
-              {archivedRun.length === 0 ? (
-                <p className="text-xs text-slate-400">Aucun profil archivé</p>
-              ) : (
-                archivedRun.map((prof) => (
-                  <Card key={prof.id} className="bg-white/60 dark:bg-slate-900/60 opacity-75">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Icon name="history" className="text-slate-400" />
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white">Profil Précédent</p>
-                          <p className="text-xs text-slate-500 font-medium">
-                            {formatDate(prof.valid_from)} → {formatDate(prof.valid_to)}
-                          </p>
+            {archivedRun.length === 0 ? (
+              <p className="text-xs text-slate-400">Aucun profil archivé</p>
+            ) : (
+              <div className="rounded-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <button
+                  onClick={() => setRunArchiveOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon name="history" className="text-slate-400" />
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {archivedRun.length} profil{archivedRun.length > 1 ? "s" : ""} archivé{archivedRun.length > 1 ? "s" : ""}
+                    </span>
+                    <Badge variant="slate">ARCHIVÉ</Badge>
+                  </div>
+                  <Icon name={runArchiveOpen ? "expand_less" : "expand_more"} className="text-slate-400" />
+                </button>
+                {runArchiveOpen && (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {archivedRun.map((prof) => (
+                      <div key={prof.id} className="px-4 py-3 flex items-center justify-between bg-white/40 dark:bg-slate-900/40 opacity-80">
+                        <div className="flex items-center gap-3">
+                          <div className="w-5" />
+                          <div>
+                            <p className="text-xs text-slate-500 font-medium">
+                              {formatDate(prof.valid_from)} → {formatDate(prof.valid_to)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-lg font-semibold font-mono text-slate-700 dark:text-slate-300">
+                        <span className="text-sm font-semibold font-mono text-slate-600 dark:text-slate-400">
                           {prof.vma != null ? `${prof.vma} km/h` : "--"}
                         </span>
-                        <Badge variant="slate">ARCHIVÉ</Badge>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

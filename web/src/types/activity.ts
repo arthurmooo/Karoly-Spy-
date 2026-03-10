@@ -93,6 +93,7 @@ export interface ActivityInterval {
 export interface ActivityFilters {
   athlete_id?: string;
   sport_type?: string;
+  work_type?: string;
   date_from?: string;
   date_to?: string;
   search?: string;

@@ -14,7 +14,9 @@ export function useActivities() {
   const page = parseInt(searchParams.get("page") ?? "0", 10);
   const athleteId = searchParams.get("athlete") ?? undefined;
   const sportType = searchParams.get("sport") ?? undefined;
+  const workType = searchParams.get("type") ?? undefined;
   const dateFrom = searchParams.get("from") ?? undefined;
+  const dateTo = searchParams.get("to") ?? undefined;
   const search = searchParams.get("q") ?? undefined;
 
   const updateParam = useCallback(
@@ -35,7 +37,9 @@ export function useActivities() {
     getActivities({
       athlete_id: athleteId,
       sport_type: sportType,
+      work_type: workType,
       date_from: dateFrom,
+      date_to: dateTo,
       search,
       page,
       per_page: PER_PAGE,
@@ -53,7 +57,7 @@ export function useActivities() {
     return () => {
       cancelled = true;
     };
-  }, [page, athleteId, sportType, dateFrom, search]);
+  }, [page, athleteId, sportType, workType, dateFrom, dateTo, search]);
 
   return {
     activities,
@@ -64,7 +68,9 @@ export function useActivities() {
     setPage: (p: number) => updateParam("page", p > 0 ? String(p) : null),
     setAthlete: (id: string | null) => updateParam("athlete", id),
     setSport: (s: string | null) => updateParam("sport", s),
+    setWorkType: (t: string | null) => updateParam("type", t),
     setDateFrom: (d: string | null) => updateParam("from", d),
+    setDateTo: (d: string | null) => updateParam("to", d),
     setSearch: (q: string | null) => updateParam("q", q),
   };
 }

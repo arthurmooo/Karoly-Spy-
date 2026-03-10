@@ -20,7 +20,17 @@ export function useActivityDetail(id: string | undefined) {
   const refresh = useCallback(async () => {
     if (!id) return;
     const { activity: act, intervals: ints } = await getActivityDetail(id);
-    setActivity(act as unknown as Activity);
+    setActivity((prev) => {
+      const merged = act as unknown as Activity;
+      // Preserve streams/laps if DB hasn't cached them yet (fire-and-forget write)
+      if (!merged.activity_streams?.length && prev?.activity_streams?.length) {
+        merged.activity_streams = prev.activity_streams;
+      }
+      if (!merged.garmin_laps?.length && prev?.garmin_laps?.length) {
+        merged.garmin_laps = prev.garmin_laps;
+      }
+      return merged;
+    });
     setIntervals(ints as ActivityInterval[]);
   }, [id]);
 
@@ -103,8 +113,16 @@ export function useActivityDetail(id: string | undefined) {
   const saveManualDetectorOverride = useCallback(
     async (payload: ManualBlockOverridePayload) => {
       if (!id) return;
-      await updateManualIntervalOverrides(id, payload);
-      await refresh();
+      // Optimistic update — show manual values immediately
+      setActivity((prev) => (prev ? { ...prev, ...payload } : prev));
+      try {
+        await updateManualIntervalOverrides(id, payload);
+        await refresh();
+      } catch (err) {
+        await refresh(); // revert optimistic update
+        console.error("Manual override save error:", err);
+        throw err;
+      }
     },
     [id, refresh]
   );

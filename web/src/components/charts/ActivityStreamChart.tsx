@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import {
   ComposedChart,
   Area,
@@ -19,6 +19,8 @@ interface Props {
   laps?: GarminLap[] | null;
   sportType: string;
   highlightedSegments?: DetectedSegment[];
+  /** Interval block highlights (from expanded accordion rows) */
+  blockHighlights?: { startSec: number; endSec: number }[];
   /** Render prop: receives toggle buttons to place in parent layout */
   renderHeader?: (toggles: ReactNode) => ReactNode;
 }
@@ -63,13 +65,16 @@ function bandDomain(dataMin: number, dataMax: number, bandStart: number, bandEnd
   return [dataMin - bandStart * totalRange, dataMax + (1 - bandEnd) * totalRange];
 }
 
-type CurveKey = "hr" | "pace" | "power" | "alt";
+type CurveKey = "hr" | "pace" | "power" | "alt" | "laps";
+
+const MIN_ZOOM_SECONDS = 10;
 
 export function ActivityStreamChart({
   streams,
   laps,
   sportType,
   highlightedSegments = [],
+  blockHighlights = [],
   renderHeader,
 }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
@@ -77,6 +82,12 @@ export function ActivityStreamChart({
   const [visibleCurves, setVisibleCurves] = useState<Set<CurveKey>>(
     () => new Set<CurveKey>(isBike ? ["hr", "power", "alt"] : ["hr", "pace", "alt"]),
   );
+
+  // Drag-to-zoom state
+  const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null);
+  const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [zoomWindow, setZoomWindow] = useState<{ start: number; end: number } | null>(null);
 
   const toggleCurve = (key: CurveKey) => {
     setVisibleCurves((prev) => {
@@ -107,19 +118,25 @@ export function ActivityStreamChart({
     }));
   }, [streams, isBike]);
 
-  // Compute Y domains
-  const hrValues = chartData.map((d) => d.hr).filter((v): v is number => v != null);
+  // Filter data when zoomed
+  const displayData = useMemo(() => {
+    if (!zoomWindow) return chartData;
+    return chartData.filter((d) => d.t >= zoomWindow.start && d.t <= zoomWindow.end);
+  }, [chartData, zoomWindow]);
+
+  // Compute Y domains on displayData (recalculated on zoom)
+  const hrValues = displayData.map((d) => d.hr).filter((v): v is number => v != null);
   const hrMin = hrValues.length ? Math.floor(Math.min(...hrValues) / 10) * 10 - 10 : 60;
   const hrMax = hrValues.length ? Math.ceil(Math.max(...hrValues) / 10) * 10 + 10 : 200;
 
   const secondaryValues = isBike
-    ? chartData.map((d) => d.power).filter((v): v is number => v != null)
-    : chartData.map((d) => d.pace).filter((v): v is number => v != null);
+    ? displayData.map((d) => d.power).filter((v): v is number => v != null)
+    : displayData.map((d) => d.pace).filter((v): v is number => v != null);
 
   const secMin = secondaryValues.length ? Math.floor(Math.min(...secondaryValues)) : 0;
   const secMax = secondaryValues.length ? Math.ceil(Math.max(...secondaryValues)) : 10;
 
-  const altValues = chartData.map((d) => d.alt).filter((v): v is number => v != null);
+  const altValues = displayData.map((d) => d.alt).filter((v): v is number => v != null);
   const altMin = altValues.length ? Math.min(...altValues) - 5 : 0;
   const altMax = altValues.length ? Math.max(...altValues) + 5 : 100;
   const hasAlt = altValues.length > 0;
@@ -129,8 +146,16 @@ export function ActivityStreamChart({
     return laps.filter((l) => l.start_sec > 0).map((l) => l.start_sec);
   }, [laps]);
 
-  const maxT = chartData.length > 0 ? (chartData[chartData.length - 1]?.t ?? 0) : 0;
-  const tickInterval = Math.max(300, Math.ceil(maxT / 10 / 60) * 60);
+  // X axis domain and ticks based on displayData
+  const xMin = displayData.length > 0 ? (displayData[0]?.t ?? 0) : 0;
+  const xMax = displayData.length > 0 ? (displayData[displayData.length - 1]?.t ?? 0) : 0;
+  const xRange = xMax - xMin;
+  const tickInterval = Math.max(60, Math.ceil(xRange / 10 / 60) * 60);
+  const firstTick = Math.ceil(xMin / tickInterval) * tickInterval;
+  const xTicks = Array.from(
+    { length: Math.floor((xMax - firstTick) / tickInterval) + 1 },
+    (_, i) => firstTick + i * tickInterval,
+  );
 
   const secondaryKey: CurveKey = isBike ? "power" : "pace";
   const showHr = visibleCurves.has("hr");
@@ -144,7 +169,6 @@ export function ActivityStreamChart({
   const hrDomain: [number, number] = useBands
     ? bandDomain(hrMin, hrMax, 0.55, 0.90)
     : [hrMin, hrMax];
-  // For run (reversed axis): visual band [0.25,0.60] requires domain band [0.40,0.75]
   const secondaryDomain: [number, number] = useBands
     ? bandDomain(
         isBike ? secMin - 20 : Math.max(secMin - 0.5, 0),
@@ -157,12 +181,68 @@ export function ActivityStreamChart({
     ? bandDomain(altMin, altMax, 0.0, 0.25)
     : [altMin, altMax];
 
+  // --- Mouse event handlers for drag-to-zoom ---
+  const handleMouseDown = useCallback((e: any) => {
+    if (e?.activePayload?.[0]?.payload?.t !== undefined) {
+      const t = e.activePayload[0].payload.t as number;
+      setRefAreaLeft(t);
+      setRefAreaRight(null);
+      setIsSelecting(true);
+    }
+  }, []);
+
+  const handleMouseMove = useCallback(
+    (e: any) => {
+      if (isSelecting && e?.activePayload?.[0]?.payload?.t !== undefined) {
+        setRefAreaRight(e.activePayload[0].payload.t as number);
+      }
+    },
+    [isSelecting],
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (refAreaLeft !== null && refAreaRight !== null) {
+      const start = Math.min(refAreaLeft, refAreaRight);
+      const end = Math.max(refAreaLeft, refAreaRight);
+      if (end - start >= MIN_ZOOM_SECONDS) {
+        setZoomWindow({ start, end });
+      }
+    }
+    setRefAreaLeft(null);
+    setRefAreaRight(null);
+    setIsSelecting(false);
+  }, [refAreaLeft, refAreaRight]);
+
+  // --- Selection stats (when zoomed) ---
+  const zoomStats = useMemo(() => {
+    if (!zoomWindow || displayData.length === 0) return null;
+
+    const duration = zoomWindow.end - zoomWindow.start;
+
+    const hrs = displayData.map((d) => d.hr).filter((v): v is number => v != null);
+    const avgHr = hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null;
+
+    if (isBike) {
+      const powers = displayData.map((d) => d.power).filter((v): v is number => v != null);
+      const avgPower = powers.length ? Math.round(powers.reduce((a, b) => a + b, 0) / powers.length) : null;
+      return { duration, avgHr, avgPower, avgPace: null };
+    }
+    // Run: distance-weighted pace from speed stream
+    const speeds = displayData
+      .map((d) => (d.pace != null ? 1000 / (d.pace * 60) : null)) // pace back to m/s
+      .filter((v): v is number => v != null && v > 0);
+    const avgSpeed = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : null;
+    const avgPace = avgSpeed ? speedToPaceNum(avgSpeed) : null;
+    return { duration, avgHr, avgPower: null, avgPace };
+  }, [zoomWindow, displayData, isBike]);
+
   const toggleButtons: { key: CurveKey; label: string; color: string }[] = [
     { key: "hr", label: "FC", color: "#ef4444" },
     ...(isBike
       ? [{ key: "power" as CurveKey, label: "Puissance", color: "#22c55e" }]
       : [{ key: "pace" as CurveKey, label: "Allure", color: "#3b82f6" }]),
     ...(hasAlt ? [{ key: "alt" as CurveKey, label: "Relief", color: "#94a3b8" }] : []),
+    ...(lapLines.length > 0 ? [{ key: "laps" as CurveKey, label: "Tours", color: "#64748b" }] : []),
   ];
 
   const togglesNode = (
@@ -185,6 +265,19 @@ export function ActivityStreamChart({
           </button>
         );
       })}
+      {zoomWindow && (
+        <button
+          type="button"
+          onClick={() => setZoomWindow(null)}
+          className="ml-1 inline-flex items-center gap-1 rounded-full border border-slate-300 dark:border-slate-600 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+          Reset Zoom
+        </button>
+      )}
     </div>
   );
 
@@ -192,20 +285,45 @@ export function ActivityStreamChart({
     <div className="w-full">
       {renderHeader ? renderHeader(togglesNode) : togglesNode}
 
-      <div className="h-[400px] w-full">
+      {/* Zoom stats banner */}
+      {zoomWindow && zoomStats && (
+        <div className="flex items-center gap-4 px-3 py-1.5 mt-1 rounded-md bg-blue-50 dark:bg-blue-950/40 text-[11px] text-slate-600 dark:text-slate-300 border border-blue-200 dark:border-blue-800/50">
+          <span className="font-medium text-blue-700 dark:text-blue-400">
+            Zoom : {formatTime(zoomStats.duration)}
+          </span>
+          {zoomStats.avgHr != null && (
+            <span>FC moy : <span className="font-medium text-red-500">{zoomStats.avgHr} bpm</span></span>
+          )}
+          {zoomStats.avgPace != null && (
+            <span>Allure moy : <span className="font-medium text-blue-500">{formatPace(zoomStats.avgPace)}</span></span>
+          )}
+          {zoomStats.avgPower != null && (
+            <span>Puissance moy : <span className="font-medium text-green-500">{zoomStats.avgPower} W</span></span>
+          )}
+        </div>
+      )}
+
+      <div className="h-[400px] w-full select-none">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <ComposedChart
+            data={displayData}
+            margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
             <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} className="dark:opacity-20" />
 
             <XAxis
               type="number"
               dataKey="t"
-              domain={[0, maxT]}
+              domain={[xMin, xMax]}
               tick={{ fontSize: 11, fill: "#64748b" }}
               tickLine={false}
               axisLine={false}
               tickFormatter={formatTime}
-              ticks={Array.from({ length: Math.floor(maxT / tickInterval) + 1 }, (_, index) => index * tickInterval)}
+              ticks={xTicks}
               allowDuplicatedCategory={false}
             />
 
@@ -243,7 +361,7 @@ export function ActivityStreamChart({
               labelFormatter={(t: number) => formatTime(t)}
             />
 
-            {/* Lap transitions */}
+            {/* Highlighted segments */}
             {highlightedSegments.map((segment) => (
               <ReferenceArea
                 key={segment.id}
@@ -257,7 +375,20 @@ export function ActivityStreamChart({
               />
             ))}
 
-            {lapLines.map((sec, i) => (
+            {blockHighlights.map((bh, i) => (
+              <ReferenceArea
+                key={`block-hl-${i}`}
+                x1={bh.startSec}
+                x2={bh.endSec}
+                yAxisId="left"
+                strokeOpacity={0}
+                fill="#2563EB"
+                fillOpacity={0.10}
+                ifOverflow="extendDomain"
+              />
+            ))}
+
+            {visibleCurves.has("laps") && lapLines.map((sec, i) => (
               <ReferenceLine
                 key={`lap-${i}`}
                 yAxisId="left"
@@ -322,6 +453,18 @@ export function ActivityStreamChart({
                   isAnimationActive={false}
                 />
               ))}
+
+            {/* Drag selection overlay */}
+            {isSelecting && refAreaLeft !== null && refAreaRight !== null && (
+              <ReferenceArea
+                yAxisId="left"
+                x1={Math.min(refAreaLeft, refAreaRight)}
+                x2={Math.max(refAreaLeft, refAreaRight)}
+                strokeOpacity={0.3}
+                fill="#2563EB"
+                fillOpacity={0.2}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

@@ -18,12 +18,13 @@ import { ManualIntervalDetector } from "@/components/intervals/ManualIntervalDet
 import { LapsTable } from "@/components/tables/LapsTable";
 import { useActivityDetail } from "@/hooks/useActivityDetail";
 import type { Activity, ActivityInterval, ActivitySourceJson, IntervalBlock } from "@/types/activity";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
 import {
   formatDistance,
   formatDuration,
   formatPaceDecimal,
+  speedToPace,
 } from "@/services/format.service";
 import { formatPaceOrPower, mapWorkTypeLabel } from "@/services/activity.service";
 
@@ -31,11 +32,15 @@ interface DisplayBlock {
   id: string;
   label: string;
   durationSec: number | null;
-  pace: number | null;
-  power: number | null;
-  hr: number | null;
+  paceMean: number | null;
+  paceLast: number | null;
+  powerMean: number | null;
+  powerLast: number | null;
+  hrMean: number | null;
+  hrLast: number | null;
   source: string | null;
   count: number | null;
+  intervals: ActivityInterval[];
 }
 
 const INTERVAL_TYPE_LABELS: Record<string, string> = {
@@ -83,9 +88,18 @@ function getBlockManualOverride(activity: Activity, blockIndex: 1 | 2) {
 
 function buildBlocksFromSegmentedMetrics(
   activity: Activity,
-  blocks: IntervalBlock[] | undefined
+  blocks: IntervalBlock[] | undefined,
+  allIntervals: ActivityInterval[]
 ): DisplayBlock[] {
-  return (blocks ?? []).map((block) => {
+  // Group active intervals into blocks by sequential slicing
+  const activeIntervals = allIntervals
+    .filter((intv) => intv.type === "active" || intv.type === "work")
+    .sort((a, b) => a.start_time - b.start_time);
+
+  let offset = 0;
+  const blockList = blocks ?? [];
+
+  return blockList.map((block) => {
     const blockIndex = block.block_index === 2 ? 2 : 1;
     const manual = getBlockManualOverride(activity, blockIndex);
     const isManual =
@@ -96,31 +110,45 @@ function buildBlocksFromSegmentedMetrics(
       manual.hrMean != null ||
       manual.hrLast != null;
 
+    const count = block.count ?? 0;
+    const blockIntervals = activeIntervals.slice(offset, offset + count);
+    offset += count;
+
     return {
-    id: `segmented-${block.block_index}`,
-    label: `Bloc ${block.block_index}`,
-    durationSec: block.total_duration_sec ?? block.representative_duration_sec ?? null,
-    pace: manual.paceMean ?? manual.paceLast ?? block.interval_pace_mean ?? block.interval_pace_last ?? null,
-    power:
-      manual.powerMean ?? manual.powerLast ?? block.interval_power_mean ?? block.interval_power_last ?? null,
-    hr: manual.hrMean ?? manual.hrLast ?? block.interval_hr_mean ?? block.interval_hr_last ?? null,
-    source: isManual ? "manuel" : "segmented_metrics",
-    count: block.count,
+      id: `segmented-${block.block_index}`,
+      label: `Bloc ${block.block_index}`,
+      durationSec: block.total_duration_sec ?? block.representative_duration_sec ?? null,
+      paceMean: manual.paceMean ?? block.interval_pace_mean ?? null,
+      paceLast: manual.paceLast ?? block.interval_pace_last ?? null,
+      powerMean: manual.powerMean ?? block.interval_power_mean ?? null,
+      powerLast: manual.powerLast ?? block.interval_power_last ?? null,
+      hrMean: manual.hrMean ?? block.interval_hr_mean ?? null,
+      hrLast: manual.hrLast ?? block.interval_hr_last ?? null,
+      source: isManual ? "manuel" : "segmented_metrics",
+      count: block.count,
+      intervals: blockIntervals,
     };
   });
 }
 
 function buildBlocksFromIntervals(intervals: ActivityInterval[]): DisplayBlock[] {
-  return intervals.map((intv, index) => ({
-    id: intv.id,
-    label: INTERVAL_TYPE_LABELS[intv.type] ?? `Bloc ${index + 1}`,
-    durationSec: intv.duration ?? null,
-    pace: intv.avg_speed ? 1000 / intv.avg_speed / 60 : null,
-    power: intv.avg_power ?? null,
-    hr: intv.avg_hr ?? null,
-    source: intv.detection_source ?? null,
-    count: null,
-  }));
+  return intervals.map((intv, index) => {
+    const pace = intv.avg_speed ? 1000 / intv.avg_speed / 60 : null;
+    return {
+      id: intv.id,
+      label: INTERVAL_TYPE_LABELS[intv.type] ?? `Bloc ${index + 1}`,
+      durationSec: intv.duration ?? null,
+      paceMean: pace,
+      paceLast: pace,
+      powerMean: intv.avg_power ?? null,
+      powerLast: intv.avg_power ?? null,
+      hrMean: intv.avg_hr ?? null,
+      hrLast: intv.avg_hr ?? null,
+      source: intv.detection_source ?? null,
+      count: null,
+      intervals: [],
+    };
+  });
 }
 
 export function ActivityDetailPage() {
@@ -138,6 +166,7 @@ export function ActivityDetailPage() {
   } = useActivityDetail(id);
   const [coachNote, setCoachNote] = useState("");
   const [highlightedSegments, setHighlightedSegments] = useState<DetectedSegment[]>([]);
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (activity?.coach_comment != null) {
@@ -201,7 +230,7 @@ export function ActivityDetailPage() {
 
   const sourceJson = activity.source_json ?? null;
   const segmentedMetrics = activity.segmented_metrics ?? null;
-  const segmentedBlocks = buildBlocksFromSegmentedMetrics(activity, segmentedMetrics?.interval_blocks);
+  const segmentedBlocks = buildBlocksFromSegmentedMetrics(activity, segmentedMetrics?.interval_blocks, intervals);
   const fallbackBlocks = buildBlocksFromIntervals(intervals);
   const displayBlocks = segmentedBlocks.length > 0 ? segmentedBlocks : fallbackBlocks;
   const isBike = BIKE_SPORTS.has(activity.sport_type ?? "");
@@ -214,13 +243,33 @@ export function ActivityDetailPage() {
 
   const isDirty = coachNote !== (activity?.coach_comment ?? "");
 
+  const blockHighlights = displayBlocks
+    .filter((b) => expandedBlocks.has(b.id))
+    .flatMap((b) =>
+      b.intervals
+        .filter((intv) => intv.start_time != null && intv.end_time != null)
+        .map((intv) => ({
+          startSec: intv.start_time,
+          endSec: intv.end_time,
+        })),
+    );
+
   const chartData = displayBlocks.map((block, index) => ({
     index: index + 1,
     label: block.label,
-    hr: block.hr != null ? Math.round(block.hr) : null,
-    pace: block.pace != null ? Number(block.pace.toFixed(2)) : null,
-    power: block.power != null ? Math.round(block.power) : null,
+    hr: block.hrMean != null ? Math.round(block.hrMean) : null,
+    pace: block.paceMean != null ? Number(block.paceMean.toFixed(2)) : null,
+    power: block.powerMean != null ? Math.round(block.powerMean) : null,
   }));
+
+  const toggleBlock = (id: string) => {
+    setExpandedBlocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -313,6 +362,7 @@ export function ActivityDetailPage() {
                   laps={activity.garmin_laps}
                   sportType={activity.sport_type}
                   highlightedSegments={highlightedSegments}
+                  blockHighlights={blockHighlights}
                   renderHeader={(toggles) => (
                     <div className="flex items-center justify-between gap-4 mb-4">
                       <div className="flex items-center gap-3">
@@ -448,42 +498,93 @@ export function ActivityDetailPage() {
                       <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                         <th className="px-6 py-3">Bloc</th>
                         <th className="px-6 py-3">Durée</th>
-                        <th className="px-6 py-3">{isBike ? "Puissance" : "Allure"}</th>
-                        <th className="px-6 py-3">FC Moy</th>
+                        <th className="px-6 py-3 text-accent-orange">{isBike ? "Puiss. Moy" : "Allure Moy"}</th>
+                        <th className="px-6 py-3">{isBike ? "Puiss. Last" : "Allure Last"}</th>
+                        <th className="px-6 py-3 text-accent-orange">FC Moy</th>
+                        <th className="px-6 py-3">FC Last</th>
                         <th className="px-6 py-3">Source</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {displayBlocks.map((block) => (
-                        <tr key={block.id}>
-                          <td className="whitespace-nowrap px-6 py-3 text-sm text-slate-900 dark:text-white">
-                            <div className="flex items-center gap-2">
-                              <span>{block.label}</span>
-                              {block.count != null && block.count > 1 && (
-                                <Badge variant="slate">{block.count} reps</Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">
-                            {block.durationSec != null ? formatDuration(block.durationSec) : "--"}
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">
-                            {isBike
-                              ? block.power != null
-                                ? `${Math.round(block.power)} W`
-                                : "--"
-                              : block.pace != null
-                                ? formatPaceDecimal(block.pace)
-                                : "--"}
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">
-                            {block.hr != null ? `${Math.round(block.hr)} bpm` : "--"}
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-3 text-sm text-slate-500">
-                            {block.source ?? activity.interval_detection_source ?? "--"}
-                          </td>
-                        </tr>
-                      ))}
+                      {displayBlocks.map((block) => {
+                        const hasSubRows = block.count != null && block.count > 1 && block.intervals.length > 0;
+                        const isExpanded = expandedBlocks.has(block.id);
+                        return (
+                          <Fragment key={block.id}>
+                            <tr
+                              className={hasSubRows ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" : ""}
+                              onClick={hasSubRows ? () => toggleBlock(block.id) : undefined}
+                            >
+                              <td className="whitespace-nowrap px-6 py-3 text-sm text-slate-900 dark:text-white">
+                                <div className="flex items-center gap-2">
+                                  {hasSubRows && (
+                                    <Icon
+                                      name={isExpanded ? "expand_less" : "expand_more"}
+                                      className="text-lg text-slate-400"
+                                    />
+                                  )}
+                                  <span>{block.label}</span>
+                                  {block.count != null && block.count > 1 && (
+                                    <Badge variant="slate">{block.count} reps</Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">
+                                {block.durationSec != null ? formatDuration(block.durationSec) : "--"}
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">
+                                {isBike
+                                  ? block.powerMean != null ? `${Math.round(block.powerMean)} W` : "--"
+                                  : block.paceMean != null ? formatPaceDecimal(block.paceMean) : "--"}
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">
+                                {isBike
+                                  ? block.powerLast != null ? `${Math.round(block.powerLast)} W` : "--"
+                                  : block.paceLast != null ? formatPaceDecimal(block.paceLast) : "--"}
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">
+                                {block.hrMean != null ? `${Math.round(block.hrMean)} bpm` : "--"}
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">
+                                {block.hrLast != null ? `${Math.round(block.hrLast)} bpm` : "--"}
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-3 text-sm text-slate-500">
+                                {block.source ?? activity.interval_detection_source ?? "--"}
+                              </td>
+                            </tr>
+                            {hasSubRows && isExpanded && block.intervals.map((intv, i) => (
+                              <tr
+                                key={intv.id}
+                                className="bg-blue-50/30 dark:bg-slate-800/30"
+                              >
+                                <td className="whitespace-nowrap py-2 pl-14 pr-6 text-xs text-slate-500 dark:text-slate-400">
+                                  #{i + 1}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">
+                                  {intv.duration != null ? formatDuration(intv.duration) : "--"}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">
+                                  {isBike
+                                    ? intv.avg_power != null ? `${Math.round(intv.avg_power)} W` : "--"
+                                    : intv.avg_speed ? speedToPace(intv.avg_speed) : "--"}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-400">
+                                  {/* no last for individual */}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">
+                                  {intv.avg_hr != null ? `${Math.round(intv.avg_hr)} bpm` : "--"}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-400">
+                                  {intv.avg_cadence != null ? `${Math.round(intv.avg_cadence)} rpm` : ""}
+                                </td>
+                                <td className="whitespace-nowrap px-6 py-2 text-xs text-slate-400">
+                                  {intv.detection_source ?? ""}
+                                </td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -519,27 +620,21 @@ export function ActivityDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <CardContent className="space-y-4 p-6">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-                <Icon name="radar" className="text-slate-400" />
-                Détecteur Manuel
-              </h2>
-              {!hasStreams && !isLoadingStreams ? (
-                <FeatureNotice
-                  title="Streams requis"
-                  description="Le détecteur manuel s'appuie sur les streams FIT déjà chargés pour cette séance. Sans streams, l'analyse manuelle n'est pas possible."
-                  status="backend"
-                />
-              ) : null}
-              <ManualIntervalDetector
-                activity={activity}
-                isLoadingStreams={isLoadingStreams}
-                onSave={saveManualDetectorOverride}
-                onDetectedSegmentsChange={setHighlightedSegments}
+          <div>
+            {!hasStreams && !isLoadingStreams ? (
+              <FeatureNotice
+                title="Streams requis"
+                description="Le détecteur manuel s'appuie sur les streams FIT déjà chargés pour cette séance. Sans streams, l'analyse manuelle n'est pas possible."
+                status="backend"
               />
-            </CardContent>
-          </Card>
+            ) : null}
+            <ManualIntervalDetector
+              activity={activity}
+              isLoadingStreams={isLoadingStreams}
+              onSave={saveManualDetectorOverride}
+              onDetectedSegmentsChange={setHighlightedSegments}
+            />
+          </div>
 
           <Card>
             <CardContent className="space-y-4 p-6">
