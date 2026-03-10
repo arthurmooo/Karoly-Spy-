@@ -33,12 +33,11 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <div className="z-10 w-full max-w-[440px] flex flex-col items-center mb-8">
-        <div className="bg-slate-900 dark:bg-slate-800 border border-slate-700 w-16 h-16 rounded-sm shadow-sm flex items-center justify-center mb-4">
-          <Icon name="directions_run" filled className="text-4xl text-white" />
-        </div>
-        <h1 className="text-2xl font-semibold uppercase text-slate-900 dark:text-white tracking-tight">
-          KS Endurance Training
-        </h1>
+        <img
+          src="/ks-logo.png"
+          alt="KS Endurance Training"
+          className="h-20 w-auto mb-4 dark:brightness-90"
+        />
         <p className="text-sm text-slate-500 mt-1">
           Plateforme de coaching premium pour triathlètes
         </p>
