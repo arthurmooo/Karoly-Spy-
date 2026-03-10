@@ -3,5 +3,18 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsBuildInfo"
   },
-  "include": ["src"]
+  "include": [
+    "src/App.tsx",
+    "src/main.tsx",
+    "src/vite-env.d.ts",
+    "src/components",
+    "src/hooks",
+    "src/lib",
+    "src/pages",
+    "src/repositories",
+    "src/services",
+    "src/styles",
+    "src/types"
+  ],
+  "exclude": ["src/app"]
 }

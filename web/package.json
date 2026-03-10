@@ -4,11 +4,11 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "sh -c 'vite build --watch --mode development & vite preview --port=3000 --host 127.0.0.1'",
-    "dev:vite": "vite --port=3000 --host 127.0.0.1",
-    "build": "tsc -b && vite build",
+    "dev": "node ./scripts/run-task.mjs dev",
+    "dev:vite": "node ./scripts/run-task.mjs dev",
+    "build": "node ./scripts/run-task.mjs build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ./scripts/run-task.mjs typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
@@ -21,7 +21,8 @@
     "tailwind-merge": "^3.2.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.3",
+    "@tailwindcss/cli": "^4.2.1",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",

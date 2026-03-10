@@ -1,6 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss" source(none);
-@source "./**/*.{ts,tsx}";
+@source "../components/**/*.{ts,tsx}";
+@source "../hooks/**/*.{ts,tsx}";
+@source "../lib/**/*.{ts,tsx}";
+@source "../pages/**/*.{ts,tsx}";
+@source "../repositories/**/*.{ts,tsx}";
+@source "../services/**/*.{ts,tsx}";
+@source "../styles/**/*.{ts,tsx}";
+@source "../types/**/*.{ts,tsx}";
 
 @custom-variant dark (&:where(.dark, .dark *));
 

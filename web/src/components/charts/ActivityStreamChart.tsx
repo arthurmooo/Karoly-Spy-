@@ -169,14 +169,13 @@ export function ActivityStreamChart({ streams, laps, sportType, renderHeader }: 
               interval={Math.max(1, Math.floor(tickInterval / 5))}
             />
 
-            {/* Left Y axis: Heart Rate — always present for stable layout */}
+            {/* Left Y axis: Heart Rate */}
             <YAxis
               yAxisId="left"
               domain={[hrMin, hrMax]}
-              tick={showHr ? { fontSize: 11, fill: "#ef4444" } : false}
+              tick={showHr ? { fontSize: 11, fill: "#ef4444" } : { fontSize: 0 }}
               tickLine={false}
               axisLine={false}
-              width={showHr ? undefined : 0}
               label={
                 showHr
                   ? { value: "bpm", angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#ef4444" } }
@@ -184,15 +183,14 @@ export function ActivityStreamChart({ streams, laps, sportType, renderHeader }: 
               }
             />
 
-            {/* Right Y axis: Pace or Power — always present for stable layout */}
+            {/* Right Y axis: Pace or Power */}
             <YAxis
               yAxisId="right"
               orientation="right"
               domain={isBike ? [secMin - 20, secMax + 20] : [secMax + 0.5, Math.max(secMin - 0.5, 0)]}
-              tick={showSecondary ? { fontSize: 11, fill: isBike ? "#22c55e" : "#3b82f6" } : false}
+              tick={showSecondary ? { fontSize: 11, fill: isBike ? "#22c55e" : "#3b82f6" } : { fontSize: 0 }}
               tickLine={false}
               axisLine={false}
-              width={showSecondary ? undefined : 0}
               tickFormatter={(v: number) => (isBike ? `${v}W` : formatPace(v))}
               label={
                 showSecondary
