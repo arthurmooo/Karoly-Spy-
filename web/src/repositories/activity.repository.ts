@@ -101,6 +101,8 @@ const DETAIL_COLUMNS_BASE = `id, athlete_id, session_date, sport_type, work_type
        manual_interval_block_2_power_mean, manual_interval_block_2_power_last,
        manual_interval_block_2_hr_mean, manual_interval_block_2_hr_last,
        manual_interval_block_2_pace_mean, manual_interval_block_2_pace_last,
+       manual_interval_block_1_count, manual_interval_block_1_duration_sec,
+       manual_interval_block_2_count, manual_interval_block_2_duration_sec,
        interval_detection_source, decoupling_index,
        durability_index, source_json, segmented_metrics, coach_comment, athlete_comment`;
 
@@ -160,6 +162,15 @@ export async function updateManualIntervalOverrides(
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
+}
+
+export async function triggerReprocess(activityId: string) {
+  const { data, error } = await supabase.functions.invoke("trigger-reprocess", {
+    body: { activity_id: activityId },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return { success: true };
 }
 
 export async function getRecentActivities(limit = 10) {

@@ -28,12 +28,16 @@ export interface ManualBlockOverridePayload {
   manual_interval_block_1_hr_last: number | null;
   manual_interval_block_1_pace_mean: number | null;
   manual_interval_block_1_pace_last: number | null;
+  manual_interval_block_1_count: number | null;
+  manual_interval_block_1_duration_sec: number | null;
   manual_interval_block_2_power_mean: number | null;
   manual_interval_block_2_power_last: number | null;
   manual_interval_block_2_hr_mean: number | null;
   manual_interval_block_2_hr_last: number | null;
   manual_interval_block_2_pace_mean: number | null;
   manual_interval_block_2_pace_last: number | null;
+  manual_interval_block_2_count: number | null;
+  manual_interval_block_2_duration_sec: number | null;
 }
 
 interface DetectionOptions {
@@ -305,11 +309,14 @@ export function resolveBlockMetrics(
   const hrMean = activity[`${prefix}hr_mean`] ?? baseBlock?.interval_hr_mean ?? null;
   const hrLast = activity[`${prefix}hr_last`] ?? baseBlock?.interval_hr_last ?? null;
 
+  const manualCount = activity[`manual_interval_block_${blockIndex}_count` as keyof Activity] as number | null | undefined;
+  const manualDuration = activity[`manual_interval_block_${blockIndex}_duration_sec` as keyof Activity] as number | null | undefined;
+
   return {
     blockIndex,
-    count: baseBlock?.count ?? null,
+    count: manualCount ?? baseBlock?.count ?? null,
     representativeDurationSec:
-      baseBlock?.representative_duration_sec ?? baseBlock?.total_duration_sec ?? null,
+      manualDuration ?? baseBlock?.representative_duration_sec ?? baseBlock?.total_duration_sec ?? null,
     paceMean,
     paceLast,
     powerMean,
@@ -327,7 +334,8 @@ export function hasManualBlockOverride(activity: Activity, blockIndex: 1 | 2): b
     activity[`${prefix}power_mean`] != null ||
     activity[`${prefix}power_last`] != null ||
     activity[`${prefix}hr_mean`] != null ||
-    activity[`${prefix}hr_last`] != null
+    activity[`${prefix}hr_last`] != null ||
+    activity[`${prefix}count`] != null
   );
 }
 
@@ -346,6 +354,8 @@ function buildBlockMetricUpdate(
     payload[`${prefix}hr_last`] = null;
     payload[`${prefix}pace_mean`] = null;
     payload[`${prefix}pace_last`] = null;
+    payload[`${prefix}count` as keyof ManualBlockOverridePayload] = null;
+    payload[`${prefix}duration_sec` as keyof ManualBlockOverridePayload] = null;
     return payload;
   }
 
@@ -399,6 +409,16 @@ function buildBlockMetricUpdate(
     payload[`${prefix}power_mean`] = null;
     payload[`${prefix}pace_mean`] = null;
   }
+
+  // Structure: count + median duration
+  payload[`${prefix}count` as keyof ManualBlockOverridePayload] = segments.length;
+  const sortedDurations = segments.map((s) => s.durationSec).sort((a, b) => a - b);
+  const mid = Math.floor(sortedDurations.length / 2);
+  const medianDuration =
+    sortedDurations.length % 2 === 0
+      ? (sortedDurations[mid - 1]! + sortedDurations[mid]!) / 2
+      : sortedDurations[mid]!;
+  payload[`${prefix}duration_sec` as keyof ManualBlockOverridePayload] = Math.round(medianDuration);
 
   return payload;
 }
@@ -522,6 +542,14 @@ export function buildManualBlockPayload(
       blockIndex === 1
         ? blockUpdate.manual_interval_block_1_pace_last ?? null
         : activity.manual_interval_block_1_pace_last ?? null,
+    manual_interval_block_1_count:
+      blockIndex === 1
+        ? (blockUpdate as Record<string, unknown>).manual_interval_block_1_count as number | null ?? null
+        : activity.manual_interval_block_1_count ?? null,
+    manual_interval_block_1_duration_sec:
+      blockIndex === 1
+        ? (blockUpdate as Record<string, unknown>).manual_interval_block_1_duration_sec as number | null ?? null
+        : activity.manual_interval_block_1_duration_sec ?? null,
     manual_interval_block_2_power_mean:
       blockIndex === 2
         ? blockUpdate.manual_interval_block_2_power_mean ?? null
@@ -546,6 +574,14 @@ export function buildManualBlockPayload(
       blockIndex === 2
         ? blockUpdate.manual_interval_block_2_pace_last ?? null
         : activity.manual_interval_block_2_pace_last ?? null,
+    manual_interval_block_2_count:
+      blockIndex === 2
+        ? (blockUpdate as Record<string, unknown>).manual_interval_block_2_count as number | null ?? null
+        : activity.manual_interval_block_2_count ?? null,
+    manual_interval_block_2_duration_sec:
+      blockIndex === 2
+        ? (blockUpdate as Record<string, unknown>).manual_interval_block_2_duration_sec as number | null ?? null
+        : activity.manual_interval_block_2_duration_sec ?? null,
   };
 }
 

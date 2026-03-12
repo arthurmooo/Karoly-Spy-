@@ -20,7 +20,9 @@ import { SortableHeader } from "@/components/tables/SortableHeader";
 import { useActivityDetail } from "@/hooks/useActivityDetail";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import type { Activity, ActivityInterval, ActivitySourceJson, IntervalBlock } from "@/types/activity";
+import { hasManualBlockOverride } from "@/services/manualIntervals.service";
 import { useState, useEffect, Fragment } from "react";
+import { toast } from "sonner";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
 import {
   formatDistance,
@@ -155,6 +157,61 @@ function buildBlocksFromIntervals(intervals: ActivityInterval[]): DisplayBlock[]
   });
 }
 
+function buildResolvedBlocks(
+  activity: Activity,
+  autoBlocks: DisplayBlock[],
+  intervals: ActivityInterval[]
+): DisplayBlock[] {
+  const activeIntervals = intervals
+    .filter((intv) => intv.type === "active" || intv.type === "work")
+    .sort((a, b) => a.start_time - b.start_time);
+
+  const resolved: DisplayBlock[] = [];
+
+  for (const blockIndex of [1, 2] as const) {
+    const hasManual = hasManualBlockOverride(activity, blockIndex);
+    const autoBlock = autoBlocks.find((b) => b.id === `segmented-${blockIndex}`);
+
+    if (!hasManual && !autoBlock) continue;
+
+    const manual = getBlockManualOverride(activity, blockIndex);
+    const manualCount = activity[`manual_interval_block_${blockIndex}_count` as keyof Activity] as number | null | undefined;
+    const manualDuration = activity[`manual_interval_block_${blockIndex}_duration_sec` as keyof Activity] as number | null | undefined;
+
+    const count = hasManual && manualCount != null ? manualCount : (autoBlock?.count ?? null);
+    const durationSec = hasManual && manualDuration != null
+      ? manualDuration
+      : (autoBlock?.durationSec ?? null);
+
+    // Slice active intervals for this block (best effort)
+    let blockIntervals: ActivityInterval[] = [];
+    if (autoBlock) {
+      blockIntervals = autoBlock.intervals;
+    } else if (count != null && count > 0) {
+      // Manual-only block: take first N active intervals not already claimed
+      const alreadyClaimed = resolved.reduce((sum, b) => sum + b.intervals.length, 0);
+      blockIntervals = activeIntervals.slice(alreadyClaimed, alreadyClaimed + count);
+    }
+
+    resolved.push({
+      id: `segmented-${blockIndex}`,
+      label: `Bloc ${blockIndex}`,
+      durationSec,
+      paceMean: hasManual ? (manual.paceMean ?? autoBlock?.paceMean ?? null) : (autoBlock?.paceMean ?? null),
+      paceLast: hasManual ? (manual.paceLast ?? autoBlock?.paceLast ?? null) : (autoBlock?.paceLast ?? null),
+      powerMean: hasManual ? (manual.powerMean ?? autoBlock?.powerMean ?? null) : (autoBlock?.powerMean ?? null),
+      powerLast: hasManual ? (manual.powerLast ?? autoBlock?.powerLast ?? null) : (autoBlock?.powerLast ?? null),
+      hrMean: hasManual ? (manual.hrMean ?? autoBlock?.hrMean ?? null) : (autoBlock?.hrMean ?? null),
+      hrLast: hasManual ? (manual.hrLast ?? autoBlock?.hrLast ?? null) : (autoBlock?.hrLast ?? null),
+      source: hasManual ? "manuel" : (autoBlock?.source ?? "segmented_metrics"),
+      count,
+      intervals: blockIntervals,
+    });
+  }
+
+  return resolved;
+}
+
 export function ActivityDetailPage() {
   const { id } = useParams();
   const {
@@ -167,12 +224,15 @@ export function ActivityDetailPage() {
     nolioSynced,
     saveCoachComment,
     saveManualDetectorOverride,
+    handleReprocess,
+    isReprocessing,
   } = useActivityDetail(id);
   const [coachNote, setCoachNote] = useState("");
   const [highlightedSegments, setHighlightedSegments] = useState<DetectedSegment[]>([]);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [blocksSortBy, setBlocksSortBy] = useState<"label" | "duration" | "mean" | "last" | "hr_mean" | "hr_last" | "source">(DEFAULT_BLOCKS_SORT_BY);
   const [blocksSortDir, setBlocksSortDir] = useState<SortDirection>(DEFAULT_BLOCKS_SORT_DIR);
+  const [reprocessLaunched, setReprocessLaunched] = useState(false);
 
   useEffect(() => {
     if (activity?.coach_comment != null) {
@@ -241,8 +301,9 @@ export function ActivityDetailPage() {
   const sourceJson = activity.source_json ?? null;
   const segmentedMetrics = activity.segmented_metrics ?? null;
   const segmentedBlocks = buildBlocksFromSegmentedMetrics(activity, segmentedMetrics?.interval_blocks, intervals);
+  const resolvedBlocks = buildResolvedBlocks(activity, segmentedBlocks, intervals);
   const fallbackBlocks = buildBlocksFromIntervals(intervals);
-  const displayBlocks = segmentedBlocks.length > 0 ? segmentedBlocks : fallbackBlocks;
+  const displayBlocks = resolvedBlocks.length > 0 ? resolvedBlocks : fallbackBlocks;
   const isBike = BIKE_SPORTS.has(activity.sport_type ?? "");
   const rpe = activity.rpe ?? sourceJson?.rpe ?? null;
   const athleteFeedback = activity.athlete_comment?.trim() || getFeedbackText(sourceJson);
@@ -350,6 +411,36 @@ export function ActivityDetailPage() {
               <Badge variant="primary">{mapWorkTypeLabel(activity.work_type)}</Badge>
             </div>
           </div>
+          {hasFitFile && (
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isReprocessing}
+                onClick={async () => {
+                  const result = await handleReprocess();
+                  if (result?.success) {
+                    toast.success("Recalcul lancé");
+                    setReprocessLaunched(true);
+                  } else {
+                    toast.error(result?.error ?? "Erreur lors du lancement");
+                  }
+                }}
+              >
+                {isReprocessing ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <Icon name="refresh" />
+                )}
+                {isReprocessing ? "Recalcul..." : "Recalculer"}
+              </Button>
+              {reprocessLaunched && (
+                <p className="text-[11px] text-slate-400">
+                  Rafraîchir dans ~3 min pour voir les nouvelles métriques
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -720,6 +811,25 @@ export function ActivityDetailPage() {
                   </div>
                 ) : (
                   <p className="text-sm italic text-slate-400">Non renseigné</p>
+                )}
+                {segmentedMetrics?.per_index != null && rpe != null && rpe >= 1 && (
+                  <div className="mt-2">
+                    <Badge
+                      variant={
+                        segmentedMetrics.per_index > 1.05
+                          ? "orange"
+                          : segmentedMetrics.per_index < 0.95
+                            ? "emerald"
+                            : "slate"
+                      }
+                    >
+                      {segmentedMetrics.per_index > 1.05
+                        ? "RPE > intensité objective"
+                        : segmentedMetrics.per_index < 0.95
+                          ? "RPE < intensité objective"
+                          : "RPE cohérent"}
+                    </Badge>
+                  </div>
                 )}
               </div>
 

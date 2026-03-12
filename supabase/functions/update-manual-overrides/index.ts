@@ -26,6 +26,10 @@ const ALLOWED_COLUMNS = new Set([
   "manual_interval_block_2_hr_last",
   "manual_interval_block_2_pace_mean",
   "manual_interval_block_2_pace_last",
+  "manual_interval_block_1_count",
+  "manual_interval_block_1_duration_sec",
+  "manual_interval_block_2_count",
+  "manual_interval_block_2_duration_sec",
 ]);
 
 Deno.serve(async (req) => {

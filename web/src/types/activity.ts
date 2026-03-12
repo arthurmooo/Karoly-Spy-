@@ -61,6 +61,10 @@ export interface Activity {
   manual_interval_block_2_hr_last?: number | null;
   manual_interval_block_2_pace_mean?: number | null;
   manual_interval_block_2_pace_last?: number | null;
+  manual_interval_block_1_count?: number | null;
+  manual_interval_block_1_duration_sec?: number | null;
+  manual_interval_block_2_count?: number | null;
+  manual_interval_block_2_duration_sec?: number | null;
   interval_detection_source: string | null;
   decoupling_index: number | null;
   durability_index: number | null;
@@ -152,4 +156,6 @@ export interface SegmentedMetrics {
   segmentation_type?: string | null;
   interval_pahr_last?: number | null;
   interval_pahr_mean?: number | null;
+  per_index?: number | null;
+  rpe_delta?: number | null;
 }
