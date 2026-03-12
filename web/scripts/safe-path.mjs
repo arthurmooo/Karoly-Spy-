@@ -33,5 +33,9 @@ function ensureSafeProjectLink() {
 }
 
 export function getSafeWebDir() {
+  // In Docker / CI the path has no spaces — skip symlink workaround
+  if (!webDir.includes(" ")) {
+    return webDir;
+  }
   return ensureSafeProjectLink();
 }
