@@ -547,6 +547,32 @@ class TextPlanParser:
                 })
                 return intervals
 
+        # ===== NEW PATTERN 0e: Additive distance blocks (NKm + NKm [+ NKm]) =====
+        # Examples:
+        #   "30Km : 9Km à 80-85% + 9Km à 86-90% + 9Km à 91-95%" → 3 targets, 9000m each
+        #   "40Km : 32Km Tempo + 4Km Z2" → 2 targets, 32000m + 4000m
+        # No repetition marker (N*) — each block is a standalone distance target
+        additive_blocks = re.findall(r'(\d+)\s*km\b', title_lower)
+        if len(additive_blocks) >= 3 and '+' in title_lower:
+            parts = [p.strip() for p in title_lower.split('+')]
+            block_distances = []
+            for idx, part in enumerate(parts):
+                dm = re.findall(r'(\d+)\s*km', part)
+                if dm:
+                    # For first part, take LAST match (skip header like "30Km :")
+                    dist_val = int(dm[-1]) if idx == 0 else int(dm[0])
+                    block_distances.append(dist_val * 1000)
+
+            if len(block_distances) >= 2:
+                for dist_m in block_distances:
+                    intervals.append({
+                        "type": "active",
+                        "distance_m": dist_m,
+                        "duration": dist_m * 0.24,  # estimate ~4:00/km
+                        "target_type": "distance"
+                    })
+                return intervals
+
         # ===== ORIGINAL PATTERN 1: Nx Distance =====
         # (e.g. 3x 2000m, 8*1km, 20x500)
         # Guard: avoid capturing time formats like 10x30/30 or 6*4'

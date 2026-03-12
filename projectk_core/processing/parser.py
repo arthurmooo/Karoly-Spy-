@@ -153,6 +153,10 @@ class FitParser:
                                     metadata['start_time'] = field.value
                                 elif field.name == 'total_ascent':
                                     metadata['total_ascent'] = field.value
+                                elif field.name == 'total_timer_time':
+                                    metadata['total_timer_time'] = field.value
+                                elif field.name == 'total_elapsed_time':
+                                    metadata['total_elapsed_time'] = field.value
                         
                         elif frame.name == 'file_id':
                             # DEBUG: Print all file_id fields to see what's available
@@ -194,8 +198,8 @@ class FitParser:
                                 if dist and dur:
                                     lap_row['avg_speed'] = float(dist) / float(dur)
 
-                            # Duration: total_elapsed_time -> duration
-                            dur = lap_row.get('total_elapsed_time') or lap_row.get('total_timer_time', 0)
+                            # Duration: prefer total_timer_time (active time) over total_elapsed_time (clock time)
+                            dur = lap_row.get('total_timer_time') or lap_row.get('total_elapsed_time', 0)
                             if dur:
                                 lap_row['duration'] = float(dur)
 

@@ -163,5 +163,67 @@ class TestIntervalMatcher(unittest.TestCase):
         self.assertAlmostEqual(results[0]['duration_sec'], 90, delta=5)
         self.assertGreater(results[0]['avg_power'], 350, "First interval should be high intensity")
 
+    def test_progressive_laps_chronological(self):
+        """
+        Fix 1 regression test: progressive session with 3 LAPs of increasing speed.
+        The matcher must take them in chronological order (first valid), NOT pick
+        the fastest one first (best-in-window).
+        """
+        # 3 LAPs: 3'52/km (4.31 m/s), 3'43/km (4.48 m/s), 3'24/km (4.90 m/s)
+        # Each ~9Km => ~2100s duration, ~9000m distance
+        speeds = [4.31, 4.48, 4.90]
+        lap_duration = 2100  # seconds
+        lap_distance = 9000  # meters
+        warmup = 600  # 10min warmup
+
+        total = warmup + lap_duration * 3 + 300  # some cooldown
+        timestamps = pd.date_range(start='2026-01-01 06:00:00', periods=total, freq='1s')
+        speed_arr = np.full(total, 2.5)  # jog baseline
+
+        # Build raw FIT-format laps (as _preprocess_laps expects)
+        # Include a warmup lap so the matcher must skip it
+        laps = [{
+            'total_timer_time': warmup,
+            'total_elapsed_time': warmup,
+            'total_distance': warmup * 2.5,
+            'enhanced_avg_speed': 2.5,
+            'avg_heart_rate': 120,
+            'avg_power': 0,
+        }]
+        offset = warmup
+        for i, spd in enumerate(speeds):
+            speed_arr[offset:offset + lap_duration] = spd
+            laps.append({
+                'total_timer_time': lap_duration,
+                'total_elapsed_time': lap_duration,
+                'total_distance': lap_distance,
+                'enhanced_avg_speed': spd,
+                'avg_heart_rate': 160 + i * 5,
+                'avg_power': 0,
+            })
+            offset += lap_duration
+
+        df = pd.DataFrame({
+            'timestamp': timestamps,
+            'speed': speed_arr,
+            'power': np.zeros(total),
+            'heart_rate': np.full(total, 155.0),
+        })
+
+        target_grid = [
+            {"duration": lap_duration, "distance_m": lap_distance, "target_type": "distance", "type": "active", "target_min": 4.0},
+            {"duration": lap_duration, "distance_m": lap_distance, "target_type": "distance", "type": "active", "target_min": 4.0},
+            {"duration": lap_duration, "distance_m": lap_distance, "target_type": "distance", "type": "active", "target_min": 4.0},
+        ]
+
+        results = self.matcher.match(df, target_grid, sport="run", laps=laps)
+
+        # All 3 must be matched in chronological order
+        self.assertEqual(len(results), 3, f"Expected 3 matches, got {len(results)}")
+        for i, r in enumerate(results):
+            self.assertAlmostEqual(r['avg_speed'], speeds[i], delta=0.15,
+                                   msg=f"Interval {i} speed mismatch: expected ~{speeds[i]}, got {r['avg_speed']}")
+
+
 if __name__ == '__main__':
     unittest.main()

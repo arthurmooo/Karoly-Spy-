@@ -80,6 +80,13 @@ export function formatPaceOrPower(
 
 export function formatActivityRow(row: Record<string, unknown>) {
   const athletes = row.athletes as { first_name: string; last_name: string } | null;
+  const durationSec = (row.duration_sec as number | null) ?? 0;
+  const distanceM = (row.distance_m as number | null) ?? 0;
+  const avgSpeed = distanceM && durationSec ? distanceM / durationSec : null;
+  const avgPower = row.avg_power as number | null;
+  const sportType = (row.sport_type as string) ?? "";
+  const normalizedSport = sportType.trim().toUpperCase();
+
   return {
     id: row.id as string,
     date: row.session_date as string,
@@ -91,16 +98,18 @@ export function formatActivityRow(row: Record<string, unknown>) {
     athlete_id: row.athlete_id as string,
     sport: mapSportLabel((row.sport_type as string) ?? ""),
     work_type: mapWorkTypeLabel(row.work_type as string | null),
-    duration: formatDuration((row.duration_sec as number) ?? 0),
-    distance: formatDistance((row.distance_m as number) ?? 0),
+    duration: formatDuration(durationSec),
+    distance: formatDistance(distanceM),
     mls: row.load_index as number | null,
     hr: row.avg_hr ? `${Math.round(row.avg_hr as number)} bpm` : "--",
     pace: formatPaceOrPower(
-      row.sport_type as string,
-      row.distance_m && row.duration_sec
-        ? (row.distance_m as number) / (row.duration_sec as number)
-        : null,
-      row.avg_power as number | null
+      sportType,
+      avgSpeed,
+      avgPower
     ),
+    pace_sort_value:
+      normalizedSport === "VELO" || normalizedSport === "VTT" || normalizedSport === "BIKE"
+        ? avgPower
+        : avgSpeed,
   };
 }

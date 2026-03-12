@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     // 3. Fetch activity to get nolio_id + athlete_id, verify coach ownership
     const { data: activity, error: actErr } = await supabaseAdmin
       .from("activities")
-      .select("id, nolio_id, athlete_id, athletes!inner(nolio_id, coach_id)")
+      .select("id, nolio_id, athlete_id, source_json, athletes!inner(nolio_id, coach_id)")
       .eq("id", activity_id)
       .single();
 
@@ -91,21 +91,30 @@ Deno.serve(async (req) => {
       nolioDebug = `skip: nolio_id=${nolioId}, athlete_nolio_id=${athleteNolioId}`;
     } else {
       try {
-        const accessToken = await getNolioAccessToken(supabaseAdmin);
-        if (!accessToken) {
+        const auth = await getNolioAccessToken(supabaseAdmin);
+        if (!auth) {
           nolioDebug = "token_refresh_failed";
         } else {
+          // Extract sport_id from source_json (Nolio requires it)
+          const sourceJson = activity.source_json as Record<string, unknown> | null;
+          const sportId = sourceJson?.sport_id ?? sourceJson?.planned_sport_id;
+
+          const payload: Record<string, unknown> = {
+            id_partner: auth.partnerId,
+            id: Number(nolioId),
+            description: comment,
+          };
+          if (sportId) payload.sport_id = Number(sportId);
+
+          console.log("Nolio update payload:", JSON.stringify(payload));
+
           const nolioRes = await fetch("https://www.nolio.io/api/update/training/", {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${accessToken}`,
+              Authorization: `Bearer ${auth.accessToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              id: nolioId,
-              description: comment,
-              athlete_id: athleteNolioId,
-            }),
+            body: JSON.stringify(payload),
           });
           if (nolioRes.ok) {
             nolioSynced = true;
@@ -141,23 +150,26 @@ Deno.serve(async (req) => {
  */
 async function getNolioAccessToken(
   supabase: ReturnType<typeof createClient>
-): Promise<string | null> {
-  const clientId = Deno.env.get("NOLIO_CLIENT_ID");
-  const clientSecret = Deno.env.get("NOLIO_CLIENT_SECRET");
-  if (!clientId || !clientSecret) {
-    console.error("Missing NOLIO_CLIENT_ID or NOLIO_CLIENT_SECRET");
+): Promise<{ accessToken: string; partnerId: number } | null> {
+  // Read all Nolio credentials from app_secrets
+  const { data: secrets, error: secErr } = await supabase
+    .from("app_secrets")
+    .select("key, value")
+    .in("key", ["NOLIO_CLIENT_ID", "NOLIO_CLIENT_SECRET", "NOLIO_REFRESH_TOKEN", "NOLIO_PARTNER_ID"]);
+
+  if (secErr || !secrets || secrets.length < 4) {
+    console.error("Cannot read Nolio secrets from app_secrets:", secErr?.message, "found:", secrets?.length);
     return null;
   }
 
-  // Read refresh token from app_secrets
-  const { data: secret, error: secErr } = await supabase
-    .from("app_secrets")
-    .select("value")
-    .eq("key", "NOLIO_REFRESH_TOKEN")
-    .single();
+  const secretMap = Object.fromEntries(secrets.map((s: { key: string; value: string }) => [s.key, s.value]));
+  const clientId = secretMap["NOLIO_CLIENT_ID"];
+  const clientSecret = secretMap["NOLIO_CLIENT_SECRET"];
+  const refreshToken = secretMap["NOLIO_REFRESH_TOKEN"];
+  const partnerId = secretMap["NOLIO_PARTNER_ID"];
 
-  if (secErr || !secret?.value) {
-    console.error("Cannot read NOLIO_REFRESH_TOKEN from app_secrets:", secErr?.message);
+  if (!clientId || !clientSecret || !refreshToken || !partnerId) {
+    console.error("Missing Nolio credentials in app_secrets");
     return null;
   }
 
@@ -171,7 +183,7 @@ async function getNolioAccessToken(
     },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: secret.value,
+      refresh_token: refreshToken,
     }),
   });
 
@@ -182,13 +194,19 @@ async function getNolioAccessToken(
 
   const tokenData = await tokenRes.json();
 
-  // Save new refresh token if changed
-  if (tokenData.refresh_token && tokenData.refresh_token !== secret.value) {
-    await supabase
+  // Always save new refresh token (Nolio uses rotating tokens — old one is now invalid)
+  if (tokenData.refresh_token) {
+    const { error: saveErr } = await supabase
       .from("app_secrets")
-      .update({ value: tokenData.refresh_token })
+      .update({ value: tokenData.refresh_token, updated_at: new Date().toISOString() })
       .eq("key", "NOLIO_REFRESH_TOKEN");
+
+    if (saveErr) {
+      console.error("CRITICAL: Failed to save new refresh token to DB:", saveErr.message);
+    } else {
+      console.log("Refresh token saved to DB");
+    }
   }
 
-  return tokenData.access_token ?? null;
+  return { accessToken: tokenData.access_token ?? null, partnerId: Number(partnerId) };
 }

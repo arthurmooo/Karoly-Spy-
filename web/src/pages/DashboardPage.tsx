@@ -48,16 +48,16 @@ export function DashboardPage() {
       .finally(() => setTodaySessionsLoading(false));
   }, []);
 
-  // Alertes: athletes with negative rMSSD trends
+  // Alertes: athletes outside the SWC band
   const alerts = useMemo(() => {
     return healthData
-      .filter((r) => r.tendance_rmssd_pct !== null && r.tendance_rmssd_pct < -5)
-      .sort((a, b) => (a.tendance_rmssd_pct ?? 0) - (b.tendance_rmssd_pct ?? 0));
+      .filter((row) => row.swc_status === "above_swc" || row.swc_status === "below_swc")
+      .sort((left, right) => left.athlete.localeCompare(right.athlete, "fr"));
   }, [healthData]);
 
   const criticalAlertCount = useMemo(() => {
     return healthData.filter(
-      (r) => r.tendance_rmssd_pct !== null && r.tendance_rmssd_pct < -10
+      (row) => row.swc_status === "above_swc" || row.swc_status === "below_swc"
     ).length;
   }, [healthData]);
 
@@ -287,7 +287,7 @@ export function DashboardPage() {
               <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
                 Alertes d'attention
               </h2>
-              <span className="text-sm font-medium text-slate-400">Vue détaillée non branchée</span>
+              <span className="text-sm font-medium text-slate-400">Cliquer pour ouvrir le détail</span>
             </div>
             <div className="space-y-3">
               {readinessLoading ? (
@@ -299,22 +299,35 @@ export function DashboardPage() {
                 <p className="text-sm text-slate-400 py-4 text-center">Aucune alerte</p>
               ) : (
                 alerts.slice(0, 5).map((alert) => {
-                  const pct = alert.tendance_rmssd_pct ?? 0;
-                  const isCritical = pct < -10;
+                  const isCritical = alert.swc_status === "below_swc";
                   return (
-                    <Card key={alert.athlete_id}>
-                      <CardContent className="p-3 flex items-center gap-3">
+                    <Card
+                      key={alert.athlete_id}
+                      className="transition-colors hover:bg-primary/5 dark:hover:bg-primary/10"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/athletes/${alert.athlete_id}/trends`)}
+                        className="w-full text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset"
+                        aria-label={`Ouvrir le rapport détaillé de ${alert.athlete}`}
+                      >
+                        <CardContent className="p-3 flex items-center gap-3 cursor-pointer">
                         <div className="w-8 h-8 rounded-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0">
                           {alert.athlete.charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{alert.athlete}</p>
-                          <p className="text-xs text-slate-500 truncate">rMSSD baisse {Math.abs(pct).toFixed(0)}%</p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {alert.swc_status === "above_swc"
+                              ? "LnRMSSD 7j au-dessus de la SWC"
+                              : "LnRMSSD 7j en-dessous de la SWC"}
+                          </p>
                         </div>
                         <Badge variant={isCritical ? "red" : "orange"}>
-                          {isCritical ? "URGENT" : "RECUP"}
+                          {isCritical ? "LOW/REST" : "SWC"}
                         </Badge>
-                      </CardContent>
+                        </CardContent>
+                      </button>
                     </Card>
                   );
                 })
@@ -369,7 +382,9 @@ export function DashboardPage() {
                   const sportKey = normalizeSportKey(act.sport_type ?? "");
                   const sportIcon = SPORT_ICONS[sportKey] ?? "exercise";
                   const averageHr = act.avg_hr != null ? `${Math.round(act.avg_hr)} bpm` : null;
-                  const duration = act.duration_sec ? formatDuration(act.duration_sec) : "—";
+                  const duration = (act as { moving_time_sec?: number | null }).moving_time_sec
+                    ? formatDuration((act as { moving_time_sec: number }).moving_time_sec)
+                    : act.duration_sec ? formatDuration(act.duration_sec) : "—";
 
                   return (
                     <button

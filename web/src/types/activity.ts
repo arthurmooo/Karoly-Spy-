@@ -29,6 +29,7 @@ export interface Activity {
   work_type: string | null;
   activity_name: string;
   duration_sec: number | null;
+  moving_time_sec: number | null;
   distance_m: number | null;
   load_index: number | null;
   avg_hr: number | null;
@@ -99,6 +100,8 @@ export interface ActivityFilters {
   search?: string;
   page?: number;
   per_page?: number;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
 }
 
 export interface ActivitySourceJson {

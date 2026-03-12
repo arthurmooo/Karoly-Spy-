@@ -16,11 +16,73 @@ def _normalize_cadence(value: Optional[float], sport: Optional[str] = None) -> O
     return float(value)
 
 
-def downsample_streams(df: pd.DataFrame, interval_sec: int = 5, sport: Optional[str] = None) -> List[Dict[str, Any]]:
+def detect_pause_mask(df: pd.DataFrame, sport: Optional[str] = None) -> np.ndarray:
+    """
+    Detect pauses in 1Hz stream data.
+    Returns a boolean mask (True = paused) of same length as df.
+
+    Thresholds by sport:
+    - run/ski/default: speed < 1.5 m/s for >= 20s
+    - bike:            speed < 1.0 m/s for >= 20s
+    - swim:            speed < 0.25 m/s for >= 20s
+    """
+    n = len(df)
+    if n == 0:
+        return np.zeros(0, dtype=bool)
+
+    if 'speed' not in df.columns:
+        return np.zeros(n, dtype=bool)
+
+    speed = df['speed'].fillna(0).values
+
+    sport_lower = (sport or "").lower()
+    if sport_lower in ("bike", "cycling", "vtt", "vélo"):
+        threshold = 1.0
+    elif sport_lower in ("swim", "natation"):
+        threshold = 0.25
+    else:  # run, ski, default
+        threshold = 1.5
+
+    min_duration = 20  # seconds
+
+    # Mark all low-speed points
+    is_slow = speed < threshold
+
+    # Find consecutive runs of slow points >= min_duration
+    mask = np.zeros(n, dtype=bool)
+    run_start = None
+    for i in range(n):
+        if is_slow[i]:
+            if run_start is None:
+                run_start = i
+        else:
+            if run_start is not None:
+                run_len = i - run_start
+                if run_len >= min_duration:
+                    mask[run_start:i] = True
+                run_start = None
+    # Handle trailing run
+    if run_start is not None:
+        run_len = n - run_start
+        if run_len >= min_duration:
+            mask[run_start:n] = True
+
+    return mask
+
+
+def downsample_streams(
+    df: pd.DataFrame,
+    interval_sec: int = 5,
+    sport: Optional[str] = None,
+    exclude_pauses: bool = True,
+) -> List[Dict[str, Any]]:
     """
     Resample a 1Hz DataFrame to `interval_sec` resolution.
     Returns a list of compact dicts: {t, hr, spd, pwr, cad, alt}
     Keys with None values are omitted to minimize JSON size.
+
+    When exclude_pauses=True, pause segments are filtered out and
+    StreamPoint.t represents cumulative active seconds (continuous).
     """
     if df.empty:
         return []
@@ -37,7 +99,85 @@ def downsample_streams(df: pd.DataFrame, interval_sec: int = 5, sport: Optional[
     # Remove duplicate index entries
     work = work[~work.index.duplicated(keep='first')]
 
-    # Compute elapsed seconds from start
+    # Filter pauses if requested
+    if exclude_pauses:
+        # Reset index temporarily to compute pause mask
+        work_reset = work.reset_index()
+        pause_mask = detect_pause_mask(work_reset, sport)
+        if pause_mask.any():
+            work = work[~pause_mask]
+            if work.empty:
+                return []
+
+    # For pause-filtered data, we compute t as cumulative active seconds
+    # instead of clock-based elapsed time
+    if exclude_pauses:
+        # Each remaining row = 1 active second, so t = 0, 1, 2, ...
+        active_seconds = np.arange(len(work))
+
+        # Define aggregation rules per column
+        agg_rules = {}
+        cols_for_agg = []
+        if 'heart_rate' in work.columns:
+            agg_rules['heart_rate'] = 'mean'
+            cols_for_agg.append('heart_rate')
+        if 'speed' in work.columns:
+            agg_rules['speed'] = 'last'
+            cols_for_agg.append('speed')
+        if 'power' in work.columns:
+            agg_rules['power'] = 'mean'
+            cols_for_agg.append('power')
+        if 'cadence' in work.columns:
+            agg_rules['cadence'] = 'mean'
+            cols_for_agg.append('cadence')
+        if 'altitude' in work.columns:
+            agg_rules['altitude'] = 'last'
+            cols_for_agg.append('altitude')
+
+        if not agg_rules:
+            return []
+
+        # Assign bucket based on active seconds
+        bucket_ids = active_seconds // interval_sec
+
+        # Reset to a plain DataFrame for groupby
+        work_plain = work.reset_index(drop=True)
+        work_plain['_bucket'] = bucket_ids
+
+        grouped = work_plain.groupby('_bucket')
+
+        points: List[Dict[str, Any]] = []
+        for bucket_id, group in grouped:
+            elapsed = int(bucket_id * interval_sec)
+            point: Dict[str, Any] = {'t': elapsed}
+
+            if 'heart_rate' in group.columns:
+                hr_val = group['heart_rate'].mean()
+                if pd.notna(hr_val):
+                    point['hr'] = int(round(hr_val))
+            if 'speed' in group.columns:
+                spd_val = group['speed'].iloc[-1]
+                if pd.notna(spd_val):
+                    point['spd'] = round(float(spd_val), 2)
+            if 'power' in group.columns:
+                pwr_val = group['power'].mean()
+                if pd.notna(pwr_val):
+                    point['pwr'] = int(round(pwr_val))
+            if 'cadence' in group.columns:
+                cad_val = group['cadence'].mean()
+                if pd.notna(cad_val):
+                    point['cad'] = int(round(_normalize_cadence(cad_val, sport) or 0))
+            if 'altitude' in group.columns:
+                alt_val = group['altitude'].iloc[-1]
+                if pd.notna(alt_val):
+                    point['alt'] = round(float(alt_val), 1)
+
+            if len(point) > 1:
+                points.append(point)
+
+        return points
+
+    # Original clock-based path (exclude_pauses=False)
     start_ts = work.index[0]
 
     # Define aggregation rules per column
@@ -109,8 +249,8 @@ def serialize_laps(laps: List[Dict], start_timestamp: Optional[datetime] = None,
         else:
             entry['start_sec'] = 0
 
-        # Duration
-        dur = lap.get('duration') or lap.get('total_elapsed_time') or lap.get('total_timer_time')
+        # Duration — prefer total_timer_time (active time) over total_elapsed_time (clock time)
+        dur = lap.get('total_timer_time') or lap.get('total_elapsed_time') or lap.get('duration')
         if dur is not None:
             entry['duration_sec'] = round(float(dur), 1)
 

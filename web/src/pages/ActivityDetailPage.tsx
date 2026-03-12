@@ -16,7 +16,9 @@ import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { ActivityStreamChart } from "@/components/charts/ActivityStreamChart";
 import { ManualIntervalDetector } from "@/components/intervals/ManualIntervalDetector";
 import { LapsTable } from "@/components/tables/LapsTable";
+import { SortableHeader } from "@/components/tables/SortableHeader";
 import { useActivityDetail } from "@/hooks/useActivityDetail";
+import { sortRows, type SortDirection } from "@/lib/tableSort";
 import type { Activity, ActivityInterval, ActivitySourceJson, IntervalBlock } from "@/types/activity";
 import { useState, useEffect, Fragment } from "react";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
@@ -51,6 +53,8 @@ const INTERVAL_TYPE_LABELS: Record<string, string> = {
 };
 
 const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
+const DEFAULT_BLOCKS_SORT_BY = "label";
+const DEFAULT_BLOCKS_SORT_DIR: SortDirection = "asc";
 
 function getFeedbackText(sourceJson: ActivitySourceJson | null | undefined): string {
   const text = sourceJson?.comment ?? sourceJson?.description ?? "";
@@ -167,6 +171,8 @@ export function ActivityDetailPage() {
   const [coachNote, setCoachNote] = useState("");
   const [highlightedSegments, setHighlightedSegments] = useState<DetectedSegment[]>([]);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
+  const [blocksSortBy, setBlocksSortBy] = useState<"label" | "duration" | "mean" | "last" | "hr_mean" | "hr_last" | "source">(DEFAULT_BLOCKS_SORT_BY);
+  const [blocksSortDir, setBlocksSortDir] = useState<SortDirection>(DEFAULT_BLOCKS_SORT_DIR);
 
   useEffect(() => {
     if (activity?.coach_comment != null) {
@@ -217,14 +223,18 @@ export function ActivityDetailPage() {
   const sessionDate = activity.session_date
     ? new Date(activity.session_date).toLocaleDateString("fr-FR")
     : "--";
-  const durationStr = activity.duration_sec ? formatDuration(activity.duration_sec) : "--";
+  const primaryDuration = activity.moving_time_sec ?? activity.duration_sec;
+  const durationStr = primaryDuration ? formatDuration(primaryDuration) : "--";
+  const hasElapsedDiff = activity.moving_time_sec != null
+    && activity.duration_sec != null
+    && Math.abs(activity.duration_sec - activity.moving_time_sec) > 60;
   const distanceStr = activity.distance_m ? formatDistance(activity.distance_m) : "--";
   const mlsStr = activity.load_index != null ? activity.load_index.toFixed(1) : "--";
   const hrStr = activity.avg_hr != null ? `${Math.round(activity.avg_hr)} bpm` : "--";
 
   const avgSpeed =
-    activity.distance_m && activity.duration_sec
-      ? activity.distance_m / activity.duration_sec
+    activity.distance_m && primaryDuration
+      ? activity.distance_m / primaryDuration
       : null;
   const paceStr = formatPaceOrPower(activity.sport_type ?? "", avgSpeed, activity.avg_power ?? null);
 
@@ -235,13 +245,37 @@ export function ActivityDetailPage() {
   const displayBlocks = segmentedBlocks.length > 0 ? segmentedBlocks : fallbackBlocks;
   const isBike = BIKE_SPORTS.has(activity.sport_type ?? "");
   const rpe = activity.rpe ?? sourceJson?.rpe ?? null;
-  const athleteFeedback = getFeedbackText(sourceJson);
+  const athleteFeedback = activity.athlete_comment?.trim() || getFeedbackText(sourceJson);
   const feeling = sourceJson?.feeling ?? null;
   const hasFitFile = Boolean(activity.fit_file_path);
   const hasStreams = Boolean(activity.activity_streams?.length);
   const hasLaps = Boolean(activity.garmin_laps?.length);
 
   const isDirty = coachNote !== (activity?.coach_comment ?? "");
+
+  const sortedDisplayBlocks = sortRows(
+    displayBlocks,
+    (block) => {
+      switch (blocksSortBy) {
+        case "duration":
+          return block.durationSec;
+        case "mean":
+          return isBike ? block.powerMean : block.paceMean;
+        case "last":
+          return isBike ? block.powerLast : block.paceLast;
+        case "hr_mean":
+          return block.hrMean;
+        case "hr_last":
+          return block.hrLast;
+        case "source":
+          return block.source;
+        case "label":
+        default:
+          return block.label;
+      }
+    },
+    blocksSortDir
+  );
 
   const blockHighlights = displayBlocks
     .filter((b) => expandedBlocks.has(b.id))
@@ -269,6 +303,22 @@ export function ActivityDetailPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const handleBlocksSort = (column: typeof blocksSortBy) => {
+    if (blocksSortBy !== column) {
+      setBlocksSortBy(column);
+      setBlocksSortDir("asc");
+      return;
+    }
+
+    if (blocksSortDir === "asc") {
+      setBlocksSortDir("desc");
+      return;
+    }
+
+    setBlocksSortBy(DEFAULT_BLOCKS_SORT_BY);
+    setBlocksSortDir(DEFAULT_BLOCKS_SORT_DIR);
   };
 
   return (
@@ -308,6 +358,11 @@ export function ActivityDetailPage() {
           <CardContent className="p-5">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Durée</p>
             <h3 className="font-mono text-2xl font-semibold text-slate-900 dark:text-white">{durationStr}</h3>
+            {hasElapsedDiff && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                (total : {formatDuration(activity.duration_sec!)})
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -491,22 +546,22 @@ export function ActivityDetailPage() {
                 </Badge>
               </div>
 
-              {displayBlocks.length > 0 ? (
+              {sortedDisplayBlocks.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
-                        <th className="px-6 py-3">Bloc</th>
-                        <th className="px-6 py-3">Durée</th>
-                        <th className="px-6 py-3 text-accent-orange">{isBike ? "Puiss. Moy" : "Allure Moy"}</th>
-                        <th className="px-6 py-3">{isBike ? "Puiss. Last" : "Allure Last"}</th>
-                        <th className="px-6 py-3 text-accent-orange">FC Moy</th>
-                        <th className="px-6 py-3">FC Last</th>
-                        <th className="px-6 py-3">Source</th>
+                        <SortableHeader label="Bloc" active={blocksSortBy === "label"} direction={blocksSortDir} onToggle={() => handleBlocksSort("label")} className="px-6 py-3" />
+                        <SortableHeader label="Durée" active={blocksSortBy === "duration"} direction={blocksSortDir} onToggle={() => handleBlocksSort("duration")} className="px-6 py-3" />
+                        <SortableHeader label={isBike ? "Puiss. Moy" : "Allure Moy"} active={blocksSortBy === "mean"} direction={blocksSortDir} onToggle={() => handleBlocksSort("mean")} className="px-6 py-3 text-accent-orange" />
+                        <SortableHeader label={isBike ? "Puiss. Last" : "Allure Last"} active={blocksSortBy === "last"} direction={blocksSortDir} onToggle={() => handleBlocksSort("last")} className="px-6 py-3" />
+                        <SortableHeader label="FC Moy" active={blocksSortBy === "hr_mean"} direction={blocksSortDir} onToggle={() => handleBlocksSort("hr_mean")} className="px-6 py-3 text-accent-orange" />
+                        <SortableHeader label="FC Last" active={blocksSortBy === "hr_last"} direction={blocksSortDir} onToggle={() => handleBlocksSort("hr_last")} className="px-6 py-3" />
+                        <SortableHeader label="Source" active={blocksSortBy === "source"} direction={blocksSortDir} onToggle={() => handleBlocksSort("source")} className="px-6 py-3" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {displayBlocks.map((block) => {
+                      {sortedDisplayBlocks.map((block) => {
                         const hasSubRows = block.count != null && block.count > 1 && block.intervals.length > 0;
                         const isExpanded = expandedBlocks.has(block.id);
                         return (

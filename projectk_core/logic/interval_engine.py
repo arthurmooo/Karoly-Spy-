@@ -4,6 +4,13 @@ import numpy as np
 from datetime import datetime
 from projectk_core.logic.models import PlannedStructure, IntervalBlock, DetectionSource
 
+def _normalize_cadence(value: Optional[float], sport: Optional[str] = None) -> Optional[float]:
+    if value is None:
+        return None
+    if sport and sport.lower() == "run":
+        return float(value) * 2.0
+    return float(value)
+
 class IntervalEngine:
     """
     Core engine for high-precision interval detection.
@@ -13,11 +20,12 @@ class IntervalEngine:
     2. Lap Analysis (Priority 2)
     3. Algorithmic Detection (Priority 3)
     """
-    def __init__(self, plan: Optional[PlannedStructure] = None, raw_laps: Optional[List[Dict[str, Any]]] = None, streams: Optional[pd.DataFrame] = None, workout_start_time: Optional[datetime] = None):
+    def __init__(self, plan: Optional[PlannedStructure] = None, raw_laps: Optional[List[Dict[str, Any]]] = None, streams: Optional[pd.DataFrame] = None, workout_start_time: Optional[datetime] = None, sport: Optional[str] = None):
         self.plan = plan
         self.raw_laps = raw_laps
         self.streams = streams
         self.workout_start_time = workout_start_time
+        self.sport = sport
         self.audit_log = []
 
     def process(self) -> List[IntervalBlock]:
@@ -25,7 +33,7 @@ class IntervalEngine:
         Execute the full fusion pipeline.
         """
         plan_blocks = PlanProjector(self.plan).project() if self.plan else []
-        lap_blocks = LapAnalyzer(self.raw_laps, reference_start_time=self.workout_start_time).to_blocks() if self.raw_laps else []
+        lap_blocks = LapAnalyzer(self.raw_laps, reference_start_time=self.workout_start_time, sport=self.sport).to_blocks() if self.raw_laps else []
         algo_blocks = AlgoDetector(self.streams).detect() if self.streams is not None else []
         
         voter = EnsembleVoter(plan_blocks, lap_blocks, algo_blocks)
@@ -34,7 +42,7 @@ class IntervalEngine:
         
         # Calculate metrics for fused blocks
         if self.streams is not None:
-            calculator = IntervalMetricsCalculator(self.streams)
+            calculator = IntervalMetricsCalculator(self.streams, sport=self.sport)
             fused_blocks = [calculator.calculate(b) for b in fused_blocks]
             
         return fused_blocks
@@ -105,10 +113,11 @@ class LapAnalyzer:
     """
     Processes raw laps from activity files.
     """
-    def __init__(self, raw_laps: List[Dict[str, Any]], min_duration: float = 5.0, reference_start_time: Optional[datetime] = None):
+    def __init__(self, raw_laps: List[Dict[str, Any]], min_duration: float = 5.0, reference_start_time: Optional[datetime] = None, sport: Optional[str] = None):
         self.raw_laps = raw_laps
         self.min_duration = min_duration
         self.reference_start_time = reference_start_time
+        self.sport = sport
 
     def to_blocks(self) -> List[IntervalBlock]:
         blocks = []
@@ -179,7 +188,7 @@ class LapAnalyzer:
             block.avg_speed = avg_speed
             block.avg_power = lap.get("avg_power")
             block.avg_hr = lap.get("avg_heart_rate")
-            block.avg_cadence = lap.get("avg_cadence")
+            block.avg_cadence = _normalize_cadence(lap.get("avg_cadence"), self.sport)
             
             blocks.append(block)
         return blocks
@@ -393,8 +402,9 @@ class IntervalMetricsCalculator:
     """
     Calculates physiological metrics for a given interval block.
     """
-    def __init__(self, streams: pd.DataFrame):
+    def __init__(self, streams: pd.DataFrame, sport: Optional[str] = None):
         self.streams = streams
+        self.sport = sport
         # Ensure time column exists for slicing
         if "time" not in self.streams.columns:
              start_time = self.streams.index[0] if isinstance(self.streams.index, pd.DatetimeIndex) else 0
@@ -427,7 +437,7 @@ class IntervalMetricsCalculator:
         if block.avg_speed is None and "speed" in segment.columns:
             block.avg_speed = float(segment["speed"].mean())
         if block.avg_cadence is None and "cadence" in segment.columns:
-            block.avg_cadence = float(segment["cadence"].mean())
+            block.avg_cadence = _normalize_cadence(segment["cadence"].mean(), self.sport)
             
         # Calculate Efficiency Ratio (Pa:Hr)
         if block.avg_hr and block.avg_hr > 0:

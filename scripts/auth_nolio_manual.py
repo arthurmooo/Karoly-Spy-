@@ -68,6 +68,3 @@ def run_manual_auth():
 
 if __name__ == "__main__":
     run_manual_auth()
-
-if __name__ == "__main__":
-    run_manual_auth()

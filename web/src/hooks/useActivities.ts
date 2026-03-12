@@ -2,8 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getActivities } from "@/repositories/activity.repository";
 import { formatActivityRow } from "@/services/activity.service";
+import type { SortDirection } from "@/lib/tableSort";
 
 const PER_PAGE = 25;
+const DEFAULT_SORT_BY = "session_date";
+const DEFAULT_SORT_DIR: SortDirection = "desc";
 
 export function useActivities() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -18,6 +21,8 @@ export function useActivities() {
   const dateFrom = searchParams.get("from") ?? undefined;
   const dateTo = searchParams.get("to") ?? undefined;
   const search = searchParams.get("q") ?? undefined;
+  const sortBy = searchParams.get("sort") ?? DEFAULT_SORT_BY;
+  const sortDir = (searchParams.get("dir") as SortDirection | null) ?? DEFAULT_SORT_DIR;
 
   const updateParam = useCallback(
     (key: string, value: string | null) => {
@@ -43,6 +48,8 @@ export function useActivities() {
       search,
       page,
       per_page: PER_PAGE,
+      sort_by: sortBy,
+      sort_dir: sortDir,
     })
       .then(({ data, count }) => {
         if (cancelled) return;
@@ -57,7 +64,7 @@ export function useActivities() {
     return () => {
       cancelled = true;
     };
-  }, [page, athleteId, sportType, workType, dateFrom, dateTo, search]);
+  }, [page, athleteId, sportType, workType, dateFrom, dateTo, search, sortBy, sortDir]);
 
   return {
     activities,
@@ -72,5 +79,14 @@ export function useActivities() {
     setDateFrom: (d: string | null) => updateParam("from", d),
     setDateTo: (d: string | null) => updateParam("to", d),
     setSearch: (q: string | null) => updateParam("q", q),
+    sortBy,
+    sortDir,
+    setSort: (column: string, direction: SortDirection) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("sort", column);
+      next.set("dir", direction);
+      next.delete("page");
+      setSearchParams(next);
+    },
   };
 }

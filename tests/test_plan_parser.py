@@ -110,5 +110,23 @@ class TestTextPlanParser(unittest.TestCase):
         self.assertEqual(plan[0]['distance_m'], 1000)
         self.assertEqual(plan[-1]['distance_m'], 9000)
 
+    def test_parse_additive_distance_3_blocks(self):
+        """Fix 5: additive distance pattern with 3 equal blocks."""
+        title = "30Km : 9Km à 80-85% + 9Km à 86-90% + 9Km à 91-95%"
+        plan = self.parser.parse(title)
+        self.assertEqual(len(plan), 3)
+        self.assertEqual(plan[0]['distance_m'], 9000)
+        self.assertEqual(plan[1]['distance_m'], 9000)
+        self.assertEqual(plan[2]['distance_m'], 9000)
+
+    def test_parse_additive_distance_2_blocks(self):
+        """Fix 5: additive distance pattern with 2 unequal blocks."""
+        title = "40Km : 32Km Tempo + 4Km Z2"
+        plan = self.parser.parse(title)
+        self.assertEqual(len(plan), 2)
+        self.assertEqual(plan[0]['distance_m'], 32000)
+        self.assertEqual(plan[1]['distance_m'], 4000)
+
+
 if __name__ == '__main__':
     unittest.main()

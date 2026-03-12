@@ -1,4 +1,10 @@
 import type { GarminLap } from "@/types/activity";
+import { useState } from "react";
+import { SortableHeader } from "@/components/tables/SortableHeader";
+import { sortRows, type SortDirection } from "@/lib/tableSort";
+
+const DEFAULT_SORT_BY = "lap";
+const DEFAULT_SORT_DIR: SortDirection = "asc";
 
 interface Props {
   laps: GarminLap[];
@@ -38,24 +44,68 @@ function formatSpeed(ms: number): string {
 
 export function LapsTable({ laps, sportType }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
+  const [sortBy, setSortBy] = useState<"lap" | "duration" | "distance" | "speed" | "power" | "avg_hr" | "max_hr" | "cadence">(DEFAULT_SORT_BY);
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_SORT_DIR);
+
+  const sortedLaps = sortRows(
+    laps,
+    (lap) => {
+      switch (sortBy) {
+        case "duration":
+          return lap.duration_sec;
+        case "distance":
+          return lap.distance_m;
+        case "speed":
+          return lap.avg_speed;
+        case "power":
+          return lap.avg_power;
+        case "avg_hr":
+          return lap.avg_hr;
+        case "max_hr":
+          return lap.max_hr;
+        case "cadence":
+          return normalizeDisplayedCadence(lap.avg_cadence, isBike);
+        case "lap":
+        default:
+          return lap.lap_n;
+      }
+    },
+    sortDir
+  );
+
+  const handleSort = (column: typeof sortBy) => {
+    if (sortBy !== column) {
+      setSortBy(column);
+      setSortDir("asc");
+      return;
+    }
+
+    if (sortDir === "asc") {
+      setSortDir("desc");
+      return;
+    }
+
+    setSortBy(DEFAULT_SORT_BY);
+    setSortDir(DEFAULT_SORT_DIR);
+  };
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
-            <th className="px-4 py-3">Lap</th>
-            <th className="px-4 py-3">Durée</th>
-            <th className="px-4 py-3">Distance</th>
-            <th className="px-4 py-3">{isBike ? "Vitesse" : "Allure"}</th>
-            {isBike && <th className="px-4 py-3">Puissance</th>}
-            <th className="px-4 py-3">FC Moy</th>
-            <th className="px-4 py-3">FC Max</th>
-            <th className="px-4 py-3">Cadence</th>
+            <SortableHeader label="Lap" active={sortBy === "lap"} direction={sortDir} onToggle={() => handleSort("lap")} />
+            <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} />
+            <SortableHeader label="Distance" active={sortBy === "distance"} direction={sortDir} onToggle={() => handleSort("distance")} />
+            <SortableHeader label={isBike ? "Vitesse" : "Allure"} active={sortBy === "speed"} direction={sortDir} onToggle={() => handleSort("speed")} />
+            {isBike && <SortableHeader label="Puissance" active={sortBy === "power"} direction={sortDir} onToggle={() => handleSort("power")} />}
+            <SortableHeader label="FC Moy" active={sortBy === "avg_hr"} direction={sortDir} onToggle={() => handleSort("avg_hr")} />
+            <SortableHeader label="FC Max" active={sortBy === "max_hr"} direction={sortDir} onToggle={() => handleSort("max_hr")} />
+            <SortableHeader label="Cadence" active={sortBy === "cadence"} direction={sortDir} onToggle={() => handleSort("cadence")} />
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {laps.map((lap) => (
+          {sortedLaps.map((lap) => (
             <tr key={lap.lap_n} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
               <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white">
                 {lap.lap_n}

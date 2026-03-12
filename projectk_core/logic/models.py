@@ -82,6 +82,7 @@ class ActivityMetadata(BaseModel):
     source_sport: Optional[str] = Field(None, description="Original sport name from source")
     start_time: datetime
     duration_sec: float = Field(gt=0)
+    moving_time_sec: Optional[float] = Field(None, ge=0, description="Active time excluding pauses")
     distance_m: Optional[float] = Field(None, ge=0)
     elevation_gain: Optional[float] = Field(None, ge=0, description="Total ascent in meters")
     device_id: Optional[str] = None

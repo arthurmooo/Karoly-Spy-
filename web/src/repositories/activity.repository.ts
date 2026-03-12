@@ -40,19 +40,19 @@ export async function getActivities(filters: ActivityFilters = {}) {
   const perPage = filters.per_page ?? PER_PAGE;
   const from = page * perPage;
   const to = from + perPage - 1;
+  const sortBy = filters.sort_by ?? "session_date";
+  const ascending = filters.sort_dir === "asc";
 
   let query = supabase
     .from("activities")
     .select(
       `id, athlete_id, session_date, sport_type, work_type, activity_name,
-       manual_activity_name, duration_sec, distance_m, load_index, avg_hr, avg_power, rpe,
+       manual_activity_name, duration_sec, moving_time_sec, distance_m, load_index, avg_hr, avg_power, rpe,
        interval_pace_mean, interval_power_mean, interval_hr_mean,
        interval_detection_source, decoupling_index,
        athletes!inner(first_name, last_name)`,
       { count: "exact" }
-    )
-    .order("session_date", { ascending: false })
-    .range(from, to);
+    );
 
   if (filters.athlete_id) {
     query = query.eq("athlete_id", filters.athlete_id);
@@ -73,13 +73,23 @@ export async function getActivities(filters: ActivityFilters = {}) {
     query = query.ilike("activity_name", `%${filters.search}%`);
   }
 
+  if (sortBy === "athlete_name") {
+    query = query
+      .order("last_name", { ascending, referencedTable: "athletes" })
+      .order("first_name", { ascending, referencedTable: "athletes" });
+  } else {
+    query = query.order(sortBy, { ascending });
+  }
+
+  query = query.range(from, to);
+
   const { data, count, error } = await query;
   if (error) throw error;
   return { data: data ?? [], count: count ?? 0 };
 }
 
 const DETAIL_COLUMNS_BASE = `id, athlete_id, session_date, sport_type, work_type, activity_name, manual_activity_name,
-       duration_sec, distance_m, load_index, avg_hr, avg_power, rpe, fit_file_path,
+       duration_sec, moving_time_sec, distance_m, load_index, avg_hr, avg_power, rpe, fit_file_path,
        interval_pace_mean, interval_pace_last, interval_power_mean, interval_power_last,
        interval_hr_mean, interval_hr_last,
        manual_interval_pace_mean, manual_interval_pace_last,
@@ -92,7 +102,7 @@ const DETAIL_COLUMNS_BASE = `id, athlete_id, session_date, sport_type, work_type
        manual_interval_block_2_hr_mean, manual_interval_block_2_hr_last,
        manual_interval_block_2_pace_mean, manual_interval_block_2_pace_last,
        interval_detection_source, decoupling_index,
-       durability_index, source_json, segmented_metrics, coach_comment`;
+       durability_index, source_json, segmented_metrics, coach_comment, athlete_comment`;
 
 export async function getActivityDetail(id: string) {
   // Try with stream columns; fall back if migration not yet applied
@@ -157,7 +167,7 @@ export async function getRecentActivities(limit = 10) {
     .from("activities")
     .select(
       `id, athlete_id, session_date, sport_type, work_type, activity_name,
-       manual_activity_name, duration_sec, distance_m, load_index, avg_hr,
+       manual_activity_name, duration_sec, moving_time_sec, distance_m, load_index, avg_hr,
        athletes(first_name, last_name)`
     )
     .order("session_date", { ascending: false })

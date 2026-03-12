@@ -661,6 +661,13 @@ class IngestionRobot:
                             if diff > 60: # Threshold: 60 seconds
                                 print(f"      ⚠️ Duration Mismatch! Nolio: {meta.duration_sec}s vs FIT: {fit_duration}s. Trusting FIT.")
                                 meta.duration_sec = fit_duration
+
+                        # Extract moving time from FIT session (active time, excludes pauses)
+                        fit_timer_time = device_meta.get('total_timer_time')
+                        if fit_timer_time and fit_timer_time > 0:
+                            meta.moving_time_sec = float(fit_timer_time)
+                        else:
+                            meta.moving_time_sec = meta.duration_sec  # fallback
                         
                         # Start Time Check
                         if device_meta.get('start_time'):

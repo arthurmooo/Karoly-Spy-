@@ -383,11 +383,17 @@ class MetricsCalculator:
                         (detections[0].get('confidence', 0) >= 0.60)
                     )
 
-                    # ===== COMPLETION THRESHOLD (2026-02-04) =====
-                    # Require at least 70% of expected intervals to be detected
-                    # This prevents partial sessions from populating metrics
+                    # ===== COMPLETION THRESHOLD (2026-02-04, adaptive 2026-03-05) =====
+                    # Adaptive threshold: small sets (≤3 reps) accept 50% because
+                    # 1/2=50% is the only non-zero option below 100%.
                     completion_ratio = num_matched / num_planned if num_planned > 0 else 0
-                    meets_completion_threshold = completion_ratio >= 0.70
+                    if num_planned <= 3:
+                        min_completion = 0.50  # 1/2 or 2/3 suffices
+                    elif num_planned <= 5:
+                        min_completion = 0.60  # 3/5 suffices
+                    else:
+                        min_completion = 0.70  # standard threshold
+                    meets_completion_threshold = completion_ratio >= min_completion
 
                     # Valid match: meets completion AND (all LAPs or high-confidence signal)
                     is_valid_match = meets_completion_threshold and (

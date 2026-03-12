@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { SortableHeader } from "@/components/tables/SortableHeader";
 import { SPORT_ICONS, SPORT_COLORS } from "@/lib/constants";
+import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useActivities } from "@/hooks/useActivities";
 import { useAthletes } from "@/hooks/useAthletes";
 
@@ -26,8 +28,10 @@ const WORK_TYPE_OPTIONS = [
   { value: "intervals", label: "Fractionné" },
 ];
 
+const DEFAULT_SORT_BY = "session_date";
+const DEFAULT_SORT_DIR: SortDirection = "desc";
+
 export function ActivitiesPage() {
-  const navigate = useNavigate();
   const {
     activities,
     total,
@@ -41,6 +45,9 @@ export function ActivitiesPage() {
     setDateFrom,
     setDateTo,
     setSearch,
+    sortBy,
+    sortDir,
+    setSort,
   } = useActivities();
   const { athletes } = useAthletes();
 
@@ -58,6 +65,39 @@ export function ActivitiesPage() {
           activities.filter((a) => a.mls != null).length
         ).toFixed(1)
       : "--";
+
+  type ActivitiesSortColumn =
+    | "session_date"
+    | "athlete_name"
+    | "sport_type"
+    | "work_type"
+    | "duration_sec"
+    | "distance_m"
+    | "load_index"
+    | "avg_hr"
+    | "pace_or_power";
+
+  const handleSort = (column: ActivitiesSortColumn) => {
+    if (sortBy !== column) {
+      setSort(column, column === "session_date" ? "desc" : "asc");
+      return;
+    }
+
+    if (sortDir === "asc") {
+      setSort(column, "desc");
+      return;
+    }
+
+    setSort(DEFAULT_SORT_BY, DEFAULT_SORT_DIR);
+  };
+
+  const displayActivities =
+    sortBy === "pace_or_power"
+      ? sortRows(activities, (activity) => activity.pace_sort_value, sortDir)
+      : activities;
+
+  const rowLinkClassName =
+    "block -mx-4 -my-3 px-4 py-3 transition-colors";
 
   return (
     <div className="space-y-8">
@@ -158,15 +198,15 @@ export function ActivitiesPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Athlète</th>
-                <th className="px-4 py-3">Sport</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Durée</th>
-                <th className="px-4 py-3">Distance</th>
-                <th className="px-4 py-3">MLS</th>
-                <th className="px-4 py-3">FC Moy</th>
-                <th className="px-4 py-3">Allure / Puissance</th>
+                <SortableHeader label="Date" active={sortBy === "session_date"} direction={sortDir} onToggle={() => handleSort("session_date")} />
+                <SortableHeader label="Athlète" active={sortBy === "athlete_name"} direction={sortDir} onToggle={() => handleSort("athlete_name")} />
+                <SortableHeader label="Sport" active={sortBy === "sport_type"} direction={sortDir} onToggle={() => handleSort("sport_type")} />
+                <SortableHeader label="Type" active={sortBy === "work_type"} direction={sortDir} onToggle={() => handleSort("work_type")} />
+                <SortableHeader label="Durée" active={sortBy === "duration_sec"} direction={sortDir} onToggle={() => handleSort("duration_sec")} />
+                <SortableHeader label="Distance" active={sortBy === "distance_m"} direction={sortDir} onToggle={() => handleSort("distance_m")} />
+                <SortableHeader label="MLS" active={sortBy === "load_index"} direction={sortDir} onToggle={() => handleSort("load_index")} />
+                <SortableHeader label="FC Moy" active={sortBy === "avg_hr"} direction={sortDir} onToggle={() => handleSort("avg_hr")} />
+                <SortableHeader label="Allure / Puissance" active={sortBy === "pace_or_power"} direction={sortDir} onToggle={() => handleSort("pace_or_power")} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -186,59 +226,85 @@ export function ActivitiesPage() {
                   </td>
                 </tr>
               ) : (
-                activities.map((act) => {
+                displayActivities.map((act) => {
                   const sportKey = act.sport.toUpperCase();
+                  const detailHref = `/activities/${act.id}`;
 
                   return (
                     <tr
                       key={act.id}
-                      onClick={() => navigate(`/activities/${act.id}`)}
-                      className="hover:bg-primary/5 dark:hover:bg-primary/10 cursor-pointer transition-colors"
+                      className="cursor-pointer transition-colors hover:bg-primary/5 dark:hover:bg-primary/10"
                     >
                       <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">
-                        {format(new Date(act.date), "dd MMM yyyy", { locale: fr })}
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          {format(new Date(act.date), "dd MMM yyyy", { locale: fr })}
+                        </Link>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                        <div className="flex items-start gap-2">
-                          <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
-                            {act.athlete.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="whitespace-nowrap">{act.athlete}</div>
-                            <div className="max-w-[130px] truncate text-xs text-slate-500 dark:text-slate-400">
-                              {act.title}
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          <div className="flex items-start gap-2">
+                            <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                              {act.athlete.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="whitespace-nowrap">{act.athlete}</div>
+                              <div className="max-w-[130px] truncate text-xs text-slate-500 dark:text-slate-400">
+                                {act.title}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Icon name={SPORT_ICONS[sportKey] ?? "exercise"} className={SPORT_COLORS[sportKey] ?? ""} />
-                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{act.sport}</span>
-                        </div>
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          <div className="flex items-center gap-2">
+                            <Icon name={SPORT_ICONS[sportKey] ?? "exercise"} className={SPORT_COLORS[sportKey] ?? ""} />
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{act.sport}</span>
+                          </div>
+                        </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Badge
-                          variant={
-                            act.work_type === "Compétition" ? "orange" : act.work_type === "Endurance" ? "primary" : "slate"
-                          }
-                        >
-                          {act.work_type}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.duration}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.distance}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {act.mls != null ? (
-                          <Badge variant={act.mls > 7 ? "red" : act.mls > 5 ? "orange" : act.mls > 3 ? "amber" : "emerald"}>
-                            {act.mls.toFixed(1)}
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          <Badge
+                            variant={
+                              act.work_type === "Compétition" ? "orange" : act.work_type === "Endurance" ? "primary" : "slate"
+                            }
+                          >
+                            {act.work_type}
                           </Badge>
-                        ) : (
-                          <span className="text-sm text-slate-400">--</span>
-                        )}
+                        </Link>
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.hr}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">{act.pace}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          {act.duration}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          {act.distance}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          {act.mls != null ? (
+                            <Badge variant={act.mls > 7 ? "red" : act.mls > 5 ? "orange" : act.mls > 3 ? "amber" : "emerald"}>
+                              {act.mls.toFixed(1)}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-slate-400">--</span>
+                          )}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          {act.hr}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        <Link to={detailHref} className={rowLinkClassName}>
+                          {act.pace}
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })

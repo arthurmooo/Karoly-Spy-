@@ -162,7 +162,7 @@ class ReprocessingEngine:
                     print(f"      [dim]⚠️ Nolio API skipped (Rate Limit/Error): {e}[/dim]")
                 
                 if details:
-                    activity_title = details.get('planned_name') or details.get('name') or ""
+                    activity_title = details.get('planned_name') or details.get('name') or existing_activity_name
                     
                     # Strategy A: Structured Workout from Activity Details (if synced)
                     # or from Linked Planned Workout
@@ -190,6 +190,12 @@ class ReprocessingEngine:
                         plan = self.text_plan_parser.parse(activity_title)
                         if plan:
                              print(f"      [bold cyan]📝 Text Plan Parsed:[/bold cyan] {len(plan)} intervals from '{activity_title}'")
+                else:
+                    # Nolio API returned None — fallback to existing DB name
+                    activity_title = existing_activity_name
+                    plan = self.text_plan_parser.parse(activity_title)
+                    if plan:
+                        print(f"      [bold cyan]📝 Text Plan Parsed (API Fallback):[/bold cyan] {len(plan)} intervals from '{activity_title}'")
             else:
                 # API disabled (offline mode) or failed or returned None - use existing name from database
                 activity_title = existing_activity_name
@@ -264,14 +270,32 @@ class ReprocessingEngine:
                         if spd: parts.append(f"{spd:.2f}m/s")
                         print(f"         [dim]Block {i+1}: {' | '.join(parts)} ({dur}s)[/dim]")
 
+            # Compute distance from FIT stream, fallback to existing DB value
+            fit_distance_m = None
+            if not df.empty and 'distance' in df.columns:
+                dist_series = df['distance'].dropna()
+                if not dist_series.empty:
+                    fit_distance_m = float(dist_series.iloc[-1])
+            distance_m = fit_distance_m or act_record.get('distance_m')
+
+            resolved_source_json = details if (nolio_id and not self.offline_mode and details) else act_record.get('source_json')
+
+            # Extract moving time from FIT session (active time, excludes pauses)
+            fit_timer_time = device_meta.get('total_timer_time')
+            moving_time = float(fit_timer_time) if fit_timer_time and fit_timer_time > 0 else float(len(df))
+
             meta = ActivityMetadata(
                 activity_type=sport,
                 activity_name=activity_title,
                 start_time=start_time,
                 duration_sec=len(df),
+                moving_time_sec=moving_time,
+                distance_m=distance_m,
+                elevation_gain=act_record.get('elevation_gain'),
                 rpe=act_record.get('rpe'),
                 work_type=work_type,
-                source_json=details if (nolio_id and not self.offline_mode and details) else act_record.get('source_json')
+                source_sport=act_record.get('source_sport'),
+                source_json=resolved_source_json,
             )
             
             # Fetch Weather (API)
@@ -358,13 +382,18 @@ class ReprocessingEngine:
             # 6. Update DB (Always save if we have a file, even without profile)
             ActivityWriter.update_by_id(
                 act_record['id'],
-                activity, 
-                self.db, 
-                athlete_id, 
-                nolio_id=act_record['nolio_id'], 
+                activity,
+                self.db,
+                athlete_id,
+                nolio_id=act_record['nolio_id'],
                 file_hash=None, # Don't change hash
                 file_path=path
             )
+
+            # 6b. Refresh activity_intervals (delete stale + insert fresh)
+            detailed = interval_metrics.get('detailed_matches') if interval_metrics else None
+            ActivityWriter.save_interval_dicts(detailed, act_record['id'], self.db)
+
             self.session_grouper.group_bricks_for_athlete_date(athlete_id, start_time)
             
         finally:

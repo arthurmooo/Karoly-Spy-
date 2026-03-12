@@ -57,6 +57,7 @@ class ActivityWriter:
             "sport_type": meta.activity_type,
             "source_sport": meta.source_sport,
             "duration_sec": meta.duration_sec,
+            "moving_time_sec": meta.moving_time_sec,
             "distance_m": meta.distance_m,
             "rpe": int(meta.rpe) if meta.rpe is not None else None,
             "missing_rpe_flag": meta.rpe is None,
@@ -102,8 +103,8 @@ class ActivityWriter:
             "source_json": meta.source_json,
             "athlete_comment": meta.source_json.get("description") if meta.source_json else None,
 
-            # Streams (downsampled 5s) & Garmin Laps
-            "activity_streams": downsample_streams(df, interval_sec=5, sport=sport) if not df.empty and 'heart_rate' in df.columns else None,
+            # Streams (downsampled 5s, pauses excluded) & Garmin Laps
+            "activity_streams": downsample_streams(df, interval_sec=5, sport=sport, exclude_pauses=True) if not df.empty and 'heart_rate' in df.columns else None,
             "garmin_laps": serialize_laps(activity.laps, meta.start_time, sport=sport) if activity.laps else None,
         }
         

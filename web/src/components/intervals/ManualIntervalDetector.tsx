@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { SortableHeader } from "@/components/tables/SortableHeader";
+import { sortRows, type SortDirection } from "@/lib/tableSort";
 import type { Activity } from "@/types/activity";
 import {
   buildManualBlockPayload,
@@ -28,6 +30,9 @@ interface MetricOption {
   value: ManualDetectionMetric;
   label: string;
 }
+
+const DEFAULT_SORT_BY = "value";
+const DEFAULT_SORT_DIR: SortDirection = "desc";
 
 function formatMetricValue(
   segment: DetectedSegment,
@@ -82,6 +87,8 @@ export function ManualIntervalDetector({
   const [distanceInput, setDistanceInput] = useState("1000");
   const [segments, setSegments] = useState<DetectedSegment[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<"index" | "start" | "end" | "duration" | "distance" | "value" | "hr" | "pace_or_power">(DEFAULT_SORT_BY);
+  const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_SORT_DIR);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -145,6 +152,36 @@ export function ManualIntervalDetector({
   const selectedSegments = useMemo(
     () => segments.filter((segment) => selectedIds.includes(segment.id)),
     [segments, selectedIds]
+  );
+
+  const sortedSegments = useMemo(
+    () =>
+      sortRows(
+        segments,
+        (segment) => {
+          switch (sortBy) {
+            case "index":
+              return segments.findIndex((item) => item.id === segment.id);
+            case "start":
+              return segment.startSec;
+            case "end":
+              return segment.endSec;
+            case "duration":
+              return segment.durationSec;
+            case "distance":
+              return segment.distanceM;
+            case "hr":
+              return segment.avgHr;
+            case "pace_or_power":
+              return isBike ? segment.avgPower : segment.avgSpeed;
+            case "value":
+            default:
+              return segment.avgValue;
+          }
+        },
+        sortDir
+      ),
+    [isBike, segments, sortBy, sortDir]
   );
 
   const summary = useMemo(() => {
@@ -229,6 +266,22 @@ export function ManualIntervalDetector({
         ? current.filter((id) => id !== segmentId)
         : [...current, segmentId]
     );
+  }
+
+  function handleSort(column: typeof sortBy) {
+    if (sortBy !== column) {
+      setSortBy(column);
+      setSortDir(column === "value" ? "desc" : "asc");
+      return;
+    }
+
+    if (sortDir === "asc") {
+      setSortDir("desc");
+      return;
+    }
+
+    setSortBy(DEFAULT_SORT_BY);
+    setSortDir(DEFAULT_SORT_DIR);
   }
 
   async function handleInject() {
@@ -487,18 +540,18 @@ export function ManualIntervalDetector({
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                <th className="px-3 py-2.5">#</th>
-                <th className="px-3 py-2.5">Début</th>
-                <th className="px-3 py-2.5">Fin</th>
-                <th className="px-3 py-2.5">Durée</th>
-                <th className="px-3 py-2.5">Dist.</th>
-                <th className="px-3 py-2.5">Valeur</th>
-                <th className="px-3 py-2.5">FC</th>
-                <th className="px-3 py-2.5">{isBike ? "Watt" : "Allure"}</th>
+                <SortableHeader label="#" active={sortBy === "index"} direction={sortDir} onToggle={() => handleSort("index")} className="px-3 py-2.5" />
+                <SortableHeader label="Début" active={sortBy === "start"} direction={sortDir} onToggle={() => handleSort("start")} className="px-3 py-2.5" />
+                <SortableHeader label="Fin" active={sortBy === "end"} direction={sortDir} onToggle={() => handleSort("end")} className="px-3 py-2.5" />
+                <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} className="px-3 py-2.5" />
+                <SortableHeader label="Dist." active={sortBy === "distance"} direction={sortDir} onToggle={() => handleSort("distance")} className="px-3 py-2.5" />
+                <SortableHeader label="Valeur" active={sortBy === "value"} direction={sortDir} onToggle={() => handleSort("value")} className="px-3 py-2.5" />
+                <SortableHeader label="FC" active={sortBy === "hr"} direction={sortDir} onToggle={() => handleSort("hr")} className="px-3 py-2.5" />
+                <SortableHeader label={isBike ? "Watt" : "Allure"} active={sortBy === "pace_or_power"} direction={sortDir} onToggle={() => handleSort("pace_or_power")} className="px-3 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {segments.map((segment, index) => {
+              {sortedSegments.map((segment, index) => {
                 const checked = selectedIds.includes(segment.id);
                 return (
                   <tr
