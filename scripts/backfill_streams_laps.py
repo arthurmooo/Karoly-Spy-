@@ -32,23 +32,34 @@ def main():
     db = DBConnector()
     storage = StorageManager()
 
-    # Fetch activities with a FIT file but no streams yet
-    query = (
-        db.client.table("activities")
-        .select("id, fit_file_path, session_date, activity_name, sport_type")
-        .is_("activity_streams", "null")
-        .not_.is_("fit_file_path", "null")
-        .order("session_date", desc=True)
-    )
+    # Fetch activities with a FIT file but no streams yet (paginated, Supabase max 1000/query)
+    activities = []
+    page_size = 1000
+    offset = 0
 
-    if args.date:
-        query = query.gte("session_date", f"{args.date}T00:00:00").lte("session_date", f"{args.date}T23:59:59")
+    while True:
+        query = (
+            db.client.table("activities")
+            .select("id, fit_file_path, session_date, activity_name, sport_type")
+            .is_("activity_streams", "null")
+            .not_.is_("fit_file_path", "null")
+            .order("session_date", desc=True)
+            .range(offset, offset + page_size - 1)
+        )
+
+        if args.date:
+            query = query.gte("session_date", f"{args.date}T00:00:00").lte("session_date", f"{args.date}T23:59:59")
+
+        result = query.execute()
+        batch = result.data or []
+        activities.extend(batch)
+
+        if len(batch) < page_size:
+            break
+        offset += page_size
 
     if args.limit > 0:
-        query = query.limit(args.limit)
-
-    result = query.execute()
-    activities = result.data or []
+        activities = activities[:args.limit]
 
     print(f"Found {len(activities)} activities to backfill")
     if not activities:
