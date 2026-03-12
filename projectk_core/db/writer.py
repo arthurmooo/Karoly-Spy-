@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from pydantic import BaseModel
 from projectk_core.logic.models import Activity
+from projectk_core.processing.stream_sampler import downsample_streams, serialize_laps
 
 class ActivityWriter:
     """
@@ -45,6 +46,8 @@ class ActivityWriter:
             temp_avg = float(df['temperature'].mean())
             weather_source = "device"
             
+        sport = meta.activity_type
+
         # Construct record
         record = {
             "athlete_id": athlete_id,
@@ -96,7 +99,12 @@ class ActivityWriter:
             # File Info
             "fit_file_path": file_path,
             "fit_file_hash": file_hash,
-            "source_json": meta.source_json
+            "source_json": meta.source_json,
+            "athlete_comment": meta.source_json.get("description") if meta.source_json else None,
+
+            # Streams (downsampled 5s) & Garmin Laps
+            "activity_streams": downsample_streams(df, interval_sec=5, sport=sport) if not df.empty and 'heart_rate' in df.columns else None,
+            "garmin_laps": serialize_laps(activity.laps, meta.start_time, sport=sport) if activity.laps else None,
         }
         
         # DEBUG WEATHER
@@ -171,6 +179,43 @@ class ActivityWriter:
             }
             data_to_save.append(ActivityWriter._sanitize_recursive(row))
             
+        if data_to_save:
+            return db_connector.client.table('activity_intervals').insert(data_to_save).execute()
+
+    @staticmethod
+    def save_interval_dicts(interval_dicts: list, activity_id: str, db_connector):
+        """
+        Saves raw interval matcher dicts to activity_intervals table.
+        Deletes existing rows first. Used by the reprocessor path
+        (which doesn't go through save() / IntervalBlock Pydantic objects).
+        """
+        # Always clean up old intervals for this activity
+        db_connector.client.table('activity_intervals').delete().eq('activity_id', activity_id).execute()
+
+        if not interval_dicts:
+            return
+
+        data_to_save = []
+        for m in interval_dicts:
+            if m.get('status') != 'matched':
+                continue
+            row = {
+                "activity_id": activity_id,
+                "start_time": float(m.get('start_index', 0)),
+                "end_time": float(m.get('end_index', 0)),
+                "duration": float(m.get('duration_sec', 0)),
+                "type": "active",
+                "detection_source": m.get('source', 'unknown'),
+                "avg_speed": float(m['avg_speed']) if m.get('avg_speed') else None,
+                "avg_power": float(m.get('plateau_avg_power') or m.get('avg_power') or 0) or None,
+                "avg_hr": float(m['avg_hr']) if m.get('avg_hr') else None,
+                "avg_cadence": float(m['avg_cadence']) if m.get('avg_cadence') else None,
+                "pa_hr_ratio": None,
+                "decoupling": None,
+                "respect_score": float(m['respect_score']) if m.get('respect_score') else None,
+            }
+            data_to_save.append(ActivityWriter._sanitize_recursive(row))
+
         if data_to_save:
             return db_connector.client.table('activity_intervals').insert(data_to_save).execute()
 
