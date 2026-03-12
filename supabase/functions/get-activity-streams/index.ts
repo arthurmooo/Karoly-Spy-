@@ -420,8 +420,8 @@ Deno.serve(async (req) => {
     if (streams.length) updatePayload.activity_streams = streams;
     if (laps.length) updatePayload.garmin_laps = laps;
 
-    // Backfill moving_time_sec: count non-paused seconds (safe — ignores if column doesn't exist yet)
-    if (parsed.records.length > 0) {
+    // Backfill moving_time_sec: count non-paused seconds
+    if (activity.moving_time_sec == null && parsed.records.length > 0) {
       const pauseMask = detectPauseMask(parsed.records, activity.sport_type);
       const activeCount = pauseMask.filter((p) => !p).length;
       if (activeCount > 0) {

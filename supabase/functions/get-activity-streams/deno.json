@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "fit-file-parser": "npm:fit-file-parser@2.1.1"
+  }
+}
