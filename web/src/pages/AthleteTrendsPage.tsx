@@ -17,15 +17,20 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
+import { SortableHeader } from "@/components/tables/SortableHeader";
+import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useReadiness } from "@/hooks/useReadiness";
 import { getAthleteById } from "@/repositories/athlete.repository";
 import {
   SWC_BASELINE_DAYS,
   buildHrvTimeline,
+  getLatestContextPoint,
+  getLatestSignalPoint,
   type DerivedHrvPoint,
 } from "@/services/hrv.service";
 import type { Athlete } from "@/types/athlete";
 
+type JournalSortBy = "date" | "sleep" | "energy" | "fatigue" | "lifestyle" | "sickness" | "alcohol";
 type TrendsPeriod = "7d" | "1m" | "3m" | "1y";
 type PrimarySeriesKey =
   | "ln_rmssd_7d_avg"
@@ -214,9 +219,7 @@ const DEFAULT_PRIMARY_SERIES = new Set<PrimarySeriesKey>([
   "swc_band",
 ]);
 
-const DEFAULT_SCORE_SERIES = new Set<ScoreSeriesKey>(
-  SCORE_SERIES.map((series) => series.key)
-);
+const DEFAULT_SCORE_SERIES = new Set<ScoreSeriesKey>(["sleep_quality"]);
 
 function formatDateLabel(iso: string, withYear = false): string {
   return format(parseISO(iso), withYear ? "d MMM yyyy" : "d MMM", { locale: fr });
@@ -305,6 +308,8 @@ export function AthleteTrendsPage() {
   const { id } = useParams();
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [period, setPeriod] = useState<TrendsPeriod>("1m");
+  const [journalSortBy, setJournalSortBy] = useState<JournalSortBy>("date");
+  const [journalSortDir, setJournalSortDir] = useState<SortDirection>("desc");
   const [visiblePrimary, setVisiblePrimary] =
     useState<Set<PrimarySeriesKey>>(new Set(DEFAULT_PRIMARY_SERIES));
   const [visibleScores, setVisibleScores] =
@@ -324,18 +329,23 @@ export function AthleteTrendsPage() {
     : "...";
 
   const timeline = useMemo(() => buildHrvTimeline(readinessSeries), [readinessSeries]);
-  const latest = timeline.length > 0 ? timeline[timeline.length - 1] : null;
-  const anchorDate = latest?.date ?? null;
+  const latestSignalPoint = useMemo(() => getLatestSignalPoint(timeline), [timeline]);
+  const latestContextPoint = useMemo(() => getLatestContextPoint(timeline), [timeline]);
+  const anchorDate = latestSignalPoint?.date ?? null;
+  const lastTimelineDate = timeline.length > 0 ? timeline[timeline.length - 1]!.date : null;
+  const displayEndDate = lastTimelineDate && anchorDate
+    ? (lastTimelineDate > anchorDate ? lastTimelineDate : anchorDate)
+    : anchorDate;
 
   const displayTimeline = useMemo(() => {
-    if (!anchorDate) return [];
+    if (!anchorDate || !displayEndDate) return [];
     const start = getPeriodStart(anchorDate, period).getTime();
-    const end = parseISO(anchorDate).getTime();
+    const end = parseISO(displayEndDate).getTime();
     return timeline.filter((point) => {
       const timestamp = parseISO(point.date).getTime();
       return timestamp >= start && timestamp <= end;
     });
-  }, [anchorDate, period, timeline]);
+  }, [anchorDate, displayEndDate, period, timeline]);
 
   const primaryChartData = useMemo(
     () => displayTimeline.map(buildPrimaryChartRow),
@@ -355,9 +365,9 @@ export function AthleteTrendsPage() {
     return `${formatDateLabel(first)} — ${formatDateLabel(last, true)}`;
   }, [displayTimeline]);
 
-  const latestLnRmssd7d = latest?.ln_rmssd_7d_avg ?? null;
-  const latestHr = latest?.resting_hr ?? null;
-  const avg30dHr = latest?.resting_hr_30d_avg ?? null;
+  const latestLnRmssd7d = latestSignalPoint?.ln_rmssd_7d_avg ?? null;
+  const latestHr = latestSignalPoint?.resting_hr ?? null;
+  const avg30dHr = latestSignalPoint?.resting_hr_30d_avg ?? null;
   const hrDiff =
     latestHr !== null && avg30dHr !== null ? latestHr - avg30dHr : null;
   const last7 = timeline.slice(-7);
@@ -440,7 +450,7 @@ export function AthleteTrendsPage() {
 
   const latestSubjectiveRows = useMemo(
     () =>
-      [...displayTimeline]
+      [...timeline]
         .reverse()
         .filter(
           (point) =>
@@ -451,12 +461,47 @@ export function AthleteTrendsPage() {
             point.fatigue !== null ||
             point.lifestyle !== null
         )
-        .slice(0, 10),
-    [displayTimeline]
+        .slice(0, 50),
+    [timeline]
   );
 
+  const sortedSubjectiveRows = useMemo(
+    () =>
+      sortRows(
+        latestSubjectiveRows,
+        (row) => {
+          switch (journalSortBy) {
+            case "sleep": return row.sleep_quality;
+            case "energy": return row.mental_energy;
+            case "fatigue": return row.fatigue;
+            case "lifestyle": return row.lifestyle;
+            case "sickness": return row.sickness;
+            case "alcohol": return row.alcohol;
+            case "date":
+            default: return new Date(row.date);
+          }
+        },
+        journalSortDir
+      ),
+    [latestSubjectiveRows, journalSortBy, journalSortDir]
+  );
+
+  const handleJournalSort = (column: JournalSortBy) => {
+    if (journalSortBy !== column) {
+      setJournalSortBy(column);
+      setJournalSortDir(column === "date" ? "desc" : "desc");
+      return;
+    }
+    if (journalSortDir === "desc") {
+      setJournalSortDir("asc");
+      return;
+    }
+    setJournalSortBy("date");
+    setJournalSortDir("desc");
+  };
+
   const alertes = useMemo(() => {
-    if (!latest) return [];
+    if (!latestSignalPoint) return [];
 
     const items: {
       type: "green" | "orange" | "neutral";
@@ -466,24 +511,24 @@ export function AthleteTrendsPage() {
       date: string;
     }[] = [];
 
-    if (latest.swc_status === "within_swc") {
+    if (latestSignalPoint.swc_status === "within_swc") {
       items.push({
         type: "green",
         title: "Signal SWC stable",
         text: "La moyenne glissante 7 jours de LnRMSSD reste dans la SWC dynamique calculée sur les 28 jours précédents.",
         icon: "check_circle",
-        date: formatFullDate(latest.date),
+        date: formatFullDate(latestSignalPoint.date),
       });
     } else if (
-      latest.swc_status === "above_swc" ||
-      latest.swc_status === "below_swc"
+      latestSignalPoint.swc_status === "above_swc" ||
+      latestSignalPoint.swc_status === "below_swc"
     ) {
       items.push({
         type: "orange",
         title: "Low/Rest recommandé",
         text: "La moyenne glissante 7 jours de LnRMSSD sort de la SWC dynamique. Alléger la charge et privilégier low/rest.",
         icon: "warning_amber",
-        date: formatFullDate(latest.date),
+        date: formatFullDate(latestSignalPoint.date),
       });
     } else {
       items.push({
@@ -491,12 +536,36 @@ export function AthleteTrendsPage() {
         title: "Historique insuffisant",
         text: "Autour de la dernière mesure valide, il manque encore assez de données pour établir un signal SWC fiable.",
         icon: "info",
-        date: formatFullDate(latest.date),
+        date: formatFullDate(latestSignalPoint.date),
+      });
+    }
+
+    const last14 = timeline.slice(-14);
+    const swcOutCount = last14.filter(
+      (point) => point.swc_status === "above_swc" || point.swc_status === "below_swc"
+    ).length;
+    if (swcOutCount > 0) {
+      items.push({
+        type: swcOutCount >= 3 ? "orange" : "neutral",
+        title: `${swcOutCount} sortie${swcOutCount > 1 ? "s" : ""} SWC sur 14j`,
+        text: `L'athlète est sorti${swcOutCount > 1 ? "e" : ""} de la bande SWC ${swcOutCount} fois sur les 14 derniers jours.`,
+        icon: swcOutCount >= 3 ? "warning_amber" : "info",
+        date: formatFullDate(latestSignalPoint.date),
+      });
+    }
+
+    if (latestHr !== null && avg30dHr !== null && latestHr - avg30dHr > 3) {
+      items.push({
+        type: "orange",
+        title: "FC repos élevée",
+        text: `La FC au repos (${latestHr.toFixed(1)} bpm) dépasse la moyenne 30j (${avg30dHr.toFixed(1)} bpm) de +${(latestHr - avg30dHr).toFixed(1)} bpm.`,
+        icon: "monitor_heart",
+        date: formatFullDate(latestSignalPoint.date),
       });
     }
 
     return items;
-  }, [latest]);
+  }, [latestSignalPoint, timeline, latestHr, avg30dHr]);
 
   const togglePrimary = (key: PrimarySeriesKey) => {
     setVisiblePrimary((previous) => {
@@ -525,7 +594,7 @@ export function AthleteTrendsPage() {
     );
   }
 
-  if (timeline.length === 0 || !anchorDate) {
+  if (timeline.length === 0 || !anchorDate || !latestSignalPoint) {
     return (
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -551,8 +620,6 @@ export function AthleteTrendsPage() {
       </div>
     );
   }
-
-  const anchorPoint = latest;
 
   return (
     <div className="space-y-8">
@@ -589,16 +656,16 @@ export function AthleteTrendsPage() {
                   LnRMSSD 7j
                 </p>
                 <div className="flex items-baseline gap-2">
-                  <h3 className="text-2xl font-semibold text-slate-900 dark:text-white font-mono">
+                  <h3 className="text-3xl font-semibold text-slate-900 dark:text-white font-mono">
                     {latestLnRmssd7d !== null ? latestLnRmssd7d.toFixed(3) : "—"}
                   </h3>
                 </div>
               </div>
-              <div className="flex items-end gap-1 h-12">
+              <div className="flex items-end gap-1 h-20">
                 {last7.map((point, index) => (
                   <div
                     key={index}
-                    className="w-2 bg-primary rounded-none"
+                    className="w-3 bg-primary rounded-none"
                     style={{
                       height: `${(((point.ln_rmssd_7d_avg ?? point.ln_rmssd ?? 0) / maxLnRmssd) * 100).toFixed(0)}%`,
                     }}
@@ -606,21 +673,35 @@ export function AthleteTrendsPage() {
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-2 mb-3">
-              <Badge variant={getSwcBadge(anchorPoint?.swc_status ?? null).variant}>
-                {getSwcBadge(anchorPoint?.swc_status ?? null).label}
+            <div className="flex items-center gap-2 mb-3 min-h-[28px]">
+              <Badge variant={getSwcBadge(latestSignalPoint.swc_status).variant}>
+                {getSwcBadge(latestSignalPoint.swc_status).label}
               </Badge>
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 {formatDateLabel(anchorDate, true)}
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              {anchorPoint?.swc_status === "within_swc"
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium min-h-[32px]">
+              {latestSignalPoint.swc_status === "within_swc"
                 ? "La moyenne 7j reste dans la bande SWC."
-                : anchorPoint?.swc_status === "above_swc" || anchorPoint?.swc_status === "below_swc"
+                : latestSignalPoint.swc_status === "above_swc" || latestSignalPoint.swc_status === "below_swc"
                   ? "La moyenne 7j sort de la bande SWC."
                   : "Le signal SWC est encore en construction sur la dernière mesure disponible."}
             </p>
+            <div className="flex items-center gap-6 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">SWC Low</p>
+                <p className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300">
+                  {latestSignalPoint.swc_low_28d?.toFixed(3) ?? "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">SWC High</p>
+                <p className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300">
+                  {latestSignalPoint.swc_high_28d?.toFixed(3) ?? "—"}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -632,7 +713,7 @@ export function AthleteTrendsPage() {
                   FC au repos
                 </p>
                 <div className="flex items-baseline gap-2">
-                  <h3 className="text-2xl font-semibold text-slate-900 dark:text-white font-mono">
+                  <h3 className="text-3xl font-semibold text-slate-900 dark:text-white font-mono">
                     {latestHr !== null ? latestHr.toFixed(1) : "—"}
                   </h3>
                   {hrDiff !== null && (
@@ -649,11 +730,11 @@ export function AthleteTrendsPage() {
                   )}
                 </div>
               </div>
-              <div className="flex items-end gap-1 h-12">
+              <div className="flex items-end gap-1 h-20">
                 {last7.map((point, index) => (
                   <div
                     key={index}
-                    className="w-2 bg-red-500 rounded-none"
+                    className="w-3 bg-red-500 rounded-none"
                     style={{
                       height: `${(((point.resting_hr ?? 0) / maxHr) * 100).toFixed(0)}%`,
                     }}
@@ -661,50 +742,79 @@ export function AthleteTrendsPage() {
                 ))}
               </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            <div className="flex items-center gap-2 mb-3 min-h-[28px]">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                {formatDateLabel(anchorDate, true)}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium min-h-[32px]">
               Comparaison à la moyenne 30 jours, à la date de la dernière mesure valide.
             </p>
+            <div className="flex items-center gap-6 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Moy 30j</p>
+                <p className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300">
+                  {latestSignalPoint.resting_hr_30d_avg?.toFixed(1) ?? "—"} <span className="text-xs font-normal text-slate-400">bpm</span>
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
           <CardContent className="p-6">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">
-              Dernier contexte
-            </p>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-slate-500 dark:text-slate-400">Recovery Points</p>
-                <p className="font-semibold text-slate-900 dark:text-white">
-                  {formatMetric(anchorPoint?.recovery_points ?? null, 1)}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-500 dark:text-slate-400">Physical Condition</p>
-                <p className="font-semibold text-slate-900 dark:text-white">
-                  {formatMetric(anchorPoint?.physical_condition ?? null)}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-500 dark:text-slate-400">Training Performance</p>
-                <p className="font-semibold text-slate-900 dark:text-white">
-                  {formatMetric(anchorPoint?.training_performance ?? null)}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-500 dark:text-slate-400">Poids</p>
-                <p className="font-semibold text-slate-900 dark:text-white">
-                  {poids !== null ? `${poids.toFixed(1)} kg` : "—"}
-                </p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Dernier contexte
+              </p>
+              <div className="flex items-center gap-2">
+                <Badge variant={latestContextPoint ? "primary" : "slate"}>
+                  {latestContextPoint ? "Importé" : "Aucun"}
+                </Badge>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {latestContextPoint ? formatDateLabel(latestContextPoint.date, true) : "—"}
+                </span>
               </div>
             </div>
+            <div className="space-y-2.5">
+              {([
+                { label: "Sleep", value: latestContextPoint?.sleep_quality ?? null, color: "#16a34a" },
+                { label: "Energy", value: latestContextPoint?.mental_energy ?? null, color: "#0891b2" },
+                { label: "Fatigue", value: latestContextPoint?.fatigue ?? null, color: "#ea580c" },
+                { label: "Lifestyle", value: latestContextPoint?.lifestyle ?? null, color: "#4f46e5" },
+                { label: "Physical", value: latestContextPoint?.physical_condition ?? null, color: "#0284c7" },
+                { label: "Recovery", value: latestContextPoint?.recovery_points ?? null, color: "#7c3aed" },
+              ] as const).map((item) => (
+                <div key={item.label} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0 text-right">
+                    {item.label}
+                  </span>
+                  <div className="flex-1 h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: item.value !== null ? `${(item.value / 10) * 100}%` : "0%",
+                        backgroundColor: item.color,
+                        opacity: item.value !== null ? 1 : 0.3,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs font-mono font-semibold text-slate-900 dark:text-white w-8 text-right">
+                    {formatMetric(item.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Badge variant={anchorPoint?.sickness && anchorPoint.sickness !== "not sick" ? "amber" : "slate"}>
-                {anchorPoint?.sickness ?? "sickness —"}
+              <Badge variant={latestContextPoint?.sickness && latestContextPoint.sickness !== "not sick" ? "amber" : "slate"}>
+                {latestContextPoint?.sickness ?? "sickness —"}
               </Badge>
-              <Badge variant={anchorPoint?.alcohol && anchorPoint.alcohol !== "nothing" ? "amber" : "slate"}>
-                {anchorPoint?.alcohol ?? "alcohol —"}
+              <Badge variant={latestContextPoint?.alcohol && latestContextPoint.alcohol !== "nothing" ? "amber" : "slate"}>
+                {latestContextPoint?.alcohol ?? "alcohol —"}
               </Badge>
+              {poids !== null && (
+                <Badge variant="slate">{poids.toFixed(1)} kg</Badge>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -803,7 +913,7 @@ export function AthleteTrendsPage() {
                     displayTimeline.length > 0
                       ? parseISO(displayTimeline[0]?.date ?? anchorDate).getTime()
                       : parseISO(anchorDate).getTime(),
-                    parseISO(anchorDate).getTime(),
+                    parseISO(displayEndDate!).getTime(),
                   ]}
                   tick={{ fontSize: 12, fill: "#64748b" }}
                   tickLine={false}
@@ -986,7 +1096,7 @@ export function AthleteTrendsPage() {
                     displayTimeline.length > 0
                       ? parseISO(displayTimeline[0]?.date ?? anchorDate).getTime()
                       : parseISO(anchorDate).getTime(),
-                    parseISO(anchorDate).getTime(),
+                    parseISO(displayEndDate!).getTime(),
                   ]}
                   tick={{ fontSize: 12, fill: "#64748b" }}
                   tickLine={false}
@@ -1046,13 +1156,13 @@ export function AthleteTrendsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8">
         <div className="space-y-4">
           <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
             <Icon name="warning" className="text-slate-500 dark:text-slate-400" />
             Alertes récentes
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
             {alertes.map((alerte, index) => (
               <div
                 key={index}
@@ -1096,28 +1206,28 @@ export function AthleteTrendsPage() {
             Journal quotidien
           </h3>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-            <div className="overflow-x-auto">
+            <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Sleep</th>
-                    <th className="px-4 py-3">Energy</th>
-                    <th className="px-4 py-3">Fatigue</th>
-                    <th className="px-4 py-3">Lifestyle</th>
-                    <th className="px-4 py-3">Sickness</th>
-                    <th className="px-4 py-3">Alcohol</th>
+                    <SortableHeader label="Date" active={journalSortBy === "date"} direction={journalSortDir} onToggle={() => handleJournalSort("date")} className="px-4 py-3" />
+                    <SortableHeader label="Sleep" active={journalSortBy === "sleep"} direction={journalSortDir} onToggle={() => handleJournalSort("sleep")} className="px-4 py-3" />
+                    <SortableHeader label="Energy" active={journalSortBy === "energy"} direction={journalSortDir} onToggle={() => handleJournalSort("energy")} className="px-4 py-3" />
+                    <SortableHeader label="Fatigue" active={journalSortBy === "fatigue"} direction={journalSortDir} onToggle={() => handleJournalSort("fatigue")} className="px-4 py-3" />
+                    <SortableHeader label="Lifestyle" active={journalSortBy === "lifestyle"} direction={journalSortDir} onToggle={() => handleJournalSort("lifestyle")} className="px-4 py-3" />
+                    <SortableHeader label="Sickness" active={journalSortBy === "sickness"} direction={journalSortDir} onToggle={() => handleJournalSort("sickness")} className="px-4 py-3" />
+                    <SortableHeader label="Alcohol" active={journalSortBy === "alcohol"} direction={journalSortDir} onToggle={() => handleJournalSort("alcohol")} className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {latestSubjectiveRows.length === 0 ? (
+                  {sortedSubjectiveRows.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-sm text-center text-slate-500">
                         Aucune donnée subjective sur la période sélectionnée.
                       </td>
                     </tr>
                   ) : (
-                    latestSubjectiveRows.map((row) => (
+                    sortedSubjectiveRows.map((row) => (
                       <tr key={row.date}>
                         <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">
                           {formatDateLabel(row.date, true)}
