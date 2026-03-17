@@ -1,5 +1,6 @@
 export interface StreamPoint {
-  t: number;      // elapsed seconds
+  t: number;      // active seconds on the chart axis
+  elapsed_t?: number; // elapsed seconds since activity start
   hr?: number;    // bpm
   spd?: number;   // m/s
   pwr?: number;   // watts
@@ -72,6 +73,7 @@ export interface Activity {
   fit_file_path?: string | null;
   source_json?: ActivitySourceJson | null;
   segmented_metrics?: SegmentedMetrics | null;
+  form_analysis?: FormAnalysis | null;
   activity_streams?: StreamPoint[] | null;
   garmin_laps?: GarminLap[] | null;
   athletes?: {
@@ -102,6 +104,8 @@ export interface ActivityFilters {
   date_from?: string;
   date_to?: string;
   search?: string;
+  duration_min?: number; // seconds
+  duration_max?: number; // seconds
   page?: number;
   per_page?: number;
   sort_by?: string;
@@ -158,4 +162,142 @@ export interface SegmentedMetrics {
   interval_pahr_mean?: number | null;
   per_index?: number | null;
   rpe_delta?: number | null;
+}
+
+export type FormAnalysisModule = "continuous_tempo" | "intervals";
+export type ComparisonMode = "beta_regression" | "same_temp_bin";
+export type FormGlobalDecision =
+  | "amelioration"
+  | "fatigue_stress"
+  | "signal_alarme"
+  | "stable"
+  | "historique_insuffisant"
+  | "amelioration_fragile"
+  | "fatigue_confirmee"
+  | "alerte_renforcee";
+
+export type FormModuleDecision =
+  | "progression_tempo"
+  | "degradation_tendance"
+  | "fatigue_stress"
+  | "progression_intervalles"
+  | "fatigue_intervalles"
+  | "alerte_intervalles"
+  | "historique_insuffisant";
+
+export interface StableSegment {
+  window_label?: string | null;
+  start_sec?: number | null;
+  end_sec?: number | null;
+  selected_points?: number | null;
+}
+
+export interface RepWindow {
+  rep_index: number;
+  start_sec?: number | null;
+  end_sec?: number | null;
+  duration_sec?: number | null;
+  hr_raw?: number | null;
+  hr_corr?: number | null;
+  output?: number | null;
+  ea?: number | null;
+}
+
+export interface TemperatureCorrection {
+  temp?: number | null;
+  tref?: number | null;
+  beta_hr?: number | null;
+  beta_drift?: number | null;
+  hr_mean_raw?: number | null;
+  hr_corr?: number | null;
+  hr_corr_baseline?: number | null;
+  delta_hr_corr?: number | null;
+  drift_raw?: number | null;
+  drift_corr?: number | null;
+  temp_bin_width_c?: number | null;
+}
+
+export interface OutputSnapshot {
+  metric?: string | null;
+  mean?: number | null;
+  baseline?: number | null;
+  delta_pct?: number | null;
+  unit?: string | null;
+  stable?: boolean | null;
+  tolerance_pct?: number | null;
+  normalization?: string | null;
+  grade_source?: string | null;
+  grade_window_m?: number | null;
+  grade_grid_step_m?: number | null;
+  grade_coverage_pct?: number | null;
+  grade_valid_points?: number | null;
+  grade_quality?: string | null;
+}
+
+export interface EaSnapshot {
+  today?: number | null;
+  baseline?: number | null;
+  delta_pct?: number | null;
+  first_half?: number | null;
+  second_half?: number | null;
+  first_pair?: number | null;
+  first_pair_baseline?: number | null;
+  first_pair_delta_pct?: number | null;
+}
+
+export interface DecouplingSnapshot {
+  metric?: string | null;
+  raw?: number | null;
+  today?: number | null;
+  baseline?: number | null;
+  delta?: number | null;
+}
+
+export interface HrEndDriftSnapshot {
+  today?: number | null;
+  baseline?: number | null;
+  delta?: number | null;
+}
+
+export interface RpeSnapshot {
+  today?: number | null;
+  baseline?: number | null;
+  delta?: number | null;
+  available?: boolean | null;
+}
+
+export interface FormDecision {
+  global?: FormGlobalDecision | null;
+  module?: FormModuleDecision | null;
+  final?: FormGlobalDecision | null;
+  durability_flag?: boolean | null;
+  reasons?: string[] | null;
+}
+
+export interface FormAnalysis {
+  version: string;
+  module: FormAnalysisModule;
+  template_key?: string | null;
+  template?: {
+    duration_sec?: number | null;
+    recovery_duration_sec?: number | null;
+    rep_count?: number | null;
+    output_band?: number | null;
+  } | null;
+  comparable_count?: number | null;
+  comparison_mode?: ComparisonMode | null;
+  environment?: {
+    location?: string | null;
+    terrain?: string | null;
+  } | null;
+  stable_segment?: StableSegment | null;
+  rep_windows?: RepWindow[] | null;
+  temperature?: TemperatureCorrection | null;
+  output?: OutputSnapshot | null;
+  ea?: EaSnapshot | null;
+  decoupling?: DecouplingSnapshot | null;
+  hrend_drift?: HrEndDriftSnapshot | null;
+  rpe?: RpeSnapshot | null;
+  decision?: FormDecision | null;
+  confidence?: number | null;
 }

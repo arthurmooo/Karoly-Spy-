@@ -78,6 +78,11 @@ export function formatPaceOrPower(
   return avgSpeed ? speedToPace(avgSpeed) : "--";
 }
 
+export function isTempo(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return /tempo/i.test(name);
+}
+
 export function formatActivityRow(row: Record<string, unknown>) {
   const athletes = row.athletes as { first_name: string; last_name: string } | null;
   const durationSec = (row.duration_sec as number | null) ?? 0;
@@ -107,6 +112,7 @@ export function formatActivityRow(row: Record<string, unknown>) {
       avgSpeed,
       avgPower
     ),
+    rpe: (row.rpe as number | null) ?? null,
     pace_sort_value:
       normalizedSport === "VELO" || normalizedSport === "VTT" || normalizedSport === "BIKE"
         ? avgPower
