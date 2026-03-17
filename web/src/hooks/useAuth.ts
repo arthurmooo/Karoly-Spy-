@@ -1,11 +1,24 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import type { AppRole } from "@/lib/auth/roles";
+import { getRole } from "@/lib/auth/roles";
 
-export function useAuth() {
+interface AuthState {
+  session: Session | null;
+  user: User | null;
+  role: AppRole;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signOut: () => Promise<{ error: any }>;
+}
+
+export const AuthContext = createContext<AuthState | null>(null);
+
+export function useAuthProvider(): AuthState {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<string | null>(null);
+  const [rawRole, setRawRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,14 +43,14 @@ export function useAuth() {
         if (currentSession?.user) {
           void fetchRole(currentSession.user.id, cancelled);
         } else {
-          setRole(null);
+          setRawRole(null);
         }
       } catch (error) {
         if (cancelled) return;
         console.error("Auth bootstrap failed:", error);
         setSession(null);
         setUser(null);
-        setRole(null);
+        setRawRole(null);
         setLoading(false);
       }
     }
@@ -54,7 +67,7 @@ export function useAuth() {
       if (s?.user) {
         void fetchRole(s.user.id, cancelled);
       } else {
-        setRole(null);
+        setRawRole(null);
       }
     });
 
@@ -75,15 +88,15 @@ export function useAuth() {
       if (cancelled) return;
       if (error) {
         console.error("Role fetch failed:", error);
-        setRole("coach");
+        setRawRole("coach");
         return;
       }
 
-      setRole(data?.role ?? "coach");
+      setRawRole(data?.role ?? "coach");
     } catch (error) {
       if (cancelled) return;
       console.error("Role fetch threw:", error);
-      setRole("coach");
+      setRawRole("coach");
     }
   }
 
@@ -97,5 +110,13 @@ export function useAuth() {
     return { error };
   };
 
-  return { session, user, role, loading, signIn, signOut };
+  return { session, user, role: getRole(rawRole), loading, signIn, signOut };
+}
+
+export function useAuth(): AuthState {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return ctx;
 }

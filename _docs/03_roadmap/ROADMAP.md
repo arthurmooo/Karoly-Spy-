@@ -1,8 +1,8 @@
 **PROJECT K**
 
-> **État au 2026-03-12** — Sprint 1 ✅ complet · Sprint 2 ✅ largement
-> complet (US-09c RPE/MLS reste ouvert) · Sprint 3+ non commencé ·
-> Avance ~4 jours sur le planning officiel (démarrage 16/03)
+> **État au 2026-03-16** — Sprint 1 ✅ complet · Sprint 2 ✅ complet
+> · Sprint 3 en cours (US-13 ✅ Gestion Athlètes livré) ·
+> Avance ~4 jours sur le planning officiel
 
 Roadmap Scrum --- MVP Lot 1
 
@@ -447,13 +447,13 @@ US-09c --- En tant que coach, je veux que le score de charge MLS intègre
 le RPE athlète (saisi sur Nolio à l\'upload de séance) afin que la
 charge devienne métabolique, mécanique ET perceptive.
 
-\[ \] services/load.service.ts : formule MLS modulée par le RPE déclaré
+\[x\] services/load.service.ts : formule MLS modulée par le RPE déclaré
 par l\'athlète sur Nolio
 
-\[ \] Modification backend Python (calculator.py) : intégrer le RPE dans
+\[x\] Modification backend Python (calculator.py) : intégrer le RPE dans
 le calcul MLS si disponible
 
-\[ \] Affichage du RPE à côté du score MLS dans la table des activités
+\[x\] Affichage du RPE à côté du score MLS dans la table des activités
 et dans les fiches séance
 
 Acceptance criteria :
@@ -497,7 +497,7 @@ préservé)
 - \[x\] Démo parcours coach complet : liste → filtres → heatmap → profil
   physio → HRV
 
-- \[x\] Sprint Goal atteint ? (US-09c reste en suspens)
+- \[x\] Sprint Goal atteint ? (US-09c livré)
 
 - \[x\] Comparer avec Retool : fonctionnellement équivalent ?
 
@@ -534,32 +534,31 @@ préservé)
 séance depuis l'UI afin de corriger une ingestion erronée sans passer
 par le terminal.*
 
-- \[ \] app/api/activities/\[id\]/reprocess/route.ts : POST → execSync
-  python run_k.py reprocess
+- \[x\] Supabase Edge Function `trigger-reprocess` → repository_dispatch
+  GitHub Actions (au lieu d'une API Route Next.js)
 
-- \[ \] Feedback UI : spinner pendant le reprocess + toast succès/erreur
+- \[x\] Feedback UI : spinner pendant le reprocess + toast succès/erreur
 
-- \[ \] Guard : endpoint accessible uniquement par le coach
-  (vérification role)
+- \[x\] Guard : JWT validé + vérification coach_id === user.id
 
 **US-13** --- *En tant que coach, je veux inviter un athlète par email
 et l'assigner à un groupe afin de gérer ma flotte.*
 
-- \[ \] repositories/athlete.repository.ts : inviteAthlete(email, group)
+- \[x\] repositories/athlete.repository.ts : inviteAthlete(email, group)
   → Supabase Auth inviteUserByEmail()
 
-- \[ \] repositories/athlete.repository.ts :
+- \[x\] repositories/athlete.repository.ts :
   updateAthleteGroup(athleteId, group)
 
-- \[ \] components/athletes/AthleteList.tsx : liste + bouton invite +
+- \[x\] components/athletes/AthleteList.tsx : liste + bouton invite +
   select groupe (élite/loisir)
 
-\[ \] Désactivation ou suppression d\'un compte athlète (avec
+\[x\] Désactivation ou suppression d\'un compte athlète (avec
 confirmation)
 
-\[ \] Tri et filtrage par groupe dans la liste des athlètes
+\[x\] Tri et filtrage par groupe dans la liste des athlètes
 
-\[ \] Architecture multi-entraîneurs : champ coach_id sur chaque
+\[x\] Architecture multi-entraîneurs : champ coach_id sur chaque
 athlète. Chaque coach ne voit que ses propres athlètes (préparé pour
 Karoly + collaborateurs comme Steven Galibert)
 
@@ -582,18 +581,18 @@ autre coach
 et athlète vers leur espace dédié afin que chacun voie uniquement ce qui
 le concerne.*
 
-- \[ \] lib/auth/roles.ts : getRole(session) → coach \| athlete
+- \[x\] lib/auth/roles.ts : getRole(session) → coach \| athlete
 
-- \[ \] Middleware Next.js : coach → /(coach)/dashboard, athlete →
+- \[x\] Middleware Next.js : coach → /(coach)/dashboard, athlete →
   /(athlete)/mon-espace
 
-- \[ \] RLS renforcée : policy athlete_own_activities --- auth.uid() =
+- \[x\] RLS renforcée : policy athlete_own_activities --- auth.uid() =
   athlete_user_id
 
 - \[ \] Test : session athlète → requête activities → 0 résultat hors
   son scope
 
-\[ \] RLS multi-coach : policy coach_own_athletes --- chaque coach ne
+\[x\] RLS multi-coach : policy coach_own_athletes --- chaque coach ne
 voit que les athlètes assignés via coach_id. Préparé pour Karoly +
 Steven Galibert dès le départ
 
