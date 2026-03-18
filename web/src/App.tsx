@@ -13,6 +13,7 @@ import { ProfilesPage } from "@/pages/ProfilesPage";
 import { AthletesPage } from "@/pages/AthletesPage";
 import { HealthPage } from "@/pages/HealthPage";
 import { AthleteTrendsPage } from "@/pages/AthleteTrendsPage";
+import { AthleteProfilePage } from "@/pages/AthleteProfilePage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import { AthleteHomePage } from "@/pages/AthleteHomePage";
 import { useTheme } from "@/hooks/useTheme";
@@ -39,6 +40,7 @@ function AppRoutes() {
               <Route path="/athletes" element={<AthletesPage />} />
               <Route path="/profiles" element={<ProfilesPage />} />
               <Route path="/health" element={<HealthPage />} />
+              <Route path="/athletes/:id/profile" element={<AthleteProfilePage />} />
               <Route path="/athletes/:id/trends" element={<AthleteTrendsPage />} />
             </Route>
           </Route>
@@ -47,6 +49,8 @@ function AppRoutes() {
           <Route element={<AthleteRoute />}>
             <Route element={<AthleteLayout />}>
               <Route path="/mon-espace" element={<AthleteHomePage />} />
+              <Route path="/mon-espace/seances" element={<AthleteHomePage />} />
+              <Route path="/mon-espace/activities/:id" element={<ActivityDetailPage />} />
             </Route>
           </Route>
         </Route>
