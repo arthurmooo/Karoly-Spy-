@@ -128,6 +128,8 @@ class ActivityMetrics(BaseModel):
     mec: Optional[float] = None
     int_index: Optional[float] = None
     dur_index: Optional[float] = None
+    per_index: Optional[float] = None
+    rpe_delta: Optional[float] = None
     drift_pahr_percent: Optional[float] = None
     
     # Interval Metrics
@@ -145,6 +147,7 @@ class ActivityMetrics(BaseModel):
     
     # Smart Segmentation Metrics
     segmented_metrics: Optional[SegmentationOutput] = None
+    form_analysis: Optional[Dict[str, Any]] = None
 
 class PlannedInterval(BaseModel):
     """

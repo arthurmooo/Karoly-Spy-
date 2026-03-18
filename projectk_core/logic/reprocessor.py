@@ -24,6 +24,7 @@ from projectk_core.processing.plan_parser import NolioPlanParser, TextPlanParser
 from projectk_core.logic.profile_manager import ProfileManager
 from projectk_core.logic.config_manager import AthleteConfig
 from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetrics
+from projectk_core.logic.form_analysis import FormAnalysisEngine
 from projectk_core.db.writer import ActivityWriter
 from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.logic.interval_detector import IntervalDetector
@@ -43,6 +44,7 @@ class ReprocessingEngine:
         self.calculator = MetricsCalculator(self.config)
         self.profile_manager = ProfileManager(self.db)
         self.classifier = ActivityClassifier()
+        self.form_analyzer = FormAnalysisEngine(self.db)
         self.interval_detector = IntervalDetector()
         self.session_grouper = SessionGrouper(self.db)
         self.nolio_plan_parser = NolioPlanParser()
@@ -55,7 +57,7 @@ class ReprocessingEngine:
         print(f"Reprocessing single activity: {activity_id}")
 
         act = self.db.client.table("activities") \
-            .select("id, athlete_id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, load_index, durability_index, decoupling_index") \
+            .select("id, athlete_id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index") \
             .eq("id", activity_id) \
             .execute().data
 
@@ -103,9 +105,10 @@ class ReprocessingEngine:
         # Only fetch those with a fit_file_path (can't reprocess metadata-only ones efficiently yet)
         # Include activity_name to preserve it if API fails
         acts = self.db.client.table("activities")\
-            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, load_index, durability_index, decoupling_index")\
+            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index")\
             .eq("athlete_id", athlete_id)\
             .not_.is_("fit_file_path", "null")\
+            .order("session_date")\
             .execute().data
             
         if not acts:
@@ -376,6 +379,14 @@ class ReprocessingEngine:
                     interval_keys = ["interval_power_last", "interval_hr_last", "interval_power_mean", "interval_hr_mean"]
                     for k in interval_keys:
                         metrics_dict.pop(k, None)
+
+                metrics_dict["form_analysis"] = self.form_analyzer.analyze(
+                    activity_id=act_record["id"],
+                    athlete_id=athlete_id,
+                    activity=activity,
+                    metrics_dict=metrics_dict,
+                    interval_details=interval_metrics.get("detailed_matches") if interval_metrics else None,
+                )
 
                 activity.metrics = ActivityMetrics(**metrics_dict)
                 
