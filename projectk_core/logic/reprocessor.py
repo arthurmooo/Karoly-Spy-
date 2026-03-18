@@ -30,6 +30,14 @@ from projectk_core.logic.classifier import ActivityClassifier
 from projectk_core.logic.interval_detector import IntervalDetector
 from projectk_core.logic.session_grouper import SessionGrouper
 
+
+def _normalize_manual_work_type(value):
+    raw = (value or "").strip().lower()
+    if raw in {"endurance", "intervals", "competition"}:
+        return raw
+    return None
+
+
 class ReprocessingEngine:
     """
     Engine to re-calculate metrics for existing activities in the database.
@@ -218,11 +226,11 @@ class ReprocessingEngine:
                     print(f"      [bold green]📋 Strategy: Guided Detection[/bold green] -> {plan.get('reps', '?')}x{plan.get('duration', '?')}")
 
             # Detect Work Type
-            work_type = self.classifier.detect_work_type(df, activity_title, "") 
-            print(f"      Detected Work Type: [bold cyan]{work_type}[/bold cyan]")
+            effective_work_type = self.classifier.detect_work_type(df, activity_title, "")
+            print(f"      Detected Work Type: [bold cyan]{effective_work_type}[/bold cyan]")
 
             interval_metrics = {}
-            if work_type == "intervals":
+            if effective_work_type == "intervals":
                 if plan:
                     # Guided Detection - include laps for LAP-based matching and HR filtering
                     interval_metrics = self.interval_detector.detect(Activity(metadata=None, streams=df, laps=laps), plan)
@@ -300,7 +308,7 @@ class ReprocessingEngine:
                 distance_m=distance_m,
                 elevation_gain=act_record.get('elevation_gain'),
                 rpe=act_record.get('rpe'),
-                work_type=work_type,
+                work_type=effective_work_type,
                 source_sport=act_record.get('source_sport'),
                 source_json=resolved_source_json,
             )
@@ -330,7 +338,7 @@ class ReprocessingEngine:
                 # _adapt_output (interval_detector) is the source of truth for HR/pace
                 # aggregates — it uses distance-weighted pace and robust block filtering.
                 # Calculator keeps authority over power and efficiency metrics.
-                if work_type == "intervals":
+                if effective_work_type == "intervals":
                     completion = None
                     if interval_metrics:
                         matched = interval_metrics.get('session_matched_intervals', 0)
@@ -380,7 +388,19 @@ class ReprocessingEngine:
                     # should not gate interval detection/aggregation.
                 else:
                     # Security: Remove any stray interval keys from general calculator
-                    interval_keys = ["interval_power_last", "interval_hr_last", "interval_power_mean", "interval_hr_mean"]
+                    interval_keys = [
+                        "interval_power_last",
+                        "interval_hr_last",
+                        "interval_power_mean",
+                        "interval_hr_mean",
+                        "interval_pace_last",
+                        "interval_pace_mean",
+                        "interval_respect_score",
+                        "interval_detection_source",
+                        "interval_pahr_mean",
+                        "interval_pahr_last",
+                        "interval_blocks",
+                    ]
                     for k in interval_keys:
                         metrics_dict.pop(k, None)
 

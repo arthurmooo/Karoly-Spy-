@@ -95,6 +95,7 @@ class ActivityWriter:
                 "rpe_delta": metrics_dict.get("rpe_delta"),
             },
             "form_analysis": metrics_dict.get("form_analysis"),
+            "load_components": metrics_dict.get("load_components"),
             
             # Averages
             "avg_power": avg_power,
