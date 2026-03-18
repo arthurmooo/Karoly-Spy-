@@ -52,7 +52,7 @@ def cmd_reprocess(args):
 
     try:
         from projectk_core.logic.reprocessor import ReprocessingEngine
-        engine = ReprocessingEngine()
+        engine = ReprocessingEngine(offline_mode=getattr(args, "offline", False))
         if args.activity_id:
             engine.reprocess_single(args.activity_id)
         else:
@@ -121,6 +121,7 @@ Examples:
     parser_reprocess.add_argument("--athlete", type=str, help="Filter by athlete first name")
     parser_reprocess.add_argument("--activity-id", type=str, help="Reprocess a single activity by UUID")
     parser_reprocess.add_argument("--force", action="store_true", help="Force re-calculation even if metrics exist")
+    parser_reprocess.add_argument("--offline", action="store_true", help="Skip Nolio API calls (use existing DB data only)")
     parser_reprocess.set_defaults(func=cmd_reprocess)
     
     # --- Command: audit ---

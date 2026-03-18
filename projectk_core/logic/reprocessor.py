@@ -92,6 +92,7 @@ class ReprocessingEngine:
         athletes = query.execute().data
         print(f"Found {len(athletes)} athletes to process.")
 
+        self._force = force
         for athlete in athletes:
             self.process_athlete(athlete, force)
 
@@ -104,12 +105,15 @@ class ReprocessingEngine:
         # 2. Fetch Activities
         # Only fetch those with a fit_file_path (can't reprocess metadata-only ones efficiently yet)
         # Include activity_name to preserve it if API fails
-        acts = self.db.client.table("activities")\
+        # Skip activities that already have form_analysis unless force=True
+        query = self.db.client.table("activities")\
             .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index")\
             .eq("athlete_id", athlete_id)\
             .not_.is_("fit_file_path", "null")\
-            .order("session_date")\
-            .execute().data
+            .order("session_date")
+        if not getattr(self, '_force', False):
+            query = query.is_("form_analysis", "null")
+        acts = query.execute().data
             
         if not acts:
             print("   No activities with files found.")
