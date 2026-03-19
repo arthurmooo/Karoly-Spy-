@@ -322,6 +322,7 @@ class ReprocessingEngine:
                 elevation_gain=act_record.get('elevation_gain'),
                 rpe=act_record.get('rpe'),
                 work_type=effective_work_type,
+                manual_work_type=manual_wt,
                 source_sport=act_record.get('source_sport'),
                 source_json=resolved_source_json,
             )
