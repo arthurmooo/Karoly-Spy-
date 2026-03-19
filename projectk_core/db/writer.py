@@ -96,7 +96,8 @@ class ActivityWriter:
             },
             "form_analysis": metrics_dict.get("form_analysis"),
             "load_components": metrics_dict.get("load_components"),
-            
+            "hr_zones_sec": metrics_dict.get("hr_zones_sec"),
+
             # Averages
             "avg_power": avg_power,
             "avg_hr": avg_hr,
@@ -106,6 +107,9 @@ class ActivityWriter:
             "fit_file_hash": file_hash,
             "source_json": meta.source_json,
             "athlete_comment": meta.source_json.get("description") if meta.source_json else None,
+
+            # Flag reset — reprocess clears the dirty flag
+            "analysis_dirty": False,
 
             # Streams (downsampled 5s, pauses excluded) & Garmin Laps
             "activity_streams": downsample_streams(df, interval_sec=5, sport=sport, exclude_pauses=True) if not df.empty and 'heart_rate' in df.columns else None,

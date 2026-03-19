@@ -65,7 +65,7 @@ class ReprocessingEngine:
         print(f"Reprocessing single activity: {activity_id}")
 
         act = self.db.client.table("activities") \
-            .select("id, athlete_id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index") \
+            .select("id, athlete_id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index, manual_work_type") \
             .eq("id", activity_id) \
             .execute().data
 
@@ -87,7 +87,15 @@ class ReprocessingEngine:
         athlete = athlete[0]
 
         print(f"   Athlete: {athlete['first_name']} {athlete['last_name']}")
-        self.recalculate_activity(athlete['id'], act, athlete_nolio_id=athlete.get('nolio_id'))
+        try:
+            self.recalculate_activity(athlete['id'], act, athlete_nolio_id=athlete.get('nolio_id'))
+        finally:
+            # Always clear the dirty flag — even if recalculate failed or returned early
+            self.db.client.table("activities") \
+                .update({"analysis_dirty": False}) \
+                .eq("id", activity_id) \
+                .execute()
+            print(f"   ✅ analysis_dirty reset for {activity_id}")
 
     def run(self, athlete_name_filter: Optional[str] = None, force: bool = False):
         print(f"Starting Reprocessing Engine...")
@@ -115,7 +123,7 @@ class ReprocessingEngine:
         # Include activity_name to preserve it if API fails
         # Skip activities that already have form_analysis unless force=True
         query = self.db.client.table("activities")\
-            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index")\
+            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index, manual_work_type")\
             .eq("athlete_id", athlete_id)\
             .not_.is_("fit_file_path", "null")\
             .order("session_date")
@@ -225,9 +233,14 @@ class ReprocessingEngine:
                 else:
                     print(f"      [bold green]📋 Strategy: Guided Detection[/bold green] -> {plan.get('reps', '?')}x{plan.get('duration', '?')}")
 
-            # Detect Work Type
-            effective_work_type = self.classifier.detect_work_type(df, activity_title, "")
-            print(f"      Detected Work Type: [bold cyan]{effective_work_type}[/bold cyan]")
+            # Detect Work Type — manual override from coach takes priority
+            manual_wt = act_record.get('manual_work_type')
+            if manual_wt:
+                effective_work_type = manual_wt
+                print(f"      Work Type: [bold magenta]{effective_work_type}[/bold magenta] (coach override)")
+            else:
+                effective_work_type = self.classifier.detect_work_type(df, activity_title, "")
+                print(f"      Detected Work Type: [bold cyan]{effective_work_type}[/bold cyan]")
 
             interval_metrics = {}
             if effective_work_type == "intervals":
