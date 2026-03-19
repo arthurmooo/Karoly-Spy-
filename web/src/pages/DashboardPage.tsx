@@ -241,10 +241,10 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* ── Row 2 — Heatmap MLS + ACWR cohorte ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      {/* ── 2×2 Grid — Monitoring + Feed ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Heatmap MLS */}
-        <Card className="xl:col-span-6 xl:h-[420px] overflow-hidden flex flex-col">
+        <Card className="xl:h-[420px] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
               <Icon name="monitoring" className="text-slate-400" />
@@ -380,7 +380,7 @@ export function DashboardPage() {
         </Card>
 
         {/* ACWR Cohorte */}
-        <Card className="xl:col-span-6 xl:h-[420px] overflow-hidden flex flex-col">
+        <Card className="xl:h-[420px] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
               <Icon name="groups" className="text-slate-400" />
@@ -398,28 +398,28 @@ export function DashboardPage() {
                     active={acwrSortBy === "athlete"}
                     direction={acwrSortDir}
                     onToggle={() => handleAcwrSort("athlete")}
-                    className="px-3 py-2"
+                    className="px-2 py-2"
                   />
                   <SortableHeader
                     label="Ext."
                     active={acwrSortBy === "external"}
                     direction={acwrSortDir}
                     onToggle={() => handleAcwrSort("external")}
-                    className="px-3 py-2"
+                    className="px-2 py-2"
                   />
                   <SortableHeader
                     label="Int."
                     active={acwrSortBy === "internal"}
                     direction={acwrSortDir}
                     onToggle={() => handleAcwrSort("internal")}
-                    className="px-3 py-2"
+                    className="px-2 py-2"
                   />
                   <SortableHeader
                     label="Glob."
                     active={acwrSortBy === "global"}
                     direction={acwrSortDir}
                     onToggle={() => handleAcwrSort("global")}
-                    className="px-3 py-2"
+                    className="px-2 py-2"
                   />
                 </tr>
               </thead>
@@ -443,12 +443,12 @@ export function DashboardPage() {
                       className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer"
                       onClick={() => navigate(`/athletes/${row.athlete_id}/trends#acwr`)}
                     >
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-2 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                          <div className="w-5 h-5 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
                             {row.athlete.charAt(0)}
                           </div>
-                          <span className="text-xs font-semibold text-slate-900 dark:text-white truncate max-w-[120px]">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white truncate max-w-[100px]">
                             {row.athlete}
                           </span>
                         </div>
@@ -456,11 +456,11 @@ export function DashboardPage() {
                       {(["external", "internal", "global"] as const).map((metric) => (
                         <td
                           key={metric}
-                          className="px-3 py-2 whitespace-nowrap"
+                          className="px-2 py-2 whitespace-nowrap"
                           title={formatAcwrTooltip(row, metric)}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-semibold text-slate-900 dark:text-white min-w-[2.5rem]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-mono font-semibold text-slate-900 dark:text-white min-w-[2rem]">
                               {row[metric].ratio !== null
                                 ? row[metric].ratio.toFixed(2)
                                 : "—"}
@@ -476,13 +476,10 @@ export function DashboardPage() {
             </table>
           </div>
         </Card>
-      </div>
 
-      {/* ── Row 3 — Activité récente + Alertes SWC ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 xl:items-start gap-4">
         {/* Activité récente */}
-        <Card className="xl:col-span-7 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 gap-2">
+        <Card className="xl:h-[420px] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 gap-2 shrink-0">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white shrink-0">
               Activité récente
             </h2>
@@ -518,7 +515,7 @@ export function DashboardPage() {
               </select>
             </div>
           </div>
-          <CardContent className="p-3">
+          <CardContent className="p-3 flex-1 min-h-0 overflow-y-auto">
             <div className="space-y-1">
               {recentLoading ? (
                 <div className="flex items-center justify-center py-8 text-slate-400">
@@ -573,8 +570,8 @@ export function DashboardPage() {
         </Card>
 
         {/* Alertes SWC */}
-        <Card className="xl:col-span-5 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+        <Card className="xl:h-[420px] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
               Alertes d'attention
               {!readinessLoading && criticalAlertCount > 0 && (
@@ -583,7 +580,7 @@ export function DashboardPage() {
             </h2>
             <span className="text-[10px] text-slate-400 hidden sm:inline">Cliquer pour ouvrir</span>
           </div>
-          <CardContent className="p-3">
+          <CardContent className="p-3 flex-1 min-h-0 overflow-y-auto">
             <div className="space-y-2">
               {readinessLoading ? (
                 <div className="flex items-center justify-center py-8 text-slate-400">
@@ -593,7 +590,7 @@ export function DashboardPage() {
               ) : alerts.length === 0 ? (
                 <p className="text-sm text-slate-400 py-4 text-center">Aucune alerte</p>
               ) : (
-                alerts.slice(0, 4).map((alert) => {
+                alerts.map((alert) => {
                   const isCritical = alert.swc_status === "below_swc";
                   return (
                     <button
