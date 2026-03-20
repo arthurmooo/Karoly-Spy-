@@ -13,14 +13,14 @@ import pandas as pd
 from projectk_core.logic.models import Activity
 
 
-SOT_VERSION = "karo_pdf_2026_03_19"
+SOT_VERSION = "karo_pdf_2026_03_20"
 MIN_BETA_SAMPLES = 8
 MAX_BETA_SAMPLES = 20
 MIN_BASELINE_SESSIONS = 5
 MAX_BASELINE_SESSIONS = 8
 TEMP_BIN_WIDTH_C = 2.0
-OUTPUT_STABLE_TOLERANCE = 0.02
-OUTPUT_COMPARABLE_MAX_TOLERANCE = 0.03
+OUTPUT_STABLE_TOLERANCE = 0.03
+OUTPUT_COMPARABLE_MAX_TOLERANCE = 0.08
 LOW_GRADE_THRESHOLD = 0.02
 MAX_GRADE_ABS = 0.40
 GRADE_WINDOW_M = 40.0
@@ -522,21 +522,15 @@ class FormAnalysisEngine:
     ) -> Dict[str, Any]:
         if sport == "bike":
             band = round(output_mean / 5.0) * 5
-            band_label = f"{int(band)}W"
         else:
             band = round(output_mean * 2.0) / 2.0
-            band_label = f"{band:.1f}kmh"
 
-        duration_bucket = int(round(segment_duration_sec / 60.0))
         template_key = "|".join(
             [
                 sport,
                 "continuous_tempo",
                 environment["location"],
                 environment["terrain"],
-                f"{duration_bucket}min",
-                band_label,
-                "steady",
             ]
         )
         return {"template_key": template_key, "output_band": band}
@@ -555,10 +549,8 @@ class FormAnalysisEngine:
         rec_bucket = int(round((recovery_duration_sec or 0.0) / 30.0) * 30)
         if sport == "bike":
             band = round(output_mean / 5.0) * 5
-            band_label = f"{int(band)}W"
         else:
             band = round(output_mean * 2.0) / 2.0
-            band_label = f"{band:.1f}kmh"
 
         template_key = "|".join(
             [
@@ -569,7 +561,6 @@ class FormAnalysisEngine:
                 f"{rep_count}reps",
                 f"{rep_bucket}s",
                 f"{rec_bucket}s",
-                band_label,
             ]
         )
         return {"template_key": template_key, "output_band": band}
@@ -597,7 +588,7 @@ class FormAnalysisEngine:
             previous_duration = _safe_float(fa.get("template", {}).get("duration_sec")) or row.duration_sec
             if previous_duration and duration_sec:
                 ratio = abs(previous_duration - duration_sec) / duration_sec
-                if ratio > 0.10:
+                if ratio > 0.15:
                     continue
 
             previous_output = _safe_float(fa.get("output", {}).get("mean"))
@@ -760,7 +751,8 @@ class FormAnalysisEngine:
         segment = df[(df["elapsed_sec"] >= window[0]) & (df["elapsed_sec"] <= window[1])].copy()
         segment = segment.dropna(subset=["heart_rate", "output_value"])
         segment = segment[segment["output_value"] > 0]
-        if len(segment) < 300:
+        segment_duration = float(segment["elapsed_sec"].max() - segment["elapsed_sec"].min())
+        if segment_duration < 300:
             return None
 
         median_output = float(segment["output_value"].median())
@@ -768,11 +760,13 @@ class FormAnalysisEngine:
             (segment["output_value"] >= median_output * (1.0 - OUTPUT_STABLE_TOLERANCE))
             & (segment["output_value"] <= median_output * (1.0 + OUTPUT_STABLE_TOLERANCE))
         ].copy()
-        if len(stable) < 180:
+        stable_duration = float(stable["elapsed_sec"].max() - stable["elapsed_sec"].min())
+        if stable_duration < 180:
             return None
 
         half = len(stable) // 2
-        if half < 60:
+        half_duration = float(stable.iloc[half:]["elapsed_sec"].min() - stable.iloc[:half]["elapsed_sec"].min())
+        if half_duration < 120:
             return None
 
         first_half = stable.iloc[:half]
