@@ -16,6 +16,10 @@ import { AthleteTrendsPage } from "@/pages/AthleteTrendsPage";
 import { AthleteProfilePage } from "@/pages/AthleteProfilePage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import { AthleteHomePage } from "@/pages/AthleteHomePage";
+import { AthleteBilanPage } from "@/pages/AthleteBilanPage";
+import { MyBilanPage } from "@/pages/MyBilanPage";
+import { MyTrendsPage } from "@/pages/MyTrendsPage";
+import { SessionComparisonPage } from "@/pages/SessionComparisonPage";
 import { useTheme } from "@/hooks/useTheme";
 import { Toaster } from "sonner";
 
@@ -36,12 +40,14 @@ function AppRoutes() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/activities" element={<ActivitiesPage />} />
               <Route path="/activities/:id" element={<ActivityDetailPage />} />
+              <Route path="/activities/:id/compare" element={<SessionComparisonPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/athletes" element={<AthletesPage />} />
               <Route path="/profiles" element={<ProfilesPage />} />
               <Route path="/health" element={<HealthPage />} />
               <Route path="/athletes/:id/profile" element={<AthleteProfilePage />} />
               <Route path="/athletes/:id/trends" element={<AthleteTrendsPage />} />
+              <Route path="/athletes/:id/bilan" element={<AthleteBilanPage />} />
             </Route>
           </Route>
 
@@ -49,8 +55,12 @@ function AppRoutes() {
           <Route element={<AthleteRoute />}>
             <Route element={<AthleteLayout />}>
               <Route path="/mon-espace" element={<AthleteHomePage />} />
+              <Route path="/mon-espace/bilan" element={<MyBilanPage />} />
               <Route path="/mon-espace/seances" element={<AthleteHomePage />} />
+              <Route path="/mon-espace/calendrier" element={<CalendarPage />} />
+              <Route path="/mon-espace/tendances" element={<MyTrendsPage />} />
               <Route path="/mon-espace/activities/:id" element={<ActivityDetailPage />} />
+              <Route path="/mon-espace/activities/:id/compare" element={<SessionComparisonPage />} />
             </Route>
           </Route>
         </Route>

@@ -1,6 +1,9 @@
+export type WorkTypeValue = "endurance" | "intervals" | "competition";
+
 export interface StreamPoint {
   t: number;      // active seconds on the chart axis
   elapsed_t?: number; // elapsed seconds since activity start
+  dist_m?: number; // cumulative active distance in meters
   hr?: number;    // bpm
   spd?: number;   // m/s
   pwr?: number;   // watts
@@ -28,6 +31,9 @@ export interface Activity {
   session_date: string;
   sport_type: string;
   work_type: string | null;
+  manual_work_type?: WorkTypeValue | null;
+  detected_work_type?: WorkTypeValue | null;
+  analysis_dirty?: boolean;
   activity_name: string;
   duration_sec: number | null;
   moving_time_sec: number | null;
@@ -38,6 +44,8 @@ export interface Activity {
   rpe: number | null;
   coach_comment?: string | null;
   athlete_comment?: string | null;
+  athlete_feedback_rating?: number | null;  // 1-5
+  athlete_feedback_text?: string | null;
   interval_pace_mean: number | null;
   interval_pace_last: number | null;
   interval_power_mean: number | null;
@@ -82,6 +90,12 @@ export interface Activity {
   } | null;
 }
 
+export interface BlockGroupedIntervals {
+  blockIndex: number;
+  label: string;
+  intervals: ActivityInterval[];
+}
+
 export interface ActivityInterval {
   id: string;
   activity_id: string;
@@ -95,6 +109,21 @@ export interface ActivityInterval {
   avg_cadence: number | null;
   detection_source: string | null;
   respect_score: number | null;
+}
+
+export interface ActivityComparisonCandidate {
+  id: string;
+  athlete_id: string;
+  session_date: string;
+  sport_type: string;
+  activity_name: string;
+  manual_activity_name?: string | null;
+  duration_sec: number | null;
+  moving_time_sec: number | null;
+  distance_m: number | null;
+  avg_hr: number | null;
+  avg_power: number | null;
+  decoupling_index: number | null;
 }
 
 export interface ActivityFilters {
@@ -151,17 +180,54 @@ export interface IntervalBlock {
   total_duration_sec: number | null;
 }
 
+export interface PlannedIntervalBlock {
+  block_index: number;
+  count: number | null;
+  representative_duration_sec: number | null;
+  representative_distance_m: number | null;
+  target_type: string | null;
+  target_min: number | null;
+  target_max: number | null;
+  planned_source: string | null;
+}
+
 export interface SegmentedMetrics {
   manual?: unknown;
   splits_2?: Record<string, SegmentPhaseMetrics>;
   splits_4?: Record<string, SegmentPhaseMetrics>;
   drift_percent?: number | null;
   interval_blocks?: IntervalBlock[];
+  planned_interval_blocks?: PlannedIntervalBlock[];
   segmentation_type?: string | null;
   interval_pahr_last?: number | null;
   interval_pahr_mean?: number | null;
   per_index?: number | null;
   rpe_delta?: number | null;
+}
+
+export type ComparisonAlertKind = "progression" | "cout" | "regression" | "none";
+export type ComparisonTrend = "positive" | "negative" | "neutral";
+
+export interface ComparisonAlert {
+  kind: ComparisonAlertKind;
+  title: string;
+  message: string;
+}
+
+export interface ComparisonDeltaRow {
+  key: "volume" | "duration" | "main_metric" | "hr" | "decoupling";
+  label: string;
+  currentValue: string;
+  referenceValue: string;
+  deltaValue: string;
+  trend: ComparisonTrend;
+}
+
+export interface ComparisonSummary {
+  metricLabel: string;
+  metricUnitLabel: string;
+  rows: ComparisonDeltaRow[];
+  alert: ComparisonAlert;
 }
 
 export type FormAnalysisModule = "continuous_tempo" | "intervals";

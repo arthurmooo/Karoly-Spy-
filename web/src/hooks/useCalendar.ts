@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import {
   startOfWeek,
   endOfWeek,
@@ -22,7 +23,8 @@ import { getActivities, getPlannedWorkouts, getAthletes } from "@/repositories/c
 import { mergeRealizedAndPlanned, calculateStats } from "@/services/calendar.service";
 import { CalendarEvent } from "@/types/calendar";
 
-export function useCalendar() {
+export function useCalendar(options?: { skipAthleteList?: boolean }) {
+  const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const view = (searchParams.get("view") as "week" | "month" | "year") || "month";
@@ -81,23 +83,35 @@ export function useCalendar() {
     return { start, end };
   }, [view, currentDate]);
 
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    events.forEach(e => {
+      const key = format(e.date, "yyyy-MM-dd");
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(e);
+    });
+    return map;
+  }, [events]);
+
   const days = useMemo(() => {
     return eachDayOfInterval({ start: dateRange.start, end: dateRange.end }).map((date) => ({
       date,
       isCurrentMonth: isSameMonth(date, currentDate),
       isToday: isToday(date),
-      events: events.filter((e) => format(e.date, "yyyy-MM-dd") === format(date, "yyyy-MM-dd")),
+      events: eventsByDate.get(format(date, "yyyy-MM-dd")) || [],
     }));
-  }, [dateRange, currentDate, events, view]);
+  }, [dateRange, currentDate, eventsByDate, view]);
 
   useEffect(() => {
+    if (authLoading) return;
+
     async function fetchData() {
       setIsLoading(true);
       try {
         const [acts, planned, aths] = await Promise.all([
           getActivities(dateRange.start.toISOString(), dateRange.end.toISOString(), selectedAthleteId, selectedSport),
           getPlannedWorkouts(dateRange.start.toISOString(), dateRange.end.toISOString(), selectedAthleteId, selectedSport),
-          getAthletes(),
+          options?.skipAthleteList ? Promise.resolve([]) : getAthletes(),
         ]);
         setEvents(mergeRealizedAndPlanned(acts || [], planned.data || []));
         setPlannedAvailable(planned.isAvailable);
@@ -109,7 +123,7 @@ export function useCalendar() {
       }
     }
     fetchData();
-  }, [dateRange, selectedAthleteId, selectedSport]);
+  }, [authLoading, user?.id, dateRange, selectedAthleteId, selectedSport, options?.skipAthleteList]);
 
   const stats = useMemo(() => calculateStats(events), [events]);
 

@@ -5,12 +5,13 @@ import { useTheme } from "@/hooks/useTheme";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 
-const NAV_ITEMS = [
-  { path: "/dashboard", label: "Tableau de bord", icon: "dashboard" },
-  { path: "/profiles", label: "Athlètes", icon: "groups" },
-  { path: "/activities", label: "Séances", icon: "exercise" },
-  { path: "/calendar", label: "Calendrier", icon: "calendar_month" },
-  { path: "/health", label: "Analytique", icon: "monitoring" },
+export const COACH_NAV_ITEMS = [
+  { path: "/dashboard", label: "Tableau de bord", icon: "dashboard", testId: "coach-nav-dashboard" },
+  { path: "/athletes", label: "Athlètes", icon: "groups", testId: "coach-nav-athletes" },
+  { path: "/profiles", label: "Profils physio", icon: "cardiology", testId: "coach-nav-profiles" },
+  { path: "/activities", label: "Séances", icon: "exercise", testId: "coach-nav-activities" },
+  { path: "/calendar", label: "Calendrier", icon: "calendar_month", testId: "coach-nav-calendar" },
+  { path: "/health", label: "Analytique", icon: "monitoring", testId: "coach-nav-health" },
 ];
 
 export function Sidebar() {
@@ -36,11 +37,12 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map((item) => (
+        {COACH_NAV_ITEMS.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             title={collapsed ? item.label : undefined}
+            data-testid={item.testId}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm transition-colors",
@@ -62,6 +64,8 @@ export function Sidebar() {
         <button
           onClick={toggleTheme}
           title={collapsed ? (theme === "light" ? "Mode Sombre" : "Mode Clair") : undefined}
+          aria-label={theme === "light" ? "Activer le mode sombre" : "Activer le mode clair"}
+          data-testid="coach-theme-toggle"
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
             collapsed && "justify-center px-2"
@@ -73,6 +77,8 @@ export function Sidebar() {
         <button
           onClick={() => signOut()}
           title={collapsed ? "Déconnexion" : undefined}
+          aria-label="Déconnexion"
+          data-testid="coach-signout"
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors",
             collapsed && "justify-center px-2"
@@ -85,6 +91,7 @@ export function Sidebar() {
         <button
           onClick={() => setCollapsed((c) => !c)}
           title={collapsed ? "Agrandir" : "Réduire"}
+          aria-label={collapsed ? "Agrandir la navigation" : "Réduire la navigation"}
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
             collapsed && "justify-center px-2"

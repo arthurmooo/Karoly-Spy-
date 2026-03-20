@@ -13,6 +13,7 @@ import { GroupManager } from "@/components/groups/GroupManager";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useAthleteManagement } from "@/hooks/useAthleteManagement";
 import { useAthleteGroups } from "@/hooks/useAthleteGroups";
+import { toast } from "sonner";
 import type { Athlete } from "@/types/athlete";
 
 type AthleteSortBy = "name" | "group" | "status" | "since";
@@ -20,7 +21,7 @@ type StatusFilter = "all" | "active" | "inactive";
 
 export function AthletesPage() {
   const navigate = useNavigate();
-  const { athletes, isLoading, updateGroup, toggleActive } =
+  const { athletes, isLoading, invite, updateGroup, toggleActive } =
     useAthleteManagement();
   const {
     groups,
@@ -42,6 +43,27 @@ export function AthletesPage() {
 
   // Deactivate confirm dialog
   const [deactivateTarget, setDeactivateTarget] = useState<Athlete | null>(null);
+
+  // Invite dialog
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: "", first_name: "", last_name: "", athlete_group_id: "" });
+  const [isInviting, setIsInviting] = useState(false);
+
+  const handleInvite = async () => {
+    setIsInviting(true);
+    try {
+      await invite({
+        ...inviteForm,
+        athlete_group_id: inviteForm.athlete_group_id || null,
+      });
+      setShowInviteDialog(false);
+      setInviteForm({ email: "", first_name: "", last_name: "", athlete_group_id: "" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de l'invitation");
+    } finally {
+      setIsInviting(false);
+    }
+  };
 
   // Athlete count by group (for GroupManager)
   const athleteCountByGroup = useMemo(() => {
@@ -133,6 +155,10 @@ export function AthletesPage() {
           <Icon name="groups" className="text-slate-400" />
           Gestion des Athlètes
         </h2>
+        <Button onClick={() => setShowInviteDialog(true)}>
+          <Icon name="person_add" />
+          Inviter un athlète
+        </Button>
       </div>
 
       {/* KPI cards */}
@@ -419,6 +445,94 @@ export function AthletesPage() {
             Désactiver
           </Button>
           <Button variant="secondary" onClick={() => setDeactivateTarget(null)}>
+            Annuler
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* Invite Athlete Dialog */}
+      <Dialog
+        open={showInviteDialog}
+        onClose={() => setShowInviteDialog(false)}
+      >
+        <DialogHeader>
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            Inviter un athlète
+          </h3>
+          <button
+            onClick={() => setShowInviteDialog(false)}
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+          >
+            <Icon name="close" className="text-xl" />
+          </button>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Email <span className="text-red-500">*</span>
+              </label>
+              <Input
+                icon="email"
+                type="email"
+                placeholder="athlete@email.com"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Prénom <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  icon="person"
+                  placeholder="Prénom"
+                  value={inviteForm.first_name}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, first_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Nom <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Nom"
+                  value={inviteForm.last_name}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, last_name: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Groupe
+              </label>
+              <select
+                value={inviteForm.athlete_group_id}
+                onChange={(e) => setInviteForm((f) => ({ ...f, athlete_group_id: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              >
+                <option value="">Aucun groupe</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            onClick={() => void handleInvite()}
+            disabled={isInviting || !inviteForm.email || !inviteForm.first_name || !inviteForm.last_name}
+          >
+            {isInviting ? (
+              <Icon name="progress_activity" className="animate-spin" />
+            ) : (
+              <Icon name="send" />
+            )}
+            {isInviting ? "Envoi..." : "Inviter"}
+          </Button>
+          <Button variant="secondary" onClick={() => setShowInviteDialog(false)}>
             Annuler
           </Button>
         </DialogFooter>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { format, parseISO, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
+import { AthleteSubNav } from "@/components/layout/AthleteSubNav";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useReadiness } from "@/hooks/useReadiness";
@@ -304,8 +305,14 @@ function buildScoreChartRow(point: DerivedHrvPoint): ScoreChartRow {
   };
 }
 
-export function AthleteTrendsPage() {
-  const { id } = useParams();
+interface AthleteTrendsPageProps {
+  athleteId?: string;
+}
+
+export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps = {}) {
+  const { id: paramId } = useParams();
+  const id = propId || paramId;
+  const isAthleteMode = !!propId;
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [period, setPeriod] = useState<TrendsPeriod>("1m");
   const [journalSortBy, setJournalSortBy] = useState<JournalSortBy>("date");
@@ -318,15 +325,10 @@ export function AthleteTrendsPage() {
     id,
     MAX_SERIES_LOOKBACK_DAYS
   );
-
   useEffect(() => {
     if (!id) return;
     getAthleteById(id).then(setAthlete).catch(console.error);
   }, [id]);
-
-  const athleteName = athlete
-    ? `${athlete.first_name} ${athlete.last_name.charAt(0)}.`
-    : "...";
 
   const timeline = useMemo(() => buildHrvTimeline(readinessSeries), [readinessSeries]);
   const latestSignalPoint = useMemo(() => getLatestSignalPoint(timeline), [timeline]);
@@ -599,18 +601,18 @@ export function AthleteTrendsPage() {
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-2">
-              <Link to="/profiles" className="hover:text-primary transition-colors">
-                Athlètes
-              </Link>
-              <Icon name="chevron_right" className="text-lg" />
-              <span className="text-slate-700 dark:text-slate-300">
-                {athleteName}
-              </span>
-            </div>
-            <h2 className="text-3xl font-semibold text-slate-900 dark:text-white">
-              Rapport de Santé Détaillé
-            </h2>
+            {!isAthleteMode && athlete && (
+              <AthleteSubNav athlete={athlete} active="trends" />
+            )}
+            {isAthleteMode ? (
+              <h2 className="text-3xl font-semibold text-slate-900 dark:text-white">
+                Mes tendances
+              </h2>
+            ) : (
+              <h2 className="text-3xl font-semibold text-slate-900 dark:text-white mt-4">
+                Rapport de Santé Détaillé
+              </h2>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -622,20 +624,20 @@ export function AthleteTrendsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="athlete-trends-page">
       <div>
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-2">
-          <Link to="/profiles" className="hover:text-primary transition-colors">
-            Athlètes
-          </Link>
-          <Icon name="chevron_right" className="text-lg" />
-          <span className="text-slate-700 dark:text-slate-300">
-            {athleteName}
-          </span>
-        </div>
-        <h2 className="text-3xl font-semibold text-slate-900 dark:text-white">
-          Rapport de Santé Détaillé
-        </h2>
+        {!isAthleteMode && athlete && (
+          <AthleteSubNav athlete={athlete} active="trends" />
+        )}
+        {isAthleteMode ? (
+          <h2 className="text-3xl font-semibold text-slate-900 dark:text-white mb-1">
+            Mes tendances
+          </h2>
+        ) : (
+          <h2 className="text-3xl font-semibold text-slate-900 dark:text-white mt-4">
+            Rapport de Santé Détaillé
+          </h2>
+        )}
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Vue ancrée sur la dernière mesure valide du {formatDateLabel(anchorDate, true)} • {dateRange}
         </p>
@@ -648,7 +650,7 @@ export function AthleteTrendsPage() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" data-testid="trends-swc-summary">
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
               <div>

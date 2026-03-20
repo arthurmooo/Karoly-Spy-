@@ -338,6 +338,47 @@ export function buildHrvTimeline(rows: DailyReadiness[]): DerivedHrvPoint[] {
   });
 }
 
+export function getLatestSignalPoint(
+  timeline: DerivedHrvPoint[]
+): DerivedHrvPoint | null {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const point = timeline[index];
+    if (!point) continue;
+    if (point.rmssd !== null && point.rmssd > 0) {
+      return point;
+    }
+  }
+
+  return null;
+}
+
+export function getLatestContextPoint(
+  timeline: DerivedHrvPoint[]
+): DerivedHrvPoint | null {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const point = timeline[index];
+    if (!point) continue;
+
+    if (
+      point.recovery_points !== null ||
+      point.sleep_quality !== null ||
+      point.mental_energy !== null ||
+      point.fatigue !== null ||
+      point.lifestyle !== null ||
+      point.muscle_soreness !== null ||
+      point.physical_condition !== null ||
+      point.training_performance !== null ||
+      point.training_rpe !== null ||
+      point.sickness !== null ||
+      point.alcohol !== null
+    ) {
+      return point;
+    }
+  }
+
+  return null;
+}
+
 export function computeTrend(
   current: number | null,
   avg30d: number | null

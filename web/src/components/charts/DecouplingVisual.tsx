@@ -8,21 +8,6 @@ interface Props {
   sportType: string;
 }
 
-const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
-
-function formatMetric(value: number | null | undefined, unit: string): string {
-  if (value == null) return "--";
-  return `${value.toFixed(1)} ${unit}`;
-}
-
-function formatPace(ms: number | null | undefined): string {
-  if (!ms || ms <= 0) return "--";
-  const paceSec = 1000 / ms;
-  const min = Math.floor(paceSec / 60);
-  const sec = Math.round(paceSec % 60);
-  return `${min}'${sec.toString().padStart(2, "0")} /km`;
-}
-
 function decouplingColor(value: number): string {
   if (value < 5) return "text-emerald-600 dark:text-emerald-400";
   if (value < 10) return "text-amber-600 dark:text-amber-400";
@@ -35,10 +20,9 @@ function decouplingBg(value: number): string {
   return "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800/50";
 }
 
-export function DecouplingVisual({ splits2, decouplingIndex, durabilityIndex, sportType, hideTitle }: Props & { hideTitle?: boolean }) {
+export function DecouplingVisual({ splits2, decouplingIndex, durabilityIndex, hideTitle }: Props & { hideTitle?: boolean }) {
   const phase1 = splits2?.phase_1;
   const phase2 = splits2?.phase_2;
-  const isBike = BIKE_SPORTS.has(sportType);
 
   if (!phase1 && !phase2 && decouplingIndex == null) return null;
 
@@ -61,58 +45,28 @@ export function DecouplingVisual({ splits2, decouplingIndex, durabilityIndex, sp
         </h3>
       )}
 
-      {/* KPI badge */}
-      {decouplingIndex != null && (
-        <div className={`inline-flex items-center gap-2 rounded-sm border px-3 py-2 ${decouplingBg(Math.abs(decouplingIndex))}`}>
-          <span className={`text-2xl font-bold font-mono ${decouplingColor(Math.abs(decouplingIndex))}`}>
-            {decouplingIndex.toFixed(1)}%
-          </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {Math.abs(decouplingIndex) < 5 ? "Bon couplage" : Math.abs(decouplingIndex) < 10 ? "Découplage modéré" : "Découplage significatif"}
-          </span>
-        </div>
-      )}
-
-      {/* 2-column comparison */}
-      {(phase1 || phase2) && (
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: "1re moitié", phase: phase1 },
-            { label: "2e moitié", phase: phase2 },
-          ].map(({ label, phase }) => (
-            <div key={label} className="rounded-sm border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">FC</span>
-                  <span className="font-mono font-medium text-slate-900 dark:text-white">
-                    {formatMetric(phase?.hr, "bpm")}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">{isBike ? "Puissance" : "Allure"}</span>
-                  <span className="font-mono font-medium text-slate-900 dark:text-white">
-                    {isBike ? formatMetric(phase?.power, "W") : formatPace(phase?.speed)}
-                  </span>
-                </div>
-                {phase?.ratio != null && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Ratio</span>
-                    <span className="font-mono font-medium text-slate-900 dark:text-white">
-                      {phase.ratio.toFixed(3)}
-                    </span>
-                  </div>
-                )}
-              </div>
+      {/* Stats row: decoupling + durability side by side */}
+      {(decouplingIndex != null || durabilityIndex != null) && (
+        <div className="flex gap-3">
+          {decouplingIndex != null && (
+            <div className={`flex flex-col rounded-sm border px-3 py-2 ${decouplingBg(Math.abs(decouplingIndex))}`}>
+              <span className={`text-2xl font-bold font-mono ${decouplingColor(Math.abs(decouplingIndex))}`}>
+                {decouplingIndex.toFixed(1)}%
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {Math.abs(decouplingIndex) < 5 ? "Bon couplage" : Math.abs(decouplingIndex) < 10 ? "Découplage modéré" : "Découplage significatif"}
+              </span>
             </div>
-          ))}
+          )}
+          {durabilityIndex != null && (
+            <div className="flex flex-col rounded-sm border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
+              <span className="text-2xl font-bold font-mono text-slate-700 dark:text-slate-200">
+                {durabilityIndex.toFixed(2)}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Durabilité</span>
+            </div>
+          )}
         </div>
-      )}
-
-      {durabilityIndex != null && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Indice de durabilité : <span className="font-mono font-medium">{durabilityIndex.toFixed(2)}</span>
-        </p>
       )}
 
       {/* Drift alert */}

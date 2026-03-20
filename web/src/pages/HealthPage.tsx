@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -6,12 +6,17 @@ import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Dialog, DialogHeader, DialogBody, DialogFooter } from "@/components/ui/Dialog";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useReadiness } from "@/hooks/useReadiness";
 import { useAthletes } from "@/hooks/useAthletes";
-import { insertHrvBatch } from "@/repositories/readiness.repository";
+import { useAthleteKpis } from "@/hooks/useAthleteKpis";
+import { useExportBilan } from "@/hooks/useExportBilan";
+import { useAcwr } from "@/hooks/useAcwr";
+import { getReadinessSeries, insertHrvBatch } from "@/repositories/readiness.repository";
+import type { DailyReadiness } from "@/types/readiness";
 import {
   buildHrvTimeline,
   parseHrvCsv,
@@ -104,13 +109,32 @@ export function HealthPage() {
   const [sortBy, setSortBy] = useState<HealthSortBy>(DEFAULT_SORT_BY);
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_SORT_DIR);
   const [stagedImport, setStagedImport] = useState<StagedImport | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<ImportStatus>("idle");
   const [importMessage, setImportMessage] = useState("");
 
-  const { healthData, readinessSeries, isLoading, refresh } = useReadiness(
-    selectedAthleteId !== "all" ? selectedAthleteId : undefined
-  );
+  const { healthData, isLoading, refresh } = useReadiness();
   const { athletes } = useAthletes();
+  const hasSelectedAthlete = selectedAthleteId !== "all";
+  const { report: kpiReport } = useAthleteKpis(hasSelectedAthlete ? selectedAthleteId : null, "week");
+  const { detail: acwrDetail } = useAcwr({ athleteId: hasSelectedAthlete ? selectedAthleteId : null, enabled: hasSelectedAthlete });
+  const { exportPdf, isExporting } = useExportBilan();
+
+  const [readinessSeries, setReadinessSeries] = useState<DailyReadiness[]>([]);
+  const [isKpiLoading, setIsKpiLoading] = useState(false);
+  const [kpiRefreshToken, setKpiRefreshToken] = useState(0);
+
+  useEffect(() => {
+    if (selectedAthleteId === "all") {
+      setReadinessSeries([]);
+      return;
+    }
+    setIsKpiLoading(true);
+    getReadinessSeries(selectedAthleteId, 30)
+      .then(setReadinessSeries)
+      .catch(console.error)
+      .finally(() => setIsKpiLoading(false));
+  }, [selectedAthleteId, kpiRefreshToken]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedAthlete =
@@ -176,6 +200,7 @@ export function HealthPage() {
 
   const clearStagedImport = () => {
     setStagedImport(null);
+    setImportModalOpen(false);
     setImportAthleteId("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -202,6 +227,7 @@ export function HealthPage() {
         dateMin: dates[0] ?? "",
         dateMax: dates[dates.length - 1] ?? "",
       });
+      setImportModalOpen(true);
       setImportStatus("idle");
       setImportMessage("");
     } catch (error) {
@@ -280,6 +306,7 @@ export function HealthPage() {
       const batch = [...deduplicatedRows.values()];
       await insertHrvBatch(batch);
       await refresh();
+      setKpiRefreshToken((n) => n + 1);
       setImportStatus("success");
       setImportMessage(
         `${batch.length} mesure${batch.length > 1 ? "s" : ""} importée${batch.length > 1 ? "s" : ""} pour ${importAthlete?.first_name ?? "l'athlète sélectionné"}.`
@@ -332,18 +359,6 @@ export function HealthPage() {
           Suivi Biometrique & Readiness
         </h2>
         <div className="flex items-center gap-4">
-          <select
-            value={selectedAthleteId}
-            onChange={(event) => setSelectedAthleteId(event.target.value)}
-            className="w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            <option value="all">Tous les athletes</option>
-            {athletes.map((athlete) => (
-              <option key={athlete.id} value={athlete.id}>
-                {athlete.first_name} {athlete.last_name}
-              </option>
-            ))}
-          </select>
           <button className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
             <Icon name="notifications" className="text-2xl" />
             {alertCount > 0 && (
@@ -351,11 +366,22 @@ export function HealthPage() {
             )}
           </button>
           <Button
-            disabled
-            title="L'export PDF n'est pas branché dans cette version de la web app."
+            disabled={!hasSelectedAthlete || !kpiReport || isExporting}
+            title={hasSelectedAthlete ? "Exporter le bilan PDF de l'athlète sélectionné" : "Sélectionnez un athlète pour exporter"}
+            onClick={() => {
+              if (!kpiReport || !selectedAthlete) return;
+              const name = `${selectedAthlete.first_name} ${selectedAthlete.last_name}`;
+              const acwrMetrics = acwrDetail
+                ? [acwrDetail.external, acwrDetail.internal, acwrDetail.global]
+                : undefined;
+              exportPdf(kpiReport, name, acwrMetrics);
+            }}
           >
-            <Icon name="download" />
-            Exporter PDF
+            <Icon
+              name={isExporting ? "progress_activity" : "download"}
+              className={isExporting ? "animate-spin" : ""}
+            />
+            {isExporting ? "Export..." : "Exporter PDF"}
           </Button>
         </div>
       </div>
@@ -427,78 +453,104 @@ export function HealthPage() {
             </div>
           </div>
 
-          {stagedImport && (
-            <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4">
-              <div className="rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
+          <Dialog open={importModalOpen} onClose={clearStagedImport}>
+            {stagedImport && (
+              <>
+                <DialogHeader>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                      Fichier prêt
-                    </p>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {stagedImport.fileName}
-                    </h4>
-                  </div>
-                  <Badge variant="slate">
-                    {stagedImport.rowCount} ligne{stagedImport.rowCount > 1 ? "s" : ""}
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                      Début
-                    </p>
-                    <p className="text-slate-900 dark:text-white">
-                      {formatDateLabel(stagedImport.dateMin)}
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                      Import HRV4Training
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Vérifiez les données puis sélectionnez l'athlète.
                     </p>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                      Fin
-                    </p>
-                    <p className="text-slate-900 dark:text-white">
-                      {formatDateLabel(stagedImport.dateMax)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                      rMSSD
-                    </p>
-                    <p className="text-slate-900 dark:text-white">Oui</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                      Subjectifs
-                    </p>
-                    <p className="text-slate-900 dark:text-white">Oui</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-4">
-                <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block mb-2">
-                    Athlète de l'import
-                  </label>
-                  <select
-                    value={importAthleteId}
-                    onChange={(event) => setImportAthleteId(event.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  <button
+                    onClick={clearStagedImport}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                   >
-                    <option value="">Choisir un athlète</option>
-                    {athletes.map((athlete) => (
-                      <option key={athlete.id} value={athlete.id}>
-                        {athlete.first_name} {athlete.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-wrap gap-2">
+                    <Icon name="close" className="text-xl" />
+                  </button>
+                </DialogHeader>
+                <DialogBody className="space-y-5">
+                  <div className="rounded-sm border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Fichier prêt
+                        </p>
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {stagedImport.fileName}
+                        </h4>
+                      </div>
+                      <Badge variant="slate">
+                        {stagedImport.rowCount} ligne{stagedImport.rowCount > 1 ? "s" : ""}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Début
+                        </p>
+                        <p className="text-slate-900 dark:text-white">
+                          {formatDateLabel(stagedImport.dateMin)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Fin
+                        </p>
+                        <p className="text-slate-900 dark:text-white">
+                          {formatDateLabel(stagedImport.dateMax)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          rMSSD
+                        </p>
+                        <p className="text-slate-900 dark:text-white">Oui</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Subjectifs
+                        </p>
+                        <p className="text-slate-900 dark:text-white">Oui</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block mb-2">
+                      Athlète de l'import
+                    </label>
+                    <select
+                      value={importAthleteId}
+                      onChange={(event) => setImportAthleteId(event.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    >
+                      <option value="">Choisir un athlète</option>
+                      {athletes.map((athlete) => (
+                        <option key={athlete.id} value={athlete.id}>
+                          {athlete.first_name} {athlete.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {importStatus === "error" && importMessage && (
+                    <p className="text-sm text-red-600 dark:text-red-400">{importMessage}</p>
+                  )}
+                </DialogBody>
+                <DialogFooter>
                   <Button
                     onClick={() => void handleConfirmImport()}
                     disabled={!importAthleteId || importStatus === "importing"}
                   >
-                    <Icon name="check" />
+                    {importStatus === "importing" ? (
+                      <Icon name="progress_activity" className="animate-spin text-sm" />
+                    ) : (
+                      <Icon name="check" />
+                    )}
                     Confirmer l'import
                   </Button>
                   <Button
@@ -515,69 +567,74 @@ export function HealthPage() {
                   >
                     Annuler
                   </Button>
-                </div>
-                <p className="text-xs text-slate-500">
-                  L'import réel n'est lancé qu'après confirmation.
-                </p>
-              </div>
-            </div>
-          )}
+                </DialogFooter>
+              </>
+            )}
+          </Dialog>
         </CardContent>
       </Card>
 
       {selectedAthlete && (
         <Card>
-          <CardContent className="p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                LnRMSSD 7j
-              </p>
-              <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
-                {latestSelectedPoint?.ln_rmssd_7d_avg?.toFixed(3) ?? "—"}
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Moyenne glissante sur 7 jours
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                Bande SWC
-              </p>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                {latestSelectedPoint?.swc_low_28d?.toFixed(3) ?? "—"} / {latestSelectedPoint?.swc_high_28d?.toFixed(3) ?? "—"}
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Basée sur les 28 jours précédents
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                Signal coach
-              </p>
-              <div
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium ${getSwcBadge(latestSelectedPoint?.swc_status ?? null).className}`}
-              >
-                <Icon
-                  name={getSwcBadge(latestSelectedPoint?.swc_status ?? null).icon}
-                  className="text-base"
-                />
-                {getSwcBadge(latestSelectedPoint?.swc_status ?? null).label}
-                <span className="text-xs opacity-80">
-                  {getSwcBadge(latestSelectedPoint?.swc_status ?? null).detail}
-                </span>
+          <CardContent className="p-6">
+            {isKpiLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Icon name="progress_activity" className="animate-spin text-primary text-xl" />
               </div>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                Recommendation
-              </p>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                {latestSelectedPoint?.swc_recommendation ?? "—"}
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Low/rest si la moyenne 7j sort de la SWC
-              </p>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    LnRMSSD 7j
+                  </p>
+                  <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
+                    {latestSelectedPoint?.ln_rmssd_7d_avg?.toFixed(3) ?? "—"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Moyenne glissante sur 7 jours
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    Bande SWC
+                  </p>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                    {latestSelectedPoint?.swc_low_28d?.toFixed(3) ?? "—"} / {latestSelectedPoint?.swc_high_28d?.toFixed(3) ?? "—"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Basée sur les 28 jours précédents
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    Signal coach
+                  </p>
+                  <div
+                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium ${getSwcBadge(latestSelectedPoint?.swc_status ?? null).className}`}
+                  >
+                    <Icon
+                      name={getSwcBadge(latestSelectedPoint?.swc_status ?? null).icon}
+                      className="text-base"
+                    />
+                    {getSwcBadge(latestSelectedPoint?.swc_status ?? null).label}
+                    <span className="text-xs opacity-80">
+                      {getSwcBadge(latestSelectedPoint?.swc_status ?? null).detail}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    Recommendation
+                  </p>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                    {latestSelectedPoint?.swc_recommendation ?? "—"}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Low/rest si la moyenne 7j sort de la SWC
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -662,6 +719,24 @@ export function HealthPage() {
       </div>
 
       <Card className="overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Icon name="vital_signs" className="text-slate-400" />
+            Mesures
+          </div>
+          <select
+            value={selectedAthleteId}
+            onChange={(event) => setSelectedAthleteId(event.target.value)}
+            className="w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            <option value="all">Tous les athletes</option>
+            {athletes.map((athlete) => (
+              <option key={athlete.id} value={athlete.id}>
+                {athlete.first_name} {athlete.last_name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

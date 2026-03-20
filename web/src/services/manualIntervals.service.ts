@@ -398,8 +398,8 @@ function buildBlockMetricUpdate(
     payload[`${prefix}pace_last`] = null;
   } else {
     const meanSpeed = speedDuration > 0 ? weightedSpeed / speedDuration : null;
-    payload[`${prefix}pace_mean`] = round2(speedToPaceDecimal(meanSpeed));
-    payload[`${prefix}pace_last`] = round2(speedToPaceDecimal(lastSegment.avgSpeed ?? null));
+    payload[`${prefix}pace_mean`] = speedToPaceDecimal(meanSpeed);
+    payload[`${prefix}pace_last`] = speedToPaceDecimal(lastSegment.avgSpeed ?? null);
     payload[`${prefix}power_mean`] = null;
     payload[`${prefix}power_last`] = null;
   }

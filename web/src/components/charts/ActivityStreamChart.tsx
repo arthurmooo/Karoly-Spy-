@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import type { StreamPoint, GarminLap } from "@/types/activity";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
+import { speedToPaceDecimal, formatPaceDecimal } from "@/services/format.service";
 
 interface Props {
   streams: StreamPoint[];
@@ -36,14 +37,8 @@ function formatTime(sec: number): string {
 }
 
 function speedToPaceNum(ms: number): number | null {
-  if (!ms || ms <= 0) return null;
-  return 1000 / ms / 60; // min/km
-}
-
-function formatPace(minPerKm: number): string {
-  const min = Math.floor(minPerKm);
-  const sec = Math.round((minPerKm - min) * 60);
-  return `${min}'${sec.toString().padStart(2, "0")} /km`;
+  if (!ms || ms < 1.0) return null;   // < 1.0 m/s (~16:40/km) is walk/noise
+  return speedToPaceDecimal(ms);
 }
 
 /** Moving average (centered window). Does NOT smooth nulls into values. */
@@ -295,7 +290,7 @@ export function ActivityStreamChart({
             <span>FC moy : <span className="font-medium text-red-500">{zoomStats.avgHr} bpm</span></span>
           )}
           {zoomStats.avgPace != null && (
-            <span>Allure moy : <span className="font-medium text-blue-500">{formatPace(zoomStats.avgPace)}</span></span>
+            <span>Allure moy : <span className="font-medium text-blue-500">{formatPaceDecimal(zoomStats.avgPace)}</span></span>
           )}
           {zoomStats.avgPower != null && (
             <span>Puissance moy : <span className="font-medium text-green-500">{zoomStats.avgPower} W</span></span>
@@ -352,7 +347,7 @@ export function ActivityStreamChart({
               }}
               formatter={(value: number, name: string) => {
                 if (name === "hr") return [`${Math.round(value)} bpm`, "FC"];
-                if (name === "pace") return [formatPace(value), "Allure"];
+                if (name === "pace") return [formatPaceDecimal(value), "Allure"];
                 if (name === "power") return [`${Math.round(value)} W`, "Puissance"];
                 if (name === "speed") return [`${value} km/h`, "Vitesse"];
                 if (name === "alt") return [`${Math.round(value)} m`, "Altitude"];

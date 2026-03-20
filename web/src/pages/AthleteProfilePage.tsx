@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { AthleteSubNav } from "@/components/layout/AthleteSubNav";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -141,43 +142,26 @@ export function AthleteProfilePage() {
 
   return (
     <div className="space-y-8">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-slate-500">
-        <Link to="/athletes" className="hover:text-primary transition-colors">
-          Athlètes
-        </Link>
-        <Icon name="chevron_right" className="text-base text-slate-400" />
-        <span className="text-slate-900 dark:text-white font-medium">
-          {athlete.first_name} {athlete.last_name}
-        </span>
-      </nav>
+      <AthleteSubNav athlete={athlete} active="profile" />
 
       {/* Athlete header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-md bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-xl font-semibold text-primary shrink-0 border border-primary/20">
-            {initials}
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
-              {athlete.first_name} {athlete.last_name}
-            </h1>
-            <div className="flex items-center gap-3 mt-1">
-              {athlete.email && (
-                <span className="text-sm text-slate-500">{athlete.email}</span>
-              )}
-              <Badge variant={athlete.is_active ? "emerald" : "red"}>
-                {athlete.is_active ? "Actif" : "Inactif"}
-              </Badge>
-            </div>
+      <div className="flex items-center gap-4">
+        <div className="w-14 h-14 rounded-md bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-xl font-semibold text-primary shrink-0 border border-primary/20">
+          {initials}
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+            {athlete.first_name} {athlete.last_name}
+          </h1>
+          <div className="flex items-center gap-3 mt-1">
+            {athlete.email && (
+              <span className="text-sm text-slate-500">{athlete.email}</span>
+            )}
+            <Badge variant={athlete.is_active ? "emerald" : "red"}>
+              {athlete.is_active ? "Actif" : "Inactif"}
+            </Badge>
           </div>
         </div>
-        <Link to={`/athletes/${id}/trends`}>
-          <Button variant="secondary" size="sm">
-            <Icon name="monitor_heart" className="text-sm" />
-            Santé & HRV
-          </Button>
-        </Link>
       </div>
 
       {/* Section title */}

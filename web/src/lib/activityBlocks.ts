@@ -1,5 +1,6 @@
-import type { Activity, ActivityInterval, IntervalBlock, StreamPoint } from "@/types/activity";
+import type { Activity, ActivityInterval, BlockGroupedIntervals, IntervalBlock, StreamPoint } from "@/types/activity";
 import { hasManualBlockOverride } from "@/services/manualIntervals.service";
+import { speedToPaceDecimal } from "@/services/format.service";
 import type { DetectedSegment, ManualBlockOverridePayload } from "@/services/manualIntervals.service";
 
 // ── Types ──────────────────────────────────────────────────
@@ -230,7 +231,7 @@ export function getChartMaxSec(activity: Activity): number | null {
 
 export function buildBlocksFromIntervals(intervals: ActivityInterval[]): DisplayBlock[] {
   return intervals.map((intv, i) => {
-    const pace = intv.avg_speed ? 1000 / intv.avg_speed / 60 : null;
+    const pace = intv.avg_speed ? speedToPaceDecimal(intv.avg_speed) : null;
     return {
       id: intv.id, label: INTERVAL_TYPE_LABELS[intv.type] ?? `Bloc ${i + 1}`,
       durationSec: intv.duration ?? null, paceMean: pace, paceLast: pace,
@@ -255,7 +256,7 @@ export function buildResolvedBlocks(
     const manual = isManualBlockIndex(spec.blockIndex) ? manualSegs[spec.blockIndex] : undefined;
     const tc = spec.count ?? 0;
     const selected = tc > 0 ? detected.slice(cursor, cursor + tc) : [];
-    if (tc > 0 && selected.length < tc)
+    if (tc > 0 && selected.length < tc && !manual?.length)
       warnInDev("Block requested more intervals than available", { activityId: activity.id, blockId: spec.id, blockIndex: spec.blockIndex, requested: tc, available: selected.length });
     if (tc > 0) cursor += tc;
     const rows = manual?.map(detectedSegmentToDisplayRow)
@@ -293,4 +294,106 @@ export function readStoredManualSegments(): StoredManualSegments {
 export function writeStoredManualSegments(value: StoredManualSegments) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(MANUAL_BLOCK_SEGMENTS_STORAGE_KEY, JSON.stringify(value));
+}
+
+export function computeEffectiveIntervals(
+  dbIntervals: ActivityInterval[],
+  manualSegs: Partial<Record<1 | 2, DetectedSegment[]>>,
+  activityId: string,
+): ActivityInterval[] {
+  const allManual: DetectedSegment[] = [];
+  for (const bi of [1, 2] as const) {
+    const segs = manualSegs[bi];
+    if (segs?.length) allManual.push(...segs);
+  }
+  if (allManual.length === 0) return dbIntervals;
+  allManual.sort((a, b) => a.startSec - b.startSec);
+  return allManual.map((seg) => ({
+    id: `manual-${seg.id}`,
+    activity_id: activityId,
+    type: "work",
+    start_time: seg.startSec,
+    end_time: seg.endSec,
+    duration: seg.durationSec,
+    avg_speed: seg.avgSpeed ?? null,
+    avg_power: seg.avgPower ?? null,
+    avg_hr: seg.avgHr ?? null,
+    avg_cadence: null,
+    detection_source: "manual",
+    respect_score: null,
+  }));
+}
+
+function segToInterval(seg: DetectedSegment, activityId: string): ActivityInterval {
+  return {
+    id: `manual-${seg.id}`,
+    activity_id: activityId,
+    type: "work",
+    start_time: seg.startSec,
+    end_time: seg.endSec,
+    duration: seg.durationSec,
+    avg_speed: seg.avgSpeed ?? null,
+    avg_power: seg.avgPower ?? null,
+    avg_hr: seg.avgHr ?? null,
+    avg_cadence: null,
+    detection_source: "manual",
+    respect_score: null,
+  };
+}
+
+export function computeBlockGroupedIntervals(
+  dbIntervals: ActivityInterval[],
+  manualSegs: Partial<Record<1 | 2, DetectedSegment[]>>,
+  blocks: IntervalBlock[] | undefined,
+  activityId: string,
+  activity?: Activity,
+): BlockGroupedIntervals[] {
+  const sorted = [...dbIntervals].sort((a, b) => a.start_time - b.start_time);
+
+  // Build merged set of block indexes from DB blocks + manual overrides
+  const blockByIndex = new Map<number, IntervalBlock>((blocks ?? []).map((b) => [b.block_index, b]));
+  const indexes = new Set<number>(blockByIndex.keys());
+  if (activity) {
+    for (const bi of [1, 2] as const) {
+      if (hasManualBlockOverride(activity, bi)) indexes.add(bi);
+    }
+  }
+
+  if (indexes.size > 0) {
+    const result: BlockGroupedIntervals[] = [];
+    let cursor = 0;
+
+    for (const bi of [...indexes].sort((a, b) => a - b)) {
+      const block = blockByIndex.get(bi);
+      const manual = isManualBlockIndex(bi) ? manualSegs[bi] : undefined;
+
+      if (manual?.length) {
+        result.push({
+          blockIndex: bi,
+          label: `Bloc ${bi}`,
+          intervals: manual.map((s) => segToInterval(s, activityId)),
+        });
+      } else {
+        // Use manual count override if available, else DB block count
+        const manualCount = activity && isManualBlockIndex(bi) && hasManualBlockOverride(activity, bi)
+          ? activity[`manual_interval_block_${bi}_count` as keyof Activity] as number | null | undefined
+          : null;
+        const count = manualCount ?? block?.count ?? 0;
+        const slice = count > 0 ? sorted.slice(cursor, cursor + count) : [];
+        if (count > 0) cursor += count;
+        result.push({
+          blockIndex: bi,
+          label: `Bloc ${bi}`,
+          intervals: slice,
+        });
+      }
+    }
+    return result;
+  }
+
+  // No blocks → single group with effective intervals (manual merged if present)
+  const effective = computeEffectiveIntervals(dbIntervals, manualSegs, activityId);
+  return effective.length > 0
+    ? [{ blockIndex: 1, label: "Bloc 1", intervals: effective }]
+    : [];
 }

@@ -9,38 +9,52 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
-import type { ActivityInterval } from "@/types/activity";
+import type { BlockGroupedIntervals } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
-import { formatPaceDecimal } from "@/services/format.service";
+import { formatPaceDecimal, speedToPaceDecimal } from "@/services/format.service";
 
 interface Props {
-  intervals: ActivityInterval[];
+  intervalsByBlock: BlockGroupedIntervals[];
   physioProfile: PhysioProfile | null;
   sportType: string;
+  hideTitle?: boolean;
 }
 
 const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
-export function IntervalChart({ intervals, physioProfile, sportType, hideTitle }: Props & { hideTitle?: boolean }) {
+export function IntervalChart({ intervalsByBlock, physioProfile, sportType, hideTitle }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
 
-  const activeIntervals = useMemo(
-    () => intervals.filter((i) => i.type === "work" || i.type === "active"),
-    [intervals]
-  );
+  // Flatten all active intervals across blocks, tracking block boundaries
+  const { data, blockBoundaries } = useMemo(() => {
+    const flat: { index: number; hr: number | null; pace: number | null; power: number | null }[] = [];
+    const boundaries: { index: number; label: string }[] = [];
+    let seqIdx = 0;
 
-  const data = useMemo(
-    () =>
-      activeIntervals.map((intv, i) => ({
-        index: i + 1,
-        hr: intv.avg_hr != null ? Math.round(intv.avg_hr) : null,
-        pace: !isBike && intv.avg_speed && intv.avg_speed > 0
-          ? Math.round((1000 / intv.avg_speed / 60) * 100) / 100
-          : null,
-        power: isBike && intv.avg_power ? Math.round(intv.avg_power) : null,
-      })),
-    [activeIntervals, isBike]
-  );
+    for (let bIdx = 0; bIdx < intervalsByBlock.length; bIdx++) {
+      const group = intervalsByBlock[bIdx]!;
+      const active = group.intervals.filter((i) => i.type === "work" || i.type === "active");
+
+      // Mark boundary between blocks (before this block's first interval)
+      if (bIdx > 0 && active.length > 0) {
+        boundaries.push({ index: seqIdx + 0.5, label: group.label });
+      }
+
+      for (const intv of active) {
+        seqIdx++;
+        flat.push({
+          index: seqIdx,
+          hr: intv.avg_hr != null ? Math.round(intv.avg_hr) : null,
+          pace: !isBike && intv.avg_speed && intv.avg_speed > 0
+            ? speedToPaceDecimal(intv.avg_speed)
+            : null,
+          power: isBike && intv.avg_power ? Math.round(intv.avg_power) : null,
+        });
+      }
+    }
+
+    return { data: flat, blockBoundaries: boundaries };
+  }, [intervalsByBlock, isBike]);
 
   if (data.length === 0) return null;
 
@@ -119,6 +133,19 @@ export function IntervalChart({ intervals, physioProfile, sportType, hideTitle }
                 label={{ value: "CP/CS", fontSize: 9, fill: "#2563EB", position: "left" }}
               />
             )}
+
+            {/* Block separators */}
+            {blockBoundaries.map((boundary) => (
+              <ReferenceLine
+                key={`block-sep-${boundary.index}`}
+                x={boundary.index}
+                stroke="#94a3b8"
+                strokeDasharray="6 4"
+                strokeWidth={1}
+                yAxisId="left"
+                label={{ value: boundary.label, fontSize: 10, fill: "#94a3b8", position: "insideTopRight" }}
+              />
+            ))}
 
             {/* HR dots */}
             <Line

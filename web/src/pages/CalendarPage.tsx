@@ -1,20 +1,22 @@
+import { useState, useEffect } from "react";
 import { useCalendar } from "@/hooks/useCalendar";
-import { CalendarHeader } from "@/components/calendar/CalendarHeader";
-import { CalendarFilters } from "@/components/calendar/filters/CalendarFilters";
+import { useAuth } from "@/hooks/useAuth";
+import { CalendarToolbar } from "@/components/calendar/CalendarToolbar";
 import { CalendarGrid } from "@/components/calendar/CalendarGrid";
 import { CalendarLegend } from "@/components/calendar/CalendarLegend";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { cn } from "@/lib/cn";
 
 export function CalendarPage() {
+  const { role } = useAuth();
+  const isAthlete = role === "athlete";
   const {
     view,
     currentDate,
     selectedAthleteId,
     selectedSport,
     days,
-    stats,
     athletes,
     isLoading,
     plannedAvailable,
@@ -23,24 +25,37 @@ export function CalendarPage() {
     setSport,
     navigateDate,
     goToToday,
-  } = useCalendar();
+  } = useCalendar({ skipAthleteList: isAthlete });
+
+  // Fade transition on view/date change
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  useEffect(() => {
+    setIsTransitioning(true);
+    const t = setTimeout(() => setIsTransitioning(false), 50);
+    return () => clearTimeout(t);
+  }, [view, currentDate]);
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
-      <CalendarHeader
+    <div className="space-y-4 flex flex-col h-full">
+      {/* Titre allégé */}
+      <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <Icon name="calendar_month" className="text-xl text-blue-600 dark:text-blue-400" />
+        Calendrier
+      </h1>
+
+      {/* Toolbar unifié */}
+      <CalendarToolbar
         view={view}
         currentDate={currentDate}
         onViewChange={setView}
         onNavigate={navigateDate}
-      />
-
-      <CalendarFilters
+        onTodayClick={goToToday}
         athletes={athletes}
         selectedAthleteId={selectedAthleteId}
         selectedSport={selectedSport}
         onAthleteChange={setAthlete}
         onSportChange={setSport}
-        onTodayClick={goToToday}
+        hideAthleteFilter={isAthlete}
       />
 
       {!plannedAvailable && (
@@ -52,51 +67,22 @@ export function CalendarPage() {
       )}
 
       {isLoading ? (
-        <div className="flex-1 flex items-center justify-center min-h-[400px]">
+        <div className="flex-1 flex items-center justify-center min-h-[320px] sm:min-h-[400px]">
           <Icon name="refresh" className="animate-spin text-4xl text-primary" />
         </div>
       ) : (
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div
+          className={cn(
+            "flex flex-col transition-opacity duration-200 ease-in-out",
+            view === "week" && "max-h-[620px] overflow-y-auto",
+            isTransitioning ? "opacity-0" : "opacity-100"
+          )}
+        >
           <CalendarGrid view={view} days={days} />
           <CalendarLegend />
         </div>
       )}
 
-      {/* Stats Résumé */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-          <CardContent className="p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Séances</p>
-            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">{stats.totalSessions}</h3>
-            <p className="text-xs text-slate-500 font-medium mt-1">cette période</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-          <CardContent className="p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Volume</p>
-            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
-              {Math.floor(stats.totalDurationSec / 3600)}h {Math.floor((stats.totalDurationSec % 3600) / 60)}m
-            </h3>
-            <p className="text-xs text-slate-500 font-medium mt-1">cette période</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-          <CardContent className="p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Distance</p>
-            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
-              {(stats.totalDistanceM / 1000).toFixed(1)} km
-            </h3>
-            <p className="text-xs text-slate-500 font-medium mt-1">cette période</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-          <CardContent className="p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">MLS moyen</p>
-            <h3 className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">{stats.avgMls}</h3>
-            <p className="text-xs text-slate-500 font-medium mt-1">cette période</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

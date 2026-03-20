@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ComposedChart,
   Line,
@@ -18,6 +18,7 @@ import { LapsTable } from "@/components/tables/LapsTable";
 import { ActivityHeader } from "@/components/activity/ActivityHeader";
 import { ActivityKpiCards } from "@/components/activity/ActivityKpiCards";
 import { ActivityAnalysisSection } from "@/components/activity/ActivityAnalysisSection";
+import { AthleteFeedbackPanel } from "@/components/activity/AthleteFeedbackPanel";
 import { CoachFeedbackPanel } from "@/components/activity/CoachFeedbackPanel";
 import { IntervalBlocksCard } from "@/components/activity/IntervalBlocksCard";
 import { useActivityDetail } from "@/hooks/useActivityDetail";
@@ -35,8 +36,12 @@ import {
   getManualBlockFingerprint,
   readStoredManualSegments,
   writeStoredManualSegments,
+  computeEffectiveIntervals,
+  computeBlockGroupedIntervals,
 } from "@/lib/activityBlocks";
-import { useState, useEffect } from "react";
+import { computeFrontendRepWindows } from "@/services/repWindows.service";
+import type { RepWindow } from "@/types/activity";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 
 const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
@@ -44,6 +49,7 @@ const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 export function ActivityDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { role } = useAuth();
   const isCoach = checkIsCoach(role);
 
@@ -51,6 +57,8 @@ export function ActivityDetailPage() {
     activity, intervals, isLoading, isLoadingStreams,
     isSaving, saveError, nolioSynced, saveCoachComment,
     saveManualDetectorOverride, handleReprocess, isReprocessing,
+    saveWorkType, isSavingWorkType, workTypeSaveError, workTypeWarning,
+    isSavingFeedback, feedbackSaveError, saveAthleteFeedback,
   } = useActivityDetail(id);
 
   const { profile: physioProfile } = useAthletePhysioProfile(
@@ -60,8 +68,9 @@ export function ActivityDetailPage() {
   const [highlightedSegments, setHighlightedSegments] = useState<DetectedSegment[]>([]);
   const [manualBlockSegmentsByBlock, setManualBlockSegmentsByBlock] = useState<Partial<Record<1 | 2, DetectedSegment[]>>>({});
   const [reprocessLaunched, setReprocessLaunched] = useState(false);
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set());
 
-  useEffect(() => { setHighlightedSegments([]); }, [activity?.id]);
+  useEffect(() => { setHighlightedSegments([]); setExpandedBlocks(new Set()); }, [activity?.id]);
 
   // Restore manual segments from localStorage
   useEffect(() => {
@@ -82,6 +91,100 @@ export function ActivityDetailPage() {
     if (changed) writeStoredManualSegments(allStored);
     setManualBlockSegmentsByBlock(next);
   }, [activity]);
+
+  // ── Derived state ───────────────────────────────────────
+
+  const segmentedMetrics = activity?.segmented_metrics ?? null;
+  const chartMaxSec = activity ? getChartMaxSec(activity) : 0;
+  const resolvedBlocks = activity
+    ? buildResolvedBlocks(activity, segmentedMetrics?.interval_blocks, intervals, manualBlockSegmentsByBlock, chartMaxSec)
+    : [];
+  const fallbackBlocks = buildBlocksFromIntervals(intervals);
+  const displayBlocks = resolvedBlocks.length > 0 ? resolvedBlocks : fallbackBlocks;
+  const hasResolvedBlocks = resolvedBlocks.length > 0;
+  const effectiveIntervals = activity
+    ? computeEffectiveIntervals(intervals, manualBlockSegmentsByBlock, activity.id)
+    : intervals;
+
+  const blockGroupedIntervals = useMemo(
+    () =>
+      activity?.id
+        ? computeBlockGroupedIntervals(intervals, manualBlockSegmentsByBlock, segmentedMetrics?.interval_blocks, activity.id, activity)
+        : [],
+    [intervals, manualBlockSegmentsByBlock, segmentedMetrics?.interval_blocks, activity]
+  );
+
+  const hasManualWindows = blockGroupedIntervals.some(
+    (g) => g.intervals.some((i) => i.detection_source === "manual")
+  );
+
+  const repWindowsByBlock = useMemo(() => {
+    if (!activity) return {};
+
+    const result: Record<number, RepWindow[]> = {};
+    const backendWindows = activity.form_analysis?.rep_windows;
+    let cumIdx = 0;
+    for (const group of blockGroupedIntervals) {
+      const workCount = group.intervals.filter((i) => i.type === "work" || i.type === "active").length;
+      const isManual = group.intervals.some((i) => i.detection_source === "manual");
+      if (isManual && activity.activity_streams?.length) {
+        result[group.blockIndex] = computeFrontendRepWindows(
+          group.intervals, activity.activity_streams, activity.sport_type ?? "",
+        );
+      } else if (backendWindows?.length) {
+        result[group.blockIndex] = backendWindows.filter(
+          (w) => w.rep_index >= cumIdx + 1 && w.rep_index <= cumIdx + workCount
+        );
+      }
+      cumIdx += workCount;
+    }
+    return result;
+  }, [blockGroupedIntervals, activity]);
+
+  const isBike = BIKE_SPORTS.has(activity?.sport_type ?? "");
+  const hasStreams = Boolean(activity?.activity_streams?.length);
+  const hasLaps = Boolean(activity?.garmin_laps?.length);
+  const hasFitFile = Boolean(activity?.fit_file_path);
+  const hasDerivedAnalysisPending = Boolean(activity?.analysis_dirty);
+
+  const handleToggleBlock = (blockIndex: number) => {
+    setExpandedBlocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockIndex)) next.delete(blockIndex); else next.add(blockIndex);
+      return next;
+    });
+  };
+
+  const blockHighlights = blockGroupedIntervals
+    .filter((g) => expandedBlocks.has(g.blockIndex))
+    .flatMap((g) => g.intervals
+      .filter((i) => (i.type === "work" || i.type === "active") && i.start_time != null && i.end_time != null)
+      .map((i) => ({ startSec: i.start_time, endSec: i.end_time }))
+    );
+
+  const chartData = displayBlocks.map((block, i) => ({
+    index: i + 1, label: block.label,
+    hr: block.hrMean != null ? Math.round(block.hrMean) : null,
+    pace: block.paceMean,
+    power: block.powerMean != null ? Math.round(block.powerMean) : null,
+  }));
+
+  const handleInjectedSegmentsChange = (blockIndex: 1 | 2, segments: DetectedSegment[] | null, payload: ManualBlockOverridePayload) => {
+    if (!activity?.id) return;
+    const merged = mergeActivityWithPayload(activity, payload);
+    const fp = getManualBlockFingerprint(merged, blockIndex);
+    setManualBlockSegmentsByBlock((prev) => {
+      const next = { ...prev };
+      if (segments?.length && fp) next[blockIndex] = segments; else delete next[blockIndex];
+      return next;
+    });
+    const allStored = readStoredManualSegments();
+    const stored = { ...(allStored[activity.id] ?? {}) };
+    const key = String(blockIndex) as "1" | "2";
+    if (segments?.length && fp) { stored[key] = { fingerprint: fp, segments }; allStored[activity.id] = stored; }
+    else { delete stored[key]; if (!Object.keys(stored).length) delete allStored[activity.id]; else allStored[activity.id] = stored; }
+    writeStoredManualSegments(allStored);
+  };
 
   // ── Loading / Not Found ─────────────────────────────────
 
@@ -111,59 +214,70 @@ export function ActivityDetailPage() {
     );
   }
 
-  // ── Derived state ───────────────────────────────────────
-
-  const segmentedMetrics = activity.segmented_metrics ?? null;
-  const chartMaxSec = getChartMaxSec(activity);
-  const resolvedBlocks = buildResolvedBlocks(activity, segmentedMetrics?.interval_blocks, intervals, manualBlockSegmentsByBlock, chartMaxSec);
-  const fallbackBlocks = buildBlocksFromIntervals(intervals);
-  const displayBlocks = resolvedBlocks.length > 0 ? resolvedBlocks : fallbackBlocks;
-  const hasResolvedBlocks = resolvedBlocks.length > 0;
-  const isBike = BIKE_SPORTS.has(activity.sport_type ?? "");
-  const hasStreams = Boolean(activity.activity_streams?.length);
-  const hasLaps = Boolean(activity.garmin_laps?.length);
-  const hasFitFile = Boolean(activity.fit_file_path);
-
-  const blockHighlights = displayBlocks
-    .flatMap((b) => b.rows.filter((r) => r.startSec != null && r.endSec != null).map((r) => ({ startSec: r.startSec!, endSec: r.endSec! })));
-
-  const chartData = displayBlocks.map((block, i) => ({
-    index: i + 1, label: block.label,
-    hr: block.hrMean != null ? Math.round(block.hrMean) : null,
-    pace: block.paceMean != null ? Number(block.paceMean.toFixed(2)) : null,
-    power: block.powerMean != null ? Math.round(block.powerMean) : null,
-  }));
-
-  const handleInjectedSegmentsChange = (blockIndex: 1 | 2, segments: DetectedSegment[] | null, payload: ManualBlockOverridePayload) => {
-    if (!activity?.id) return;
-    const merged = mergeActivityWithPayload(activity, payload);
-    const fp = getManualBlockFingerprint(merged, blockIndex);
-    setManualBlockSegmentsByBlock((prev) => {
-      const next = { ...prev };
-      if (segments?.length && fp) next[blockIndex] = segments; else delete next[blockIndex];
-      return next;
-    });
-    const allStored = readStoredManualSegments();
-    const stored = { ...(allStored[activity.id] ?? {}) };
-    const key = String(blockIndex) as "1" | "2";
-    if (segments?.length && fp) { stored[key] = { fingerprint: fp, segments }; allStored[activity.id] = stored; }
-    else { delete stored[key]; if (!Object.keys(stored).length) delete allStored[activity.id]; else allStored[activity.id] = stored; }
-    writeStoredManualSegments(allStored);
-  };
+  const feedbackPanels = (
+    <>
+      <AthleteFeedbackPanel
+        activity={activity}
+        isCoach={isCoach}
+        isSaving={isSavingFeedback}
+        saveError={feedbackSaveError}
+        onSaveFeedback={saveAthleteFeedback}
+      />
+      <CoachFeedbackPanel
+        activity={activity}
+        isCoach={isCoach}
+        isSaving={isSaving}
+        saveError={saveError}
+        nolioSynced={nolioSynced}
+        onSaveComment={saveCoachComment}
+      />
+    </>
+  );
 
   // ── Render ──────────────────────────────────────────────
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 lg:space-y-8">
       <ActivityHeader
         activity={activity}
         onBack={() => navigate(-1)}
+        onOpenComparison={() => navigate(`${location.pathname}/compare`)}
         onReprocess={handleReprocess}
+        onSaveWorkType={async (manualWorkType) => {
+          const result = await saveWorkType(manualWorkType);
+          if (result.success) {
+            if (result.reprocessDispatched) {
+              toast.success("Type de séance mis à jour. Recalcul lancé.");
+            } else if (result.warning) {
+              toast.warning(result.warning);
+            } else {
+              toast.success("Type de séance mis à jour.");
+            }
+          } else if (result.error) {
+            toast.error(result.error);
+          }
+          return result;
+        }}
         isReprocessing={isReprocessing}
         reprocessLaunched={reprocessLaunched}
         onReprocessLaunched={() => { toast.success("Recalcul lancé"); setReprocessLaunched(true); }}
+        isSavingWorkType={isSavingWorkType}
+        workTypeSaveError={workTypeSaveError}
+        workTypeWarning={workTypeWarning}
         isCoach={isCoach}
       />
+
+      {hasDerivedAnalysisPending && (
+        <FeatureNotice
+          title="Analyses en cours de recalcul"
+          description="Le type de séance a changé. Les modules dérivés restent masqués jusqu'à la fin du recalcul backend."
+          status="partial"
+        />
+      )}
+
+      <div className="space-y-6 lg:hidden">
+        {feedbackPanels}
+      </div>
 
       <ActivityKpiCards activity={activity} />
 
@@ -206,7 +320,7 @@ export function ActivityDetailPage() {
                 </div>
               )}
             />
-          ) : displayBlocks.length > 0 ? (
+          ) : displayBlocks.length > 0 && !hasDerivedAnalysisPending ? (
             <>
               <div className="flex items-center justify-between gap-4 mb-4">
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
@@ -240,6 +354,12 @@ export function ActivityDetailPage() {
                 </ResponsiveContainer>
               </div>
             </>
+          ) : hasDerivedAnalysisPending ? (
+            <FeatureNotice
+              title="Courbe détaillée en attente"
+              description="La courbe FIT reste prioritaire. Les blocs dérivés ne seront réutilisés qu'après le recalcul du nouveau type de séance."
+              status="partial"
+            />
           ) : (
             <>
               <div className="flex items-center justify-between gap-4 mb-4">
@@ -264,17 +384,42 @@ export function ActivityDetailPage() {
       </Card>
 
       {/* Advanced Analysis (zones, decoupling, intervals, tempo, competition, GPS placeholder) */}
-      <ActivityAnalysisSection activity={activity} intervals={intervals} physioProfile={physioProfile} />
+      {hasDerivedAnalysisPending ? (
+        <FeatureNotice
+          title="Analyse approfondie temporairement indisponible"
+          description="Les analyses de découplage, de blocs et de forme seront réaffichées dès que le recalcul aura terminé."
+          status="partial"
+        />
+      ) : (
+        <ActivityAnalysisSection
+          activity={activity}
+          intervals={effectiveIntervals}
+          intervalsByBlock={blockGroupedIntervals}
+          repWindowsByBlock={repWindowsByBlock}
+          hasManualWindows={hasManualWindows}
+          physioProfile={physioProfile}
+          expandedBlocks={expandedBlocks}
+          onToggleBlock={handleToggleBlock}
+        />
+      )}
 
       {/* Bottom grid: blocks table + sidebar */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-8 lg:col-span-2">
-          <IntervalBlocksCard
-            displayBlocks={displayBlocks}
-            isBike={isBike}
-            hasResolvedBlocks={hasResolvedBlocks}
-            detectionSource={activity.interval_detection_source}
-          />
+          {hasDerivedAnalysisPending ? (
+            <FeatureNotice
+              title="Blocs d'intervalles masqués"
+              description="Les blocs et métriques de répétitions seront remis à jour après le recalcul du nouveau type de séance."
+              status="partial"
+            />
+          ) : (
+            <IntervalBlocksCard
+              displayBlocks={displayBlocks}
+              isBike={isBike}
+              hasResolvedBlocks={hasResolvedBlocks}
+              detectionSource={activity.interval_detection_source}
+            />
+          )}
           {hasLaps && (
             <Card>
               <CardContent className="overflow-hidden p-0">
@@ -295,28 +440,31 @@ export function ActivityDetailPage() {
         <div className="space-y-6">
           {isCoach && (
             <div>
-              {!hasStreams && !isLoadingStreams && (
+              {hasDerivedAnalysisPending ? (
+                <FeatureNotice
+                  title="Détecteur manuel désactivé"
+                  description="Le détecteur manuel sera réactivé dès que les analyses du nouveau type de séance seront recalculées."
+                  status="partial"
+                />
+              ) : !hasStreams && !isLoadingStreams ? (
                 <FeatureNotice title="Streams requis" description="Le détecteur manuel nécessite les streams FIT." status="backend" />
+              ) : (
+                <ManualIntervalDetector
+                  activity={activity}
+                  isLoadingStreams={isLoadingStreams}
+                  onSave={saveManualDetectorOverride}
+                  onDetectedSegmentsChange={setHighlightedSegments}
+                  onInjectedSegmentsChange={handleInjectedSegmentsChange}
+                />
               )}
-              <ManualIntervalDetector
-                activity={activity}
-                isLoadingStreams={isLoadingStreams}
-                onSave={saveManualDetectorOverride}
-                onDetectedSegmentsChange={setHighlightedSegments}
-                onInjectedSegmentsChange={handleInjectedSegmentsChange}
-              />
             </div>
           )}
-          <CoachFeedbackPanel
-            activity={activity}
-            isCoach={isCoach}
-            isSaving={isSaving}
-            saveError={saveError}
-            nolioSynced={nolioSynced}
-            onSaveComment={saveCoachComment}
-          />
+          <div className="hidden space-y-6 lg:block">
+            {feedbackPanels}
+          </div>
         </div>
       </div>
+
     </div>
   );
 }

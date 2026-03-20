@@ -1,5 +1,5 @@
 import { Icon } from "@/components/ui/Icon";
-
+import { SPORT_CONFIG } from "@/lib/constants";
 
 interface CalendarFiltersProps {
   athletes: any[];
@@ -40,11 +40,9 @@ export function CalendarFilters({
           className="w-full sm:w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         >
           <option value="Tous les sports">Tous les sports</option>
-          <option value="Course à pied">Course à pied</option>
-          <option value="Vélo">Vélo</option>
-          <option value="Natation">Natation</option>
-          <option value="Ski">Ski</option>
-          <option value="Musculation">Musculation</option>
+          {SPORT_CONFIG.map(s => (
+            <option key={s.key} value={s.dbKey}>{s.label}</option>
+          ))}
         </select>
       </div>
 

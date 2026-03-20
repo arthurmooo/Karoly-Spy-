@@ -2,6 +2,7 @@ import type { GarminLap } from "@/types/activity";
 import { useState } from "react";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
+import { formatDuration, speedToPace } from "@/services/format.service";
 
 const DEFAULT_SORT_BY = "lap";
 const DEFAULT_SORT_DIR: SortDirection = "asc";
@@ -19,22 +20,8 @@ function normalizeDisplayedCadence(cadence: number | null | undefined, isBike: b
   return cadence <= 130 ? cadence * 2 : cadence;
 }
 
-function formatDur(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function formatDist(m: number): string {
   return `${(m / 1000).toFixed(2)} km`;
-}
-
-function formatPace(ms: number): string {
-  if (!ms || ms <= 0) return "--";
-  const paceSec = 1000 / ms;
-  const min = Math.floor(paceSec / 60);
-  const sec = Math.round(paceSec % 60);
-  return `${min}'${sec.toString().padStart(2, "0")} /km`;
 }
 
 function formatSpeed(ms: number): string {
@@ -111,7 +98,7 @@ export function LapsTable({ laps, sportType }: Props) {
                 {lap.lap_n}
               </td>
               <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
-                {lap.duration_sec ? formatDur(lap.duration_sec) : "--"}
+                {lap.duration_sec ? formatDuration(lap.duration_sec) : "--"}
               </td>
               <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
                 {lap.distance_m ? formatDist(lap.distance_m) : "--"}
@@ -120,7 +107,7 @@ export function LapsTable({ laps, sportType }: Props) {
                 {lap.avg_speed
                   ? isBike
                     ? formatSpeed(lap.avg_speed)
-                    : formatPace(lap.avg_speed)
+                    : speedToPace(lap.avg_speed)
                   : "--"}
               </td>
               {isBike && (

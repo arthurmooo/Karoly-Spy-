@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -11,19 +11,24 @@ import { TargetVsActualChart } from "@/components/charts/TargetVsActualChart";
 import { TempoSegmentAnalysis } from "@/components/charts/TempoSegmentAnalysis";
 import { TempoPhaseComparison } from "@/components/charts/TempoPhaseComparison";
 import { FormAnalysisPanel } from "@/components/activity/FormAnalysisPanel";
-import type { Activity, ActivityInterval } from "@/types/activity";
+import type { Activity, ActivityInterval, BlockGroupedIntervals, RepWindow } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
 import { isTempo } from "@/services/activity.service";
 
 interface Props {
   activity: Activity;
   intervals: ActivityInterval[];
+  intervalsByBlock: BlockGroupedIntervals[];
+  repWindowsByBlock: Record<number, RepWindow[]>;
+  hasManualWindows?: boolean;
   physioProfile: PhysioProfile | null;
+  expandedBlocks?: Set<number>;
+  onToggleBlock?: (blockIndex: number) => void;
 }
 
 const COMPETITION_LABELS = ["Q1 (Départ)", "Q2 (Mise en place)", "Q3 (Gestion)", "Q4 (Finish)"];
 
-export function ActivityAnalysisSection({ activity, intervals, physioProfile }: Props) {
+export function ActivityAnalysisSection({ activity, intervals, intervalsByBlock, repWindowsByBlock, hasManualWindows, physioProfile, expandedBlocks, onToggleBlock }: Props) {
   const segmented = activity.segmented_metrics;
   const formAnalysis = activity.form_analysis ?? null;
   const hasStreams = Boolean(activity.activity_streams?.length);
@@ -39,19 +44,19 @@ export function ActivityAnalysisSection({ activity, intervals, physioProfile }: 
     const q4 = splits4.phase_4;
     if (!q1?.speed || !q4?.speed) return null;
     const drift = ((q4.speed - q1.speed) / q1.speed) * 100;
-    if (drift < -3) return { type: "negative" as const, drift };
-    if (drift > 3) return { type: "positive" as const, drift };
+    if (drift < -3) return { type: "positive" as const, drift };   // started fast, slowed down
+    if (drift > 3) return { type: "negative" as const, drift };   // started slow, sped up
     return null;
   })();
 
   return (
     <Card>
       <Disclosure defaultOpen={false}>
-        <DisclosureTrigger className="rounded-t-lg p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <DisclosureTrigger className="w-full border-b border-slate-200 px-6 py-4 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 transition-colors">
           <AnalysisTriggerContent />
         </DisclosureTrigger>
         <DisclosureContent>
-          <div className="space-y-6 px-6 pb-6">
+          <div className="space-y-5 px-6 pt-2 pb-6">
             {formAnalysis ? <FormAnalysisPanel formAnalysis={formAnalysis} /> : null}
 
             {/* Zone Distribution — always shown if streams + physio */}
@@ -81,30 +86,17 @@ export function ActivityAnalysisSection({ activity, intervals, physioProfile }: 
 
             {/* Intervals: enriched analysis */}
             {workType === "intervals" && (
-              <div className="space-y-4">
-                <CollapsibleSection title="Évolution par intervalle">
-                  <IntervalChart
-                    intervals={intervals}
-                    physioProfile={physioProfile}
-                    sportType={activity.sport_type}
-                    hideTitle
-                  />
-                </CollapsibleSection>
-                <IntervalDetailTable
-                  intervals={intervals}
-                  sportType={activity.sport_type}
-                  repWindows={formAnalysis?.rep_windows}
-                />
-                <CollapsibleSection title="Prévu vs Réalisé">
-                  <TargetVsActualChart
-                    intervals={intervals}
-                    blocks={segmented?.interval_blocks}
-                    sportType={activity.sport_type}
-                    hideTitle
-                  />
-                </CollapsibleSection>
-                <IntervalAlerts intervals={intervals} />
-              </div>
+              <IntervalsSection
+                intervals={intervals}
+                intervalsByBlock={intervalsByBlock}
+                repWindowsByBlock={repWindowsByBlock}
+                hasManualWindows={hasManualWindows}
+                physioProfile={physioProfile}
+                activity={activity}
+                segmented={segmented}
+                expandedBlocks={expandedBlocks}
+                onToggleBlock={onToggleBlock}
+              />
             )}
 
             {/* Tempo: 4-segment analysis */}
@@ -127,7 +119,7 @@ export function ActivityAnalysisSection({ activity, intervals, physioProfile }: 
               </div>
             )}
 
-            {/* Competition: 4-segment with competition labels + decoupling */}
+            {/* Competition: 4-segment with competition labels + 1re/2e moitié + decoupling */}
             {workType === "competition" && (
               <div className="space-y-4">
                 <CollapsibleSection title="Analyse par segments">
@@ -138,40 +130,49 @@ export function ActivityAnalysisSection({ activity, intervals, physioProfile }: 
                     hideTitle
                   />
                 </CollapsibleSection>
-                <CollapsibleSection title="Découplage aérobie">
-                  <DecouplingVisual
+                <CollapsibleSection title="Comparaison 1re vs 2e moitié">
+                  <TempoPhaseComparison
                     splits2={segmented?.splits_2}
-                    decouplingIndex={activity.decoupling_index}
-                    durabilityIndex={activity.durability_index}
                     sportType={activity.sport_type}
                     hideTitle
                   />
                 </CollapsibleSection>
-                {competitionSplitAlert && (
-                  <div className={`flex items-start gap-2 rounded-sm border px-3 py-2 ${
-                    competitionSplitAlert.type === "negative"
-                      ? "border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
-                      : "border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
-                  }`}>
-                    <Icon
-                      name={competitionSplitAlert.type === "negative" ? "trending_down" : "trending_up"}
-                      className={`mt-0.5 ${
-                        competitionSplitAlert.type === "negative"
-                          ? "text-red-600 dark:text-red-400"
-                          : "text-emerald-600 dark:text-emerald-400"
-                      }`}
+                <CollapsibleSection title="Découplage aérobie">
+                  <div className="flex flex-wrap items-stretch gap-3">
+                    <DecouplingVisual
+                      splits2={segmented?.splits_2}
+                      decouplingIndex={activity.decoupling_index}
+                      durabilityIndex={activity.durability_index}
+                      sportType={activity.sport_type}
+                      hideTitle
                     />
-                    <p className={`text-xs ${
-                      competitionSplitAlert.type === "negative"
-                        ? "text-red-700 dark:text-red-300"
-                        : "text-emerald-700 dark:text-emerald-300"
-                    }`}>
-                      {competitionSplitAlert.type === "negative"
-                        ? `Negative split : l'allure a diminué de ${Math.abs(competitionSplitAlert.drift).toFixed(1)}% entre Q1 et Q4.`
-                        : `Positive split : l'allure a augmenté de ${competitionSplitAlert.drift.toFixed(1)}% entre Q1 et Q4.`}
-                    </p>
+                    {competitionSplitAlert && (
+                      <div className={`flex flex-1 items-center gap-2 rounded-sm border px-3 py-2 ${
+                        competitionSplitAlert.type === "positive"
+                          ? "border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
+                          : "border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
+                      }`}>
+                        <Icon
+                          name={competitionSplitAlert.type === "positive" ? "trending_down" : "trending_up"}
+                          className={`mt-0.5 ${
+                            competitionSplitAlert.type === "positive"
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-emerald-600 dark:text-emerald-400"
+                          }`}
+                        />
+                        <p className={`text-xs ${
+                          competitionSplitAlert.type === "positive"
+                            ? "text-red-700 dark:text-red-300"
+                            : "text-emerald-700 dark:text-emerald-300"
+                        }`}>
+                          {competitionSplitAlert.type === "positive"
+                            ? `Positive split : l'allure a diminué de ${Math.abs(competitionSplitAlert.drift).toFixed(1)}% entre Q1 et Q4.`
+                            : `Negative split : l'allure a augmenté de ${competitionSplitAlert.drift.toFixed(1)}% entre Q1 et Q4.`}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </CollapsibleSection>
                 <FeatureNotice
                   title="Module 4 — Race Analysis"
                   description="Analyse avancée de course (transitions T1/T2, comparaison multi-courses) disponible en LOT 2."
@@ -200,13 +201,133 @@ export function ActivityAnalysisSection({ activity, intervals, physioProfile }: 
   );
 }
 
+/** Sub-component: intervals section with block selector */
+function IntervalsSection({
+  intervals,
+  intervalsByBlock,
+  repWindowsByBlock,
+  hasManualWindows,
+  physioProfile,
+  activity,
+  segmented,
+  expandedBlocks,
+  onToggleBlock,
+}: {
+  intervals: ActivityInterval[];
+  intervalsByBlock: BlockGroupedIntervals[];
+  repWindowsByBlock: Record<number, RepWindow[]>;
+  hasManualWindows?: boolean;
+  physioProfile: PhysioProfile | null;
+  activity: Activity;
+  segmented: Activity["segmented_metrics"];
+  expandedBlocks?: Set<number>;
+  onToggleBlock?: (blockIndex: number) => void;
+}) {
+  const [selectedBlock, setSelectedBlock] = useState<number | "all">("all");
+  const showSelector = intervalsByBlock.length > 1;
+
+  const filteredByBlock = selectedBlock === "all"
+    ? intervalsByBlock
+    : intervalsByBlock.filter((g) => g.blockIndex === selectedBlock);
+
+  const filteredRepWindows = selectedBlock === "all"
+    ? repWindowsByBlock
+    : { [selectedBlock as number]: repWindowsByBlock[selectedBlock as number] ?? [] };
+
+  const filteredFlatIntervals = selectedBlock === "all"
+    ? intervals
+    : filteredByBlock.flatMap((g) => g.intervals);
+
+  const filteredPlannedBlocks = selectedBlock === "all"
+    ? segmented?.planned_interval_blocks
+    : segmented?.planned_interval_blocks?.filter((b) => b.block_index === selectedBlock);
+
+  return (
+    <div className="space-y-4">
+      {intervals.some((i) => i.detection_source === "manual") && (
+        <div className="flex items-center gap-2 rounded-sm border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-800/50 dark:bg-orange-900/20">
+          <Icon name="tune" className="text-orange-600 dark:text-orange-400" />
+          <p className="text-xs text-orange-700 dark:text-orange-300">
+            Affichage basé sur la détection manuelle.
+          </p>
+        </div>
+      )}
+
+      {showSelector && (
+        <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+          <button
+            type="button"
+            onClick={() => setSelectedBlock("all")}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              selectedBlock === "all"
+                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            }`}
+          >
+            Tous
+          </button>
+          {intervalsByBlock.map((g) => (
+            <button
+              key={g.blockIndex}
+              type="button"
+              onClick={() => setSelectedBlock(g.blockIndex)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                selectedBlock === g.blockIndex
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              Bloc {g.blockIndex}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selectedBlock !== "all" && filteredByBlock.every((g) => g.intervals.length === 0) && (
+        <div className="flex items-center gap-2 rounded-sm border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800/50 dark:bg-blue-900/20">
+          <Icon name="info" className="text-blue-600 dark:text-blue-400" />
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            Pas de données individuelles pour ce bloc. Utilisez la détection manuelle pour injecter les intervalles.
+          </p>
+        </div>
+      )}
+
+      <CollapsibleSection title="Évolution par intervalle">
+        <IntervalChart
+          intervalsByBlock={filteredByBlock}
+          physioProfile={physioProfile}
+          sportType={activity.sport_type}
+          hideTitle
+        />
+      </CollapsibleSection>
+      <IntervalDetailTable
+        intervalsByBlock={filteredByBlock}
+        sportType={activity.sport_type}
+        repWindowsByBlock={filteredRepWindows}
+        hasManualWindows={hasManualWindows}
+        expandedBlocks={expandedBlocks}
+        onToggleBlock={onToggleBlock}
+      />
+      <CollapsibleSection title="Prévu vs Réalisé">
+        <TargetVsActualChart
+          intervalsByBlock={filteredByBlock}
+          plannedBlocks={filteredPlannedBlocks}
+          sportType={activity.sport_type}
+          hideTitle
+        />
+      </CollapsibleSection>
+      <IntervalAlerts intervals={filteredFlatIntervals} />
+    </div>
+  );
+}
+
 /** Sub-component: trigger header with animated chevron */
 function AnalysisTriggerContent() {
   const { isOpen } = useDisclosureContext();
   return (
     <div className="flex items-center justify-between">
       <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-        <Icon name="analytics" className="text-slate-400" />
+        <Icon name="analytics" className="text-blue-600 dark:text-blue-400" />
         Analyse approfondie
       </h2>
       <Icon
@@ -220,9 +341,9 @@ function AnalysisTriggerContent() {
 /** Sub-component: collapsible wrapper for charts/tables */
 function CollapsibleSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Disclosure defaultOpen={false}>
-      <DisclosureTrigger className="flex w-full items-center justify-between rounded-sm px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">{title}</h3>
+    <Disclosure defaultOpen={true}>
+      <DisclosureTrigger className="flex w-full items-center justify-between rounded-sm bg-slate-50/60 px-3 py-2.5 hover:bg-slate-100/60 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 transition-colors">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
         <SectionChevron />
       </DisclosureTrigger>
       <DisclosureContent>

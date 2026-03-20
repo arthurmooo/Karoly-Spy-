@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { useMemo, useState, useRef } from "react";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from "recharts";
 import { HR_ZONE_COLORS } from "@/lib/constants";
 import type { StreamPoint } from "@/types/activity";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -19,10 +19,8 @@ interface ZoneData {
 }
 
 function computeZoneBoundaries(lt1: number, lt2: number) {
-  // Z1i/Z1ii split LT1 zone in half, Z2i/Z2ii split LT1-LT2, Z3i/Z3ii split above LT2
   const z1Mid = lt1 / 2;
   const z2Mid = lt1 + (lt2 - lt1) / 2;
-  // Z3 split: LT2 + half the gap above LT2 (use LT2 + (LT2-LT1) as rough upper bound)
   const z3Mid = lt2 + (lt2 - lt1) / 2;
 
   return [
@@ -36,13 +34,17 @@ function computeZoneBoundaries(lt1: number, lt2: number) {
 }
 
 export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Props & { hideTitle?: boolean }) {
+  const [activeZone, setActiveZone] = useState<{ data: ZoneData; cx: number; cy: number } | null>(null);
+  const TOOLTIP_W = 200;
+  const TOOLTIP_H = 40;
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const data = useMemo<ZoneData[]>(() => {
     if (!lt1Hr || !lt2Hr || lt1Hr >= lt2Hr) return [];
 
     const zones = computeZoneBoundaries(lt1Hr, lt2Hr);
     const buckets = zones.map(() => 0);
 
-    // Count seconds in each zone (streams are 1Hz, but may be sampled — count points)
     for (const pt of streams) {
       if (pt.hr == null) continue;
       for (let i = 0; i < zones.length; i++) {
@@ -85,6 +87,22 @@ export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Prop
     );
   }
 
+  // Position tooltip near cursor: right of cx, flipped left if overflow; vertically centered on bar
+  let tooltipX = 0;
+  let tooltipY = 0;
+  if (activeZone) {
+    const containerW = containerRef.current?.offsetWidth ?? 600;
+    const containerH = containerRef.current?.offsetHeight ?? 200;
+    const GAP = 16;
+    tooltipX = activeZone.cx + GAP;
+    if (tooltipX + TOOLTIP_W > containerW) {
+      tooltipX = activeZone.cx - TOOLTIP_W - GAP;
+    }
+    tooltipX = Math.max(0, tooltipX);
+    tooltipY = activeZone.cy - TOOLTIP_H / 2;
+    tooltipY = Math.max(0, Math.min(tooltipY, containerH - TOOLTIP_H));
+  }
+
   return (
     <div className="space-y-3">
       {!hideTitle && (
@@ -93,43 +111,26 @@ export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Prop
         </h3>
       )}
 
-      {/* Horizontal stacked summary bar */}
-      <div className="flex h-6 w-full overflow-hidden rounded-sm">
-        {data.map((d) =>
-          d.percent > 0 ? (
-            <div
-              key={d.zone}
-              style={{ width: `${d.percent}%`, backgroundColor: d.color }}
-              className="relative flex items-center justify-center"
-              title={`${d.zone}: ${d.percent}%`}
-            >
-              {d.percent >= 8 && (
-                <span className="text-[9px] font-bold text-white drop-shadow-sm">
-                  {d.zone}
-                </span>
-              )}
-            </div>
-          ) : null
-        )}
-      </div>
-
-      {/* Horizontal bar chart */}
-      <div className="h-[200px] w-full">
+      <div ref={containerRef} className="relative h-[200px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
             layout="vertical"
             margin={{ top: 0, right: 40, left: 10, bottom: 0 }}
+            onMouseMove={(state: any) => {
+              if (state.activePayload?.length) {
+                const d = state.activePayload[0].payload as ZoneData;
+                setActiveZone({
+                  data: d,
+                  cx: state.activeCoordinate?.x ?? 0,
+                  cy: state.activeCoordinate?.y ?? 0,
+                });
+              }
+            }}
+            onMouseLeave={() => setActiveZone(null)}
           >
             <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
             <YAxis type="category" dataKey="zone" tick={{ fontSize: 11, fill: "#64748b" }} width={35} />
-            <Tooltip
-              formatter={(value: number, _name: string, props: any) => [
-                `${value}% — ${formatDuration(props.payload.seconds)}`,
-                props.payload.zone,
-              ]}
-              contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "12px" }}
-            />
             <Bar dataKey="percent" radius={[0, 4, 4, 0]} isAnimationActive={false}>
               {data.map((d, i) => (
                 <Cell key={i} fill={d.color} />
@@ -137,6 +138,16 @@ export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Prop
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+
+        {activeZone && (
+          <div
+            className="pointer-events-none absolute z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900"
+            style={{ left: tooltipX, top: tooltipY, transition: "left 80ms ease-out, top 80ms ease-out" }}
+          >
+            <span className="font-semibold text-slate-900 dark:text-white">{activeZone.data.zone}</span>
+            <span className="ml-2 text-slate-500">{activeZone.data.percent}% — {formatDuration(activeZone.data.seconds)}</span>
+          </div>
+        )}
       </div>
 
       {/* Legend row */}

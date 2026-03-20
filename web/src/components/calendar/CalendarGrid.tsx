@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { CalendarDay } from "@/types/calendar";
 import { CalendarCell } from "./CalendarCell";
-import { format, isSameDay } from "date-fns";
+import { getSportConfig } from "@/lib/constants";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 interface CalendarGridProps {
@@ -10,6 +12,7 @@ interface CalendarGridProps {
 }
 
 export function CalendarGrid({ view, days, onDayClick }: CalendarGridProps) {
+  const daysMap = useMemo(() => new Map(days.map(d => [format(d.date, "yyyy-MM-dd"), d])), [days]);
   if (view === "month") {
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm overflow-hidden shadow-sm">
@@ -83,44 +86,22 @@ export function CalendarGrid({ view, days, onDayClick }: CalendarGridProps) {
                   ))}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const date = new Date(monthDate.getFullYear(), monthIndex, i + 1);
-                    const dayData = days.find((d) => isSameDay(d.date, date));
+                    const dayData = daysMap.get(format(date, "yyyy-MM-dd"));
                     const events = dayData?.events || [];
-                    
+
                     let bgColor = "bg-slate-100 dark:bg-slate-800";
+                    let dotOpacity = "";
                     if (events.length > 0) {
-                      const dominantSport = events.sort((a, b) => (b.durationSec || 0) - (a.durationSec || 0))[0]?.sport;
-                      const opacity = events.length === 1 ? "40" : "";
-                      
-                      switch (dominantSport) {
-                        case "Course à pied":
-                        case "Run":
-                          bgColor = opacity ? "bg-accent-orange/40" : "bg-accent-orange";
-                          break;
-                        case "Vélo":
-                        case "Bike":
-                          bgColor = opacity ? "bg-accent-blue/40" : "bg-accent-blue";
-                          break;
-                        case "Natation":
-                        case "Swim":
-                          bgColor = opacity ? "bg-teal-500/40" : "bg-teal-500";
-                          break;
-                        case "Ski":
-                          bgColor = opacity ? "bg-violet-500/40" : "bg-violet-500";
-                          break;
-                        case "Musculation":
-                        case "Strength":
-                          bgColor = opacity ? "bg-slate-400/40" : "bg-slate-400";
-                          break;
-                        default:
-                          bgColor = opacity ? "bg-slate-400/40" : "bg-slate-400";
-                      }
+                      const dominantSport = events.sort((a, b) => (b.durationSec || 0) - (a.durationSec || 0))[0]?.sport ?? "";
+                      bgColor = getSportConfig(dominantSport).bgColor;
+                      if (events.length === 1) dotOpacity = "opacity-40";
                     }
 
                     return (
                       <div
                         key={i}
                         onClick={() => onDayClick && onDayClick(date)}
-                        className={`w-3 h-3 rounded-sm ${bgColor} hover:opacity-80 cursor-pointer transition-colors`}
+                        className={`w-3 h-3 rounded-sm ${bgColor} ${dotOpacity} hover:opacity-80 cursor-pointer transition-colors`}
                         title={`${format(date, "d MMMM", { locale: fr })} — ${events.length} séance(s)`}
                       />
                     );

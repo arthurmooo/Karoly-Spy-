@@ -51,7 +51,7 @@ export function CoachFeedbackPanel({
   return (
     <div className="space-y-6">
       {/* Athlete Feedback */}
-      <Card>
+      <Card data-testid="coach-athlete-feedback-panel">
         <CardContent className="space-y-4 p-6">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
             <Icon name="person" className="text-slate-400" />
@@ -109,6 +109,45 @@ export function CoachFeedbackPanel({
             </p>
           </div>
 
+          {activity.athlete_feedback_rating != null && (
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                Ressenti post-séance
+              </p>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`inline-flex items-center rounded-md px-2.5 py-1 text-sm font-semibold text-white ${
+                    activity.athlete_feedback_rating >= 4
+                      ? "bg-emerald-500"
+                      : activity.athlete_feedback_rating === 3
+                        ? "bg-slate-400"
+                        : activity.athlete_feedback_rating === 2
+                          ? "bg-orange-400"
+                          : "bg-red-500"
+                  }`}
+                >
+                  {activity.athlete_feedback_rating}/5
+                </span>
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  {activity.athlete_feedback_rating === 5
+                    ? "Excellent"
+                    : activity.athlete_feedback_rating === 4
+                      ? "Bien"
+                      : activity.athlete_feedback_rating === 3
+                        ? "Neutre"
+                        : activity.athlete_feedback_rating === 2
+                          ? "Difficile"
+                          : "Très difficile"}
+                </span>
+              </div>
+              {activity.athlete_feedback_text?.trim() && (
+                <p className="mt-2 text-sm italic text-slate-600 dark:text-slate-400">
+                  {activity.athlete_feedback_text}
+                </p>
+              )}
+            </div>
+          )}
+
           <div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Commentaire remonté</p>
             <textarea
@@ -122,7 +161,7 @@ export function CoachFeedbackPanel({
       </Card>
 
       {/* Coach Notes */}
-      <Card>
+      <Card data-testid="coach-feedback-panel">
         <CardContent className="space-y-4 p-6">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
             <Icon name="comment" className="text-slate-400" />
@@ -136,11 +175,14 @@ export function CoachFeedbackPanel({
                 value={coachNote}
                 onChange={(e) => setCoachNote(e.target.value)}
                 disabled={isSaving}
+                aria-label="Commentaire coach"
+                data-testid="coach-comment-input"
               />
               <Button
                 className="w-full"
                 disabled={!isDirty || isSaving}
                 onClick={() => onSaveComment(coachNote)}
+                data-testid="coach-comment-save"
               >
                 {isSaving ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

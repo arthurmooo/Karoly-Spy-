@@ -28,7 +28,7 @@ export const SPORT_COLORS: Record<string, string> = {
 };
 
 export const SPORT_CONFIG = [
-  { key: "Course à pied", dbKey: "Run", aliases: ["Run", "CAP", "COURSE", "RUN"], label: "Course à pied", icon: "directions_run", textColor: "text-accent-orange", bgColor: "bg-accent-orange", bgLight: "bg-accent-orange/10", border: "border-accent-orange" },
+  { key: "Course à pied", dbKey: "Run", aliases: ["Run", "CAP", "COURSE", "RUN", "Course", "Course à pied"], label: "Course à pied", icon: "directions_run", textColor: "text-accent-orange", bgColor: "bg-accent-orange", bgLight: "bg-accent-orange/10", border: "border-accent-orange" },
   { key: "Vélo", dbKey: "Bike", aliases: ["Bike", "VELO", "BIKE", "VÉLO"], label: "Vélo", icon: "directions_bike", textColor: "text-accent-blue", bgColor: "bg-accent-blue", bgLight: "bg-accent-blue/10", border: "border-accent-blue" },
   { key: "Natation", dbKey: "Swim", aliases: ["Swim", "NAT", "NATATION", "SWIM"], label: "Natation", icon: "pool", textColor: "text-teal-600", bgColor: "bg-teal-500", bgLight: "bg-teal-500/10", border: "border-teal-500" },
   { key: "Ski", dbKey: "Ski", aliases: ["SKI"], label: "Ski", icon: "downhill_skiing", textColor: "text-violet-600", bgColor: "bg-violet-500", bgLight: "bg-violet-500/10", border: "border-violet-500" },
@@ -43,11 +43,6 @@ export function getSportConfig(sport: string) {
 
 const GLOBAL_FALLBACK = { p25: 5000, p50: 15000, p75: 30000 };
 
-export const ATHLETE_GROUP_CONFIG: Record<string, { label: string; variant: string }> = {
-  elite: { label: "Elite", variant: "orange" },
-  preparation: { label: "Préparation", variant: "primary" },
-  loisir: { label: "Loisir", variant: "slate" },
-};
 
 export const HR_ZONE_COLORS = {
   Z1i: "#bfdbfe", // blue-200

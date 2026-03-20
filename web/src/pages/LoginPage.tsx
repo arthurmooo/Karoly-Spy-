@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
 export function LoginPage() {
+  const emailInputId = "login-email";
+  const passwordInputId = "login-password";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -31,7 +33,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden" data-testid="login-page">
       <div className="z-10 w-full max-w-[440px] flex flex-col items-center mb-8">
         <img
           src="/ks-logo.png"
@@ -43,7 +45,7 @@ export function LoginPage() {
         </p>
       </div>
 
-      <div className="z-10 w-full max-w-[440px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-none p-8">
+      <div className="z-10 w-full max-w-[440px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-none p-6 sm:p-8">
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-sm p-3 flex items-center gap-2">
@@ -55,22 +57,25 @@ export function LoginPage() {
           )}
 
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            <label htmlFor={emailInputId} className="text-sm font-semibold text-slate-700 dark:text-slate-300">
               E-mail
             </label>
             <Input
+              id={emailInputId}
               type="email"
               placeholder="votre@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               icon="mail"
               required
+              data-testid="login-email"
+              autoComplete="email"
             />
           </div>
 
           <div className="space-y-1.5 relative">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              <label htmlFor={passwordInputId} className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 Mot de passe
               </label>
               <span className="text-xs font-medium text-slate-400">
@@ -79,16 +84,20 @@ export function LoginPage() {
             </div>
             <div className="relative">
               <Input
+                id={passwordInputId}
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 icon="lock"
                 required
+                data-testid="login-password"
+                autoComplete="current-password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
               >
                 <Icon name={showPassword ? "visibility_off" : "visibility"} />
@@ -100,6 +109,7 @@ export function LoginPage() {
             type="submit"
             disabled={isSubmitting}
             className="w-full bg-primary hover:bg-primary/90 text-white py-4 rounded-md font-semibold shadow-sm mt-2"
+            data-testid="login-submit"
           >
             {isSubmitting ? (
               <Icon name="refresh" className="animate-spin" />

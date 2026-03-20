@@ -1,64 +1,205 @@
 import { useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import type { ActivityInterval, IntervalBlock } from "@/types/activity";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
+import type { BlockGroupedIntervals, PlannedIntervalBlock } from "@/types/activity";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
-import { formatPaceDecimal } from "@/services/format.service";
+import { formatPaceDecimal, speedToPaceDecimal } from "@/services/format.service";
 
 interface Props {
-  intervals: ActivityInterval[];
-  blocks: IntervalBlock[] | undefined;
+  intervalsByBlock: BlockGroupedIntervals[];
+  plannedBlocks: PlannedIntervalBlock[] | undefined;
   sportType: string;
+  hideTitle?: boolean;
 }
 
 const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
-export function TargetVsActualChart({ intervals, blocks, sportType, hideTitle }: Props & { hideTitle?: boolean }) {
-  const isBike = BIKE_SPORTS.has(sportType);
+type ChartRow = {
+  index: number;
+  actual: number | null;
+  actualLabel: string | null;
+  plannedLine: number | null;
+  plannedLineLabel: string | null;
+  plannedMin: number | null;
+  plannedMax: number | null;
+  plannedRangeLabel: string | null;
+  /** true when actual is inside [plannedMin, plannedMax] or matches plannedLine */
+  inTarget: boolean;
+};
 
-  const data = useMemo(() => {
-    if (!blocks?.length) return [];
+type PreparedChartModel = {
+  chartData: ChartRow[];
+  yMax: number;
+  domainMin: number;
+  hasPlannedTargets: boolean;
+};
 
-    const activeIntervals = intervals.filter((i) => i.type === "work" || i.type === "active");
-    if (activeIntervals.length === 0) return [];
+function toRunPaceFromSpeed(speed: number | null | undefined): number | null {
+  if (speed == null || speed <= 0) return null;
+  return speedToPaceDecimal(speed);
+}
 
-    // Build per-interval comparison using block mean as "planned"
-    let cursor = 0;
-    const rows: { index: number; planned: number | null; actual: number | null }[] = [];
+function formatTargetRange(min: number | null, max: number | null, isBike: boolean): string | null {
+  if (min == null && max == null) return null;
+  if (isBike) {
+    if (min != null && max != null) return `${Math.round(min)}-${Math.round(max)} W`;
+    const value = min ?? max;
+    return value != null ? `${Math.round(value)} W` : null;
+  }
 
-    for (const block of blocks) {
-      const count = block.count ?? 0;
-      const planned = isBike ? block.interval_power_mean : block.interval_pace_mean;
-      const blockIntervals = activeIntervals.slice(cursor, cursor + count);
-      cursor += count;
+  if (min != null && max != null) {
+    const slower = Math.max(min, max);
+    const faster = Math.min(min, max);
+    return `${formatPaceDecimal(slower)} - ${formatPaceDecimal(faster)}`;
+  }
+  const value = min ?? max;
+  return value != null ? formatPaceDecimal(value) : null;
+}
 
-      for (let i = 0; i < blockIntervals.length; i++) {
-        const intv = blockIntervals[i]!;
-        const actual = isBike
-          ? intv.avg_power
-          : intv.avg_speed && intv.avg_speed > 0
-            ? 1000 / intv.avg_speed / 60
-            : null;
+function buildTargetVsActualChartModel(
+  intervalsByBlock: BlockGroupedIntervals[],
+  plannedBlocks: PlannedIntervalBlock[] | undefined,
+  isBike: boolean
+): PreparedChartModel {
+  if (!plannedBlocks?.length || intervalsByBlock.length === 0) {
+    return { chartData: [], yMax: 0, domainMin: 0, hasPlannedTargets: false };
+  }
 
-        rows.push({
-          index: rows.length + 1,
-          planned: planned ?? null,
-          actual: actual ?? null,
-        });
-      }
+  const rows: ChartRow[] = [];
+  let hasPlannedTargets = false;
+
+  for (const group of intervalsByBlock) {
+    const activeIntervals = group.intervals.filter((i) => i.type === "work" || i.type === "active");
+    const matchingPlanned = plannedBlocks.find((b) => b.block_index === group.blockIndex);
+
+    let plannedMin = isBike
+      ? matchingPlanned?.target_type === "power" ? matchingPlanned.target_min : null
+      : toRunPaceFromSpeed(matchingPlanned?.target_max ?? null);
+    let plannedMax = isBike
+      ? matchingPlanned?.target_type === "power" ? matchingPlanned.target_max : null
+      : toRunPaceFromSpeed(matchingPlanned?.target_min ?? null);
+
+    if (!isBike && plannedMin != null && plannedMax != null && plannedMin > plannedMax) {
+      const tmp = plannedMin;
+      plannedMin = plannedMax;
+      plannedMax = tmp;
     }
 
-    return rows;
-  }, [intervals, blocks, isBike]);
+    const plannedLine = plannedMin != null && plannedMax != null
+      ? null
+      : (plannedMin ?? plannedMax ?? null);
 
-  if (data.length === 0 || !blocks?.some((b) => (isBike ? b.interval_power_mean : b.interval_pace_mean) != null)) {
+    if (plannedMin != null || plannedMax != null || plannedLine != null) {
+      hasPlannedTargets = true;
+    }
+
+    for (const intv of activeIntervals) {
+      const actual = isBike
+        ? intv.avg_power
+        : intv.avg_speed && intv.avg_speed > 0
+          ? speedToPaceDecimal(intv.avg_speed)
+          : null;
+
+      // Determine if actual is within target range
+      let inTarget = false;
+      if (actual != null) {
+        if (plannedMin != null && plannedMax != null) {
+          const lo = Math.min(plannedMin, plannedMax);
+          const hi = Math.max(plannedMin, plannedMax);
+          inTarget = actual >= lo && actual <= hi;
+        } else if (plannedLine != null) {
+          const tolerance = isBike ? 5 : 0.05; // 5W or 3sec/km
+          inTarget = Math.abs(actual - plannedLine) <= tolerance;
+        }
+      }
+
+      rows.push({
+        index: rows.length + 1,
+        actual: actual ?? null,
+        actualLabel: isBike
+          ? (actual != null ? `${Math.round(actual)} W` : null)
+          : (actual != null ? formatPaceDecimal(actual) : null),
+        plannedLine,
+        plannedLineLabel: plannedLine != null ? formatTargetRange(plannedLine, null, isBike) : null,
+        plannedMin,
+        plannedMax,
+        plannedRangeLabel: formatTargetRange(plannedMin, plannedMax, isBike),
+        inTarget,
+      });
+    }
+  }
+
+  if (!hasPlannedTargets || rows.length === 0) {
+    return { chartData: [], yMax: 0, domainMin: 0, hasPlannedTargets: false };
+  }
+
+  const allValues = rows.flatMap((row) => [row.actual, row.plannedLine, row.plannedMin, row.plannedMax].filter((v): v is number => v != null));
+  if (allValues.length === 0) {
+    return { chartData: [], yMax: 0, domainMin: 0, hasPlannedTargets: false };
+  }
+
+  if (isBike) {
+    return {
+      chartData: rows,
+      yMax: 0,
+      domainMin: 0,
+      hasPlannedTargets: true,
+    };
+  }
+
+  const maxVal = Math.ceil(Math.max(...allValues) + 0.3);
+  const minVal = Math.floor(Math.min(...allValues) - 0.3);
+
+  return {
+    chartData: rows.map((row) => {
+      const pMin = row.plannedMin != null ? maxVal - row.plannedMin : null;
+      const pMax = row.plannedMax != null ? maxVal - row.plannedMax : null;
+      return {
+        ...row,
+        actual: row.actual != null ? maxVal - row.actual : null,
+        plannedLine: row.plannedLine != null ? maxVal - row.plannedLine : null,
+        // For the range bar we need [lower, upper] in inverted space
+        plannedMin: pMin != null && pMax != null ? Math.min(pMin, pMax) : (pMin ?? pMax),
+        plannedMax: pMin != null && pMax != null ? Math.max(pMin, pMax) : null,
+      };
+    }),
+    yMax: maxVal,
+    domainMin: minVal,
+    hasPlannedTargets: true,
+  };
+}
+
+export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType, hideTitle }: Props) {
+  const isBike = BIKE_SPORTS.has(sportType);
+
+  const { chartData, yMax, domainMin, hasPlannedTargets } = useMemo(
+    () => buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, isBike),
+    [intervalsByBlock, plannedBlocks, isBike]
+  );
+
+  if (!hasPlannedTargets || chartData.length === 0) {
     return (
       <FeatureNotice
         title="Prévu vs Réalisé"
-        description="Objectif non disponible — pas de données planifiées pour cette séance."
+        description="Objectif planifié indisponible pour cette séance."
         status="unavailable"
       />
     );
   }
+
+  // Build data with range bar base/height for the planned zone
+  const barData = useMemo(
+    () =>
+      chartData.map((row) => {
+        const hasRange = row.plannedMin != null && row.plannedMax != null;
+        return {
+          ...row,
+          // For the "range" bar: base offset + height
+          rangeBase: hasRange ? row.plannedMin! : 0,
+          rangeHeight: hasRange ? row.plannedMax! - row.plannedMin! : 0,
+        };
+      }),
+    [chartData]
+  );
 
   return (
     <div className="space-y-3">
@@ -67,34 +208,142 @@ export function TargetVsActualChart({ intervals, blocks, sportType, hideTitle }:
           Prévu vs Réalisé
         </h3>
       )}
-      <div className="h-[200px] w-full">
+      <div className="h-[220px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <XAxis dataKey="index" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+          <BarChart data={barData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }} barGap={-30} barCategoryGap="20%">
+            <XAxis
+              type="number"
+              dataKey="index"
+              domain={[0.5, barData.length + 0.5]}
+              allowDecimals={false}
+              tickCount={barData.length}
+              tick={{ fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+            />
             <YAxis
               tick={{ fontSize: 11, fill: "#64748b" }}
               tickLine={false}
               axisLine={false}
-              reversed={!isBike}
-              tickFormatter={isBike ? (v: number) => `${v}W` : (v: number) => formatPaceDecimal(v)}
+              domain={isBike ? undefined : [0, yMax - domainMin]}
+              tickFormatter={
+                isBike
+                  ? (v: number) => `${Math.round(v)}W`
+                  : (v: number) => formatPaceDecimal(yMax - v)
+              }
             />
+
+            {/* Invisible base to offset the range bar */}
+            <Bar dataKey="rangeBase" stackId="planned" fill="transparent" isAnimationActive={false} barSize={36} />
+            {/* Visible range bar: the target zone */}
+            <Bar
+              dataKey="rangeHeight"
+              stackId="planned"
+              isAnimationActive={false}
+              barSize={36}
+              radius={[3, 3, 3, 3]}
+            >
+              {barData.map((row, i) => (
+                <Cell
+                  key={`range-${i}`}
+                  fill={row.rangeHeight > 0 ? "#F9731633" : "transparent"}
+                  stroke={row.rangeHeight > 0 ? "#F97316" : "transparent"}
+                  strokeWidth={1.5}
+                  strokeDasharray="5 3"
+                />
+              ))}
+            </Bar>
+
+            {/* Single-value planned line (when no range) */}
+            {barData.map((row) =>
+              row.plannedLine != null ? (
+                <ReferenceLine
+                  key={`planned-line-${row.index}`}
+                  segment={[
+                    { x: row.index - 0.45, y: row.plannedLine },
+                    { x: row.index + 0.45, y: row.plannedLine },
+                  ]}
+                  stroke="#F97316"
+                  strokeDasharray="6 3"
+                  strokeWidth={2}
+                />
+              ) : null
+            )}
+
+            {/* Actual performance bars */}
+            <Bar dataKey="actual" name="actual" isAnimationActive={false} radius={[4, 4, 0, 0]} barSize={24}>
+              {barData.map((row, i) => (
+                <Cell
+                  key={`actual-${i}`}
+                  fill={row.inTarget ? "#2563EB" : "#2563EB"}
+                  fillOpacity={row.inTarget ? 1 : 0.8}
+                />
+              ))}
+            </Bar>
+
             <Tooltip
-              contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "12px" }}
-              formatter={(value: number, name: string) => {
-                const label = name === "planned" ? "Prévu" : "Réalisé";
-                return [isBike ? `${Math.round(value)} W` : formatPaceDecimal(value), label];
+              cursor={{ fill: "transparent" }}
+              contentStyle={{
+                borderRadius: "8px",
+                border: "none",
+                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                fontSize: "12px",
+                backgroundColor: "white",
+              }}
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const row = payload[0]?.payload as ChartRow & { rangeBase: number; rangeHeight: number };
+                if (!row) return null;
+
+                const actualRaw = row.actual;
+                const actualLabel = actualRaw != null
+                  ? isBike
+                    ? `${Math.round(actualRaw)} W`
+                    : formatPaceDecimal(yMax - actualRaw)
+                  : "—";
+
+                const targetLabel = row.plannedRangeLabel ?? row.plannedLineLabel;
+
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-md dark:border-slate-700 dark:bg-slate-800">
+                    <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Intervalle {label}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#2563EB" }} />
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Réalisé : {actualLabel}</span>
+                    </div>
+                    {targetLabel && (
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <span className="inline-block h-2.5 w-2.5 rounded-sm border-2 border-dashed" style={{ borderColor: "#F97316", backgroundColor: "#F9731620" }} />
+                        <span className="text-sm text-slate-600 dark:text-slate-300">Cible : {targetLabel}</span>
+                      </div>
+                    )}
+                    {row.plannedRangeLabel && actualRaw != null && (
+                      <p className={`mt-1 text-xs font-medium ${row.inTarget ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                        {row.inTarget ? "Dans la cible" : "Hors cible"}
+                      </p>
+                    )}
+                  </div>
+                );
               }}
               labelFormatter={(l) => `Intervalle ${l}`}
             />
-            <Legend
-              formatter={(value) => (value === "planned" ? "Prévu" : "Réalisé")}
-              wrapperStyle={{ fontSize: "11px" }}
-            />
-            <Bar dataKey="planned" fill="#94a3b8" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-            <Bar dataKey="actual" fill="#2563EB" radius={[4, 4, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-5 text-xs text-slate-500 dark:text-slate-400">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: "#2563EB" }} />
+          Réalisé
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#F97316", backgroundColor: "#F9731620" }} />
+          Cible (prévu)
+        </span>
       </div>
     </div>
   );
 }
+
+export { buildTargetVsActualChartModel };

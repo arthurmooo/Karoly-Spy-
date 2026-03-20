@@ -1,5 +1,14 @@
 import { supabase } from "@/lib/supabase";
-import type { ActivityFilters, StreamPoint, GarminLap } from "@/types/activity";
+import { normalizeSportKey } from "@/services/activity.service";
+import type {
+  Activity,
+  ActivityInterval,
+  ActivityComparisonCandidate,
+  ActivityFilters,
+  GarminLap,
+  StreamPoint,
+  WorkTypeValue,
+} from "@/types/activity";
 import type { ManualBlockOverridePayload } from "@/services/manualIntervals.service";
 
 const PER_PAGE = 25;
@@ -70,7 +79,26 @@ export async function getActivities(filters: ActivityFilters = {}) {
     query = query.lte("session_date", toUtcDayBoundary(filters.date_to, "end"));
   }
   if (filters.search) {
-    query = query.ilike("activity_name", `%${filters.search}%`);
+    const term = filters.search;
+    // Find athletes whose name matches the search term
+    const { data: matchedAthletes } = await supabase
+      .from("athletes")
+      .select("id")
+      .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%`);
+    const ids = matchedAthletes?.map((a) => a.id) ?? [];
+    if (ids.length > 0) {
+      query = query.or(
+        `activity_name.ilike.%${term}%,athlete_id.in.(${ids.join(",")})`
+      );
+    } else {
+      query = query.ilike("activity_name", `%${term}%`);
+    }
+  }
+  if (filters.duration_min != null) {
+    query = query.gte("duration_sec", filters.duration_min);
+  }
+  if (filters.duration_max != null) {
+    query = query.lte("duration_sec", filters.duration_max);
   }
 
   if (sortBy === "athlete_name") {
@@ -88,7 +116,7 @@ export async function getActivities(filters: ActivityFilters = {}) {
   return { data: data ?? [], count: count ?? 0 };
 }
 
-const DETAIL_COLUMNS_BASE = `id, athlete_id, session_date, sport_type, work_type, activity_name, manual_activity_name,
+const DETAIL_COLUMNS_CORE = `id, athlete_id, session_date, sport_type, work_type, activity_name, manual_activity_name,
        duration_sec, moving_time_sec, distance_m, load_index, avg_hr, avg_power, rpe, fit_file_path,
        interval_pace_mean, interval_pace_last, interval_power_mean, interval_power_last,
        interval_hr_mean, interval_hr_last,
@@ -105,25 +133,103 @@ const DETAIL_COLUMNS_BASE = `id, athlete_id, session_date, sport_type, work_type
        manual_interval_block_2_count, manual_interval_block_2_duration_sec,
        interval_detection_source, decoupling_index,
        durability_index, source_json, segmented_metrics, coach_comment, athlete_comment`;
+const DETAIL_COLUMNS_WORK_TYPE_OVERRIDE = "manual_work_type, detected_work_type, analysis_dirty";
+const DETAIL_COLUMNS_FORM_ANALYSIS = "form_analysis";
+const DETAIL_COLUMNS_FEEDBACK = "athlete_feedback_rating, athlete_feedback_text";
+const DETAIL_COLUMNS_ATHLETES = "athletes(first_name, last_name)";
+const DETAIL_COLUMNS_STREAMS_AND_LAPS = "activity_streams, garmin_laps";
 
-export async function getActivityDetail(id: string) {
-  // Try with stream columns; fall back if migration not yet applied
-  let { data: activity, error: actErr } = await supabase
-    .from("activities")
-    .select(`${DETAIL_COLUMNS_BASE}, activity_streams, garmin_laps, athletes(first_name, last_name)`)
-    .eq("id", id)
-    .single();
+type DetailSelectAttempt = {
+  includeStreamsAndLaps: boolean;
+  includeFeedback: boolean;
+  includeWorkTypeOverride: boolean;
+  includeFormAnalysis: boolean;
+};
 
-  if (actErr?.code === "42703") {
-    // Column doesn't exist yet — retry without stream columns
-    ({ data: activity, error: actErr } = await supabase
-      .from("activities")
-      .select(`${DETAIL_COLUMNS_BASE}, athletes(first_name, last_name)`)
-      .eq("id", id)
-      .single());
+const DETAIL_SELECT_ATTEMPTS: DetailSelectAttempt[] = [
+  {
+    includeStreamsAndLaps: true,
+    includeFeedback: true,
+    includeWorkTypeOverride: true,
+    includeFormAnalysis: true,
+  },
+  {
+    includeStreamsAndLaps: false,
+    includeFeedback: true,
+    includeWorkTypeOverride: true,
+    includeFormAnalysis: true,
+  },
+  {
+    includeStreamsAndLaps: false,
+    includeFeedback: false,
+    includeWorkTypeOverride: true,
+    includeFormAnalysis: true,
+  },
+  {
+    includeStreamsAndLaps: false,
+    includeFeedback: false,
+    includeWorkTypeOverride: false,
+    includeFormAnalysis: true,
+  },
+  {
+    includeStreamsAndLaps: false,
+    includeFeedback: false,
+    includeWorkTypeOverride: false,
+    includeFormAnalysis: false,
+  },
+];
+
+function buildActivityDetailSelect(attempt: DetailSelectAttempt): string {
+  const columns = [DETAIL_COLUMNS_CORE];
+
+  if (attempt.includeWorkTypeOverride) {
+    columns.push(DETAIL_COLUMNS_WORK_TYPE_OVERRIDE);
+  }
+  if (attempt.includeFormAnalysis) {
+    columns.push(DETAIL_COLUMNS_FORM_ANALYSIS);
+  }
+  if (attempt.includeFeedback) {
+    columns.push(DETAIL_COLUMNS_FEEDBACK);
+  }
+  if (attempt.includeStreamsAndLaps) {
+    columns.push(DETAIL_COLUMNS_STREAMS_AND_LAPS);
   }
 
-  if (actErr) throw actErr;
+  columns.push(DETAIL_COLUMNS_ATHLETES);
+  return columns.join(", ");
+}
+
+function isMissingColumnError(error: { code?: string } | null) {
+  return error?.code === "42703";
+}
+
+async function selectActivityDetailWithFallbacks(id: string) {
+  let lastError: { code?: string; message?: string } | null = null;
+
+  for (const attempt of DETAIL_SELECT_ATTEMPTS) {
+    const { data, error } = await supabase
+      .from("activities")
+      .select(buildActivityDetailSelect(attempt))
+      .eq("id", id)
+      .single();
+
+    if (!error) {
+      return data;
+    }
+
+    lastError = error;
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+  }
+
+  throw lastError;
+}
+
+export async function getActivityDetail(
+  id: string
+): Promise<{ activity: Activity; intervals: ActivityInterval[] }> {
+  const activity = await selectActivityDetailWithFallbacks(id);
 
   const { data: intervals, error: intErr } = await supabase
     .from("activity_intervals")
@@ -133,7 +239,29 @@ export async function getActivityDetail(id: string) {
 
   if (intErr) throw intErr;
 
-  return { activity, intervals: intervals ?? [] };
+  const athletesValue = (activity as unknown as { athletes?: unknown }).athletes;
+  const normalizedAthletes = Array.isArray(athletesValue)
+    ? ((athletesValue[0] as { first_name: string; last_name: string } | undefined) ?? null)
+    : ((athletesValue as { first_name: string; last_name: string } | null | undefined) ?? null);
+
+  return {
+    activity: {
+      ...(activity as unknown as Activity),
+      analysis_dirty: Boolean((activity as unknown as Activity).analysis_dirty),
+      athletes: normalizedAthletes,
+    },
+    intervals: (intervals ?? []) as ActivityInterval[],
+  };
+}
+
+export interface UpdateActivityTypeResult {
+  success: boolean;
+  work_type: WorkTypeValue;
+  manual_work_type: WorkTypeValue | null;
+  detected_work_type: WorkTypeValue | null;
+  analysis_dirty: boolean;
+  reprocess_dispatched: boolean;
+  warning?: string | null;
 }
 
 export async function updateCoachComment(activityId: string, comment: string) {
@@ -145,12 +273,57 @@ export async function updateCoachComment(activityId: string, comment: string) {
   return { success: true, nolio_synced: data?.nolio_synced ?? false };
 }
 
+export async function updateAthleteFeedback(activityId: string, rating: number | null, text: string) {
+  const { data, error } = await supabase.functions.invoke("update-athlete-feedback", {
+    body: { activity_id: activityId, rating, text },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return { success: true };
+}
+
 export async function fetchActivityStreams(activityId: string) {
   const { data, error } = await supabase.functions.invoke("get-activity-streams", {
     body: { activity_id: activityId },
   });
   if (error) throw error;
   return data as { streams: StreamPoint[] | null; laps: GarminLap[] | null };
+}
+
+export async function getComparableActivities(baseActivity: Activity): Promise<ActivityComparisonCandidate[]> {
+  const baseDistance = baseActivity.distance_m ?? 0;
+  if (!baseActivity.athlete_id || baseDistance <= 0) return [];
+
+  const sportKey = normalizeSportKey(baseActivity.sport_type ?? "");
+  const minDistance = baseDistance * 0.8;
+  const maxDistance = baseDistance * 1.2;
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select(
+      `id, athlete_id, session_date, sport_type, activity_name, manual_activity_name,
+       duration_sec, moving_time_sec, distance_m, avg_hr, avg_power, decoupling_index`
+    )
+    .eq("athlete_id", baseActivity.athlete_id)
+    .in("sport_type", getSportFilterValues(sportKey))
+    .lt("session_date", baseActivity.session_date)
+    .gte("distance_m", minDistance)
+    .lte("distance_m", maxDistance)
+    .neq("id", baseActivity.id)
+    .order("session_date", { ascending: false })
+    .limit(80);
+
+  if (error) throw error;
+
+  return (data ?? [])
+    .filter((candidate) => (candidate.distance_m ?? 0) > 0)
+    .sort((left, right) => {
+      const leftGap = Math.abs((left.distance_m ?? 0) - baseDistance);
+      const rightGap = Math.abs((right.distance_m ?? 0) - baseDistance);
+      if (leftGap !== rightGap) return leftGap - rightGap;
+      return new Date(right.session_date).getTime() - new Date(left.session_date).getTime();
+    })
+    .slice(0, 20) as ActivityComparisonCandidate[];
 }
 
 export async function updateManualIntervalOverrides(
@@ -162,6 +335,18 @@ export async function updateManualIntervalOverrides(
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
+}
+
+export async function updateActivityType(
+  activityId: string,
+  manualWorkType: WorkTypeValue | null
+): Promise<UpdateActivityTypeResult> {
+  const { data, error } = await supabase.functions.invoke("update-activity-type", {
+    body: { activity_id: activityId, manual_work_type: manualWorkType },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as UpdateActivityTypeResult;
 }
 
 export async function triggerReprocess(activityId: string) {
