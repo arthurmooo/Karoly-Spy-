@@ -13,7 +13,7 @@ import pandas as pd
 from projectk_core.logic.models import Activity
 
 
-SOT_VERSION = "karo_pdf_2026_03_17"
+SOT_VERSION = "karo_pdf_2026_03_19"
 MIN_BETA_SAMPLES = 8
 MAX_BETA_SAMPLES = 20
 MIN_BASELINE_SESSIONS = 5
@@ -79,18 +79,8 @@ def _compute_slope(xs: List[float], ys: List[float]) -> Optional[float]:
 
 
 def _normalize_sport(activity_type: str) -> str:
-    text = (activity_type or "").lower()
-    if any(token in text for token in ["bike", "ride", "cycling", "vélo", "velo", "vtt", "gravel"]):
-        return "bike"
-    if any(token in text for token in ["run", "course", "trail", "tapis", "hiking", "randonnée"]):
-        return "run"
-    if any(token in text for token in ["swim", "natation"]):
-        return "swim"
-    if "ski" in text:
-        return "ski"
-    if any(token in text for token in ["strength", "muscu", "ppg", "gainage"]):
-        return "strength"
-    return text or "other"
+    from projectk_core.logic.sport_mapper import normalize_sport_lower
+    return normalize_sport_lower(activity_type or "")
 
 
 def _infer_location(activity: Activity) -> str:
@@ -170,7 +160,14 @@ def _has_abnormal_feeling(activity: Activity) -> bool:
     return any(re.search(pattern, combined) for pattern in ABNORMAL_FEELING_PATTERNS)
 
 
-def _extract_current_temperature(activity: Activity) -> Optional[float]:
+def _extract_current_temperature(
+    activity: Activity,
+    segment_df: Optional[pd.DataFrame] = None,
+) -> Optional[float]:
+    if segment_df is not None and "temperature" in segment_df.columns:
+        values = pd.to_numeric(segment_df["temperature"], errors="coerce").dropna()
+        if not values.empty:
+            return float(values.mean())
     meta_temp = _safe_float(activity.metadata.temp_avg)
     if meta_temp is not None:
         return meta_temp
@@ -603,6 +600,11 @@ class FormAnalysisEngine:
                 if ratio > 0.10:
                     continue
 
+            previous_output = _safe_float(fa.get("output", {}).get("mean"))
+            if previous_output is not None and output_mean > 0:
+                if abs(previous_output - output_mean) / output_mean > OUTPUT_COMPARABLE_MAX_TOLERANCE:
+                    continue
+
             if comparison_mode == "same_temp_bin" and current_temp is not None:
                 previous_temp = _safe_float(fa.get("temperature", {}).get("temp")) or row.temp_avg
                 if previous_temp is None or abs(previous_temp - current_temp) > TEMP_BIN_WIDTH_C:
@@ -745,10 +747,13 @@ class FormAnalysisEngine:
             elapsed_sec=_get_elapsed_seconds(df),
         )
         window = None
-        if float(df["elapsed_sec"].max()) >= 50 * 60:
+        max_elapsed = float(df["elapsed_sec"].max())
+        if max_elapsed >= 50 * 60:
             window = (20 * 60, 50 * 60, "20-50")
-        elif float(df["elapsed_sec"].max()) >= 45 * 60:
+        elif max_elapsed >= 45 * 60:
             window = (15 * 60, 45 * 60, "15-45")
+        elif max_elapsed >= 30 * 60:
+            window = (10 * 60, min(max_elapsed, 30 * 60), "10-30")
         else:
             return None
 
@@ -772,7 +777,7 @@ class FormAnalysisEngine:
 
         first_half = stable.iloc[:half]
         second_half = stable.iloc[half:]
-        current_temp = _extract_current_temperature(activity)
+        current_temp = _extract_current_temperature(activity, segment_df=stable)
         hr_mean_raw = float(stable["heart_rate"].mean())
         output_mean = float(stable["output_value"].mean())
         ea_first_raw = float(first_half["output_value"].mean() / first_half["heart_rate"].mean())
@@ -1050,7 +1055,7 @@ class FormAnalysisEngine:
         grade_ctx = self._resolve_grade_series(df, sport, base_environment)
         environment = _infer_environment(activity, grade_ctx.get("series"))
         reps = self._normalize_interval_details(interval_details)
-        if len(reps) < 4:
+        if len(reps) < 3:
             return None
 
         df = df.assign(
@@ -1088,14 +1093,19 @@ class FormAnalysisEngine:
                 }
             )
 
-        if len(rep_windows) < 4:
+        if len(rep_windows) < 3:
             return None
 
-        current_temp = _extract_current_temperature(activity)
+        rep_segment_dfs = []
+        for rw in rep_windows:
+            rw_df = df[(df["elapsed_sec"] >= rw["start_sec"]) & (df["elapsed_sec"] <= rw["end_sec"])]
+            rep_segment_dfs.append(rw_df)
+        combined_rep_df = pd.concat(rep_segment_dfs) if rep_segment_dfs else None
+        current_temp = _extract_current_temperature(activity, segment_df=combined_rep_df)
         hr_mean_raw = float(np.mean(hr_window_values))
         output_mean = float(np.mean(output_window_values))
         ea_raw_values = [out / hr for out, hr in zip(output_window_values, hr_window_values) if hr > 0]
-        if len(ea_raw_values) < 4:
+        if len(ea_raw_values) < 3:
             return None
         ea_first_raw = float(np.mean(ea_raw_values[:2]))
         ea_last_raw = float(np.mean(ea_raw_values[-2:]))

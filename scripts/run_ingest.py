@@ -26,6 +26,7 @@ from projectk_core.processing.plan_parser import NolioPlanParser
 from projectk_core.processing.readiness import ReadinessCalculator
 from projectk_core.logic.profile_manager import ProfileManager
 from projectk_core.logic.classifier import ActivityClassifier
+from projectk_core.logic.form_analysis import FormAnalysisEngine
 from projectk_core.logic.session_grouper import SessionGrouper
 from projectk_core.logic.models import Activity, ActivityMetadata, ActivityMetrics
 from projectk_core.logic.config_manager import AthleteConfig
@@ -47,6 +48,7 @@ class IngestionRobot:
         self.calculator = MetricsCalculator(self.config)
         self.profile_manager = ProfileManager(self.db)
         self.classifier = ActivityClassifier()
+        self.form_analyzer = FormAnalysisEngine(self.db)
         self.session_grouper = SessionGrouper(self.db)
         self.plan_parser = NolioPlanParser()
         self.readiness_calc = ReadinessCalculator(self.db)
@@ -316,30 +318,95 @@ class IngestionRobot:
             }).execute()
             print(f"         ✨ New {sport} profile created (valid from {valid_from[:10]})")
 
+    def _normalize_sport(self, nolio_sport: str, sport_id: int | None = None) -> str:
+        """Normalizes a Nolio sport string to internal format (Run/Bike/Swim/Ski/Strength/Other)."""
+        from projectk_core.logic.sport_mapper import normalize_sport
+        return normalize_sport(nolio_sport, sport_id=sport_id)
+
+    def sync_planned_workouts(self, athletes: List[Dict[str, Any]]):
+        """Sync planned workouts from Nolio for all athletes (today-7d → today+21d)."""
+        import time
+        print("📅 Syncing Planned Workouts...")
+
+        date_from = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+        date_to = (datetime.now(timezone.utc) + timedelta(days=21)).strftime("%Y-%m-%d")
+        total = 0
+
+        for ath in athletes:
+            try:
+                nolio_id = int(ath["nolio_id"])
+            except (ValueError, TypeError):
+                continue
+            athlete_uuid = ath["id"]
+
+            planned_list = self.nolio.get_planned_workouts_range(nolio_id, date_from, date_to)
+            if not planned_list:
+                continue
+
+            for pw in planned_list:
+                record = self._serialize_planned_workout(pw, athlete_uuid)
+                if record:
+                    self.db.client.table("planned_workouts").upsert(
+                        record, on_conflict="nolio_planned_id"
+                    ).execute()
+                    total += 1
+
+            time.sleep(0.5)
+
+        print(f"   ✅ Synced {total} planned workouts")
+
+    def _serialize_planned_workout(self, pw: dict, athlete_uuid: str) -> Optional[dict]:
+        """Serialize a Nolio planned workout into a DB record."""
+        nolio_id = pw.get("id")
+        if not nolio_id:
+            return None
+
+        nolio_sport = pw.get("sport", "Other")
+        internal_sport = self._normalize_sport(nolio_sport)
+
+        distance_km = float(pw.get("distance", 0) or 0)
+        distance_m = distance_km * 1000 if 0 < distance_km < 500 else distance_km
+
+        return {
+            "athlete_id": athlete_uuid,
+            "nolio_planned_id": nolio_id,
+            "planned_date": pw.get("date_start"),
+            "sport": internal_sport,
+            "name": pw.get("name", "Sans titre"),
+            "duration_planned_sec": int(pw.get("duration", 0) or 0) or None,
+            "distance_planned_m": distance_m or None,
+            "rpe": pw.get("rpe"),
+            "structured_workout": pw.get("structured_workout"),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
     def run(self, specific_athlete_name: Optional[str] = None, force_metrics: bool = False):
         print(f"🚀 Starting Ingestion Robot (Window: {self.history_days} days)")
-        
+
         # 1. Sync Roster (Discovery Phase)
         self.sync_athletes_roster(force_metrics=force_metrics, specific_athlete_name=specific_athlete_name)
 
         # 2. Process Webhooks first (Priority)
         self.process_webhooks()
-        
+
         # 3. Fetch Athletes from DB who have a nolio_id
         query = self.db.client.table("athletes").select("id, first_name, last_name, nolio_id").eq("is_active", True).not_.is_("nolio_id", "null")
         if specific_athlete_name:
             query = query.or_(f"first_name.ilike.%{specific_athlete_name}%,last_name.ilike.%{specific_athlete_name}%")
-        
+
         res = query.execute()
         athletes = res.data
-        
+
         print(f"📊 Running scheduled scan for {len(athletes)} athletes.")
-        
+
+        # 4. Sync Planned Workouts
+        self.sync_planned_workouts(athletes)
+
         date_to = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         date_from = (datetime.now(timezone.utc) - timedelta(days=self.history_days)).strftime("%Y-%m-%d")
 
         for athlete in athletes:
-            # 4. Anti-Rate Limit: Small pause between athletes
+            # 5. Anti-Rate Limit: Small pause between athletes
             import time
             time.sleep(1.0)
             self.process_athlete(athlete, date_from, date_to)
@@ -466,6 +533,7 @@ class IngestionRobot:
 
         # 0. Plan Retrieval (Planned Structure)
         target_grid = None
+        planned_source = None
         planned_id = nolio_act.get("planned_id")
         planned_session = None
         
@@ -481,32 +549,8 @@ class IngestionRobot:
 
         # 2. Extract Basic Metadata from Nolio (Safe Defaults)
         nolio_sport = nolio_act.get("sport", "Other")
-        
-        # Robust Mapping for Nolio Sports (French & English)
-        # Order matters here for priority
-        sport_map = {
-            "Bike": ["Vélo", "Cyclisme", "VTT", "Cycling", "Biking", "Road cycling", "Virtual ride", "Mountain cycling", "Gravel"],
-            "Swim": ["Natation", "Swimming", "Nage"],
-            "Strength": ["Renforcement musculaire", "Musculation", "PPG", "Strength", "Marche", "Gainage"],
-            "Ski": ["Ski de randonnée", "Ski de fond"],
-            "Run": ["Course à pied", "Running", "Trail", "Jogging", "Randonnée", "Rando"]
-        }
-        
-        internal_sport = "Other"
-        nolio_sport_lower = nolio_sport.lower()
-        
-        # Priority check: Bike/Strength first, then Swim, then Run, then Ski
-        found_category = None
-        for category in ["Bike", "Strength", "Swim", "Run", "Ski"]:
-            keywords = sport_map[category]
-            for kw in keywords:
-                if kw.lower() in nolio_sport_lower:
-                    found_category = category
-                    break
-            if found_category:
-                break
-        
-        internal_sport = found_category or "Other"
+        nolio_sport_id = nolio_act.get("sport_id")
+        internal_sport = self._normalize_sport(nolio_sport, sport_id=nolio_sport_id)
         
         # VERBOSE DEBUG FOR LUCAS OR OTHERS
         if act_id == "89867151" or internal_sport == "Other" or nolio_sport == "Other":
@@ -578,6 +622,7 @@ class IngestionRobot:
                         merge_adjacent_work=True
                     )
                     if target_grid:
+                        planned_source = "nolio_structured_workout"
                         print(f"      🎯 Plan parsed: {len(target_grid)} interval steps found.")
             except Exception as e:
                 print(f"      ⚠️ Plan parsing error: {e}")
@@ -737,6 +782,12 @@ class IngestionRobot:
                 target_grid=target_grid,
                 is_competition_nolio=is_comp
             )
+            if target_grid and planned_source:
+                metrics_dict["planned_interval_blocks"] = self.calculator.build_planned_interval_blocks(
+                    target_grid=target_grid,
+                    sport=internal_sport.lower(),
+                    planned_source=planned_source,
+                )
             
             # Security: Ensure interval metrics are ONLY present for intervals work_type
             if meta.work_type != "intervals":
@@ -747,6 +798,23 @@ class IngestionRobot:
             else:
                 # Assign detected intervals for DB storage
                 activity.intervals = metrics_dict.get("intervals", [])
+
+            form_analysis = self.form_analyzer.analyze(
+                activity_id=None,
+                athlete_id=athlete_id,
+                activity=activity,
+                metrics_dict=metrics_dict,
+                interval_details=[
+                    {
+                        "start_time": interval.start_time,
+                        "end_time": interval.end_time,
+                        "duration": interval.duration,
+                        "status": "matched",
+                    }
+                    for interval in activity.intervals
+                ],
+            )
+            metrics_dict["form_analysis"] = form_analysis
 
             activity.metrics = ActivityMetrics(**metrics_dict)
             
@@ -800,13 +868,25 @@ class IngestionRobot:
         # 8. Final Save
         try:
             ActivityWriter.save(
-                activity, 
-                self.db, 
-                athlete_id, 
-                nolio_id=act_id, 
+                activity,
+                self.db,
+                athlete_id,
+                nolio_id=act_id,
                 file_hash=file_hash,
                 file_path=storage_path
             )
+
+            # Link planned → realized if a planned session was matched
+            if planned_session and planned_session.get("id"):
+                try:
+                    saved = self.db.client.table("activities").select("id").eq("nolio_id", act_id).execute()
+                    if saved.data:
+                        self.db.client.table("planned_workouts").update({
+                            "linked_activity_id": saved.data[0]["id"]
+                        }).eq("nolio_planned_id", planned_session["id"]).execute()
+                except Exception as e:
+                    print(f"      ⚠️ Could not link planned workout: {e}")
+
             grouped = self.session_grouper.group_bricks_for_athlete_date(athlete_id, meta.start_time)
             if grouped > 0:
                 print(f"      🔗 Brick grouping updated ({grouped} pair(s))")
