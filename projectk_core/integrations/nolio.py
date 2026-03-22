@@ -191,6 +191,18 @@ class NolioClient:
         """Alias for get_planned_workout for clarity."""
         return self.get_planned_workout(planned_id, athlete_id=athlete_id)
 
+    def get_planned_workouts_range(self, athlete_id: int, date_from: str, date_to: str) -> List[Dict[str, Any]]:
+        """Fetches ALL planned workouts for an athlete within a date range."""
+        url = f"{self.BASE_URL}/get/planned/training/"
+        params = {"athlete_id": athlete_id, "from": date_from, "to": date_to}
+        try:
+            response = requests.get(url, headers=self._get_headers(), params=params)
+            response.raise_for_status()
+            return response.json() or []
+        except Exception as e:
+            print(f"⚠️ Failed to fetch planned workouts range for athlete {athlete_id}: {e}")
+            return []
+
     def find_planned_workout(self, athlete_id: int, date: Any, title_filter: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Searches for a planned workout within the same week (Monday-Sunday) around the given date.
