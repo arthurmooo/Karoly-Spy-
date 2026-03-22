@@ -98,6 +98,7 @@ def downsample_streams(
 
     # Remove duplicate index entries
     work = work[~work.index.duplicated(keep='first')]
+    start_ts = work.index[0]
 
     # Filter pauses if requested
     if exclude_pauses:
@@ -141,7 +142,8 @@ def downsample_streams(
         bucket_ids = active_seconds // interval_sec
 
         # Reset to a plain DataFrame for groupby
-        work_plain = work.reset_index(drop=True)
+        timestamp_col = work.index.name or 'timestamp'
+        work_plain = work.reset_index().rename(columns={timestamp_col: '_timestamp'})
         work_plain['_bucket'] = bucket_ids
 
         grouped = work_plain.groupby('_bucket')
@@ -150,6 +152,8 @@ def downsample_streams(
         for bucket_id, group in grouped:
             elapsed = int(bucket_id * interval_sec)
             point: Dict[str, Any] = {'t': elapsed}
+            first_ts = group['_timestamp'].iloc[0]
+            point['elapsed_t'] = round(float((first_ts - start_ts).total_seconds()), 1)
 
             if 'heart_rate' in group.columns:
                 hr_val = group['heart_rate'].mean()
@@ -178,8 +182,6 @@ def downsample_streams(
         return points
 
     # Original clock-based path (exclude_pauses=False)
-    start_ts = work.index[0]
-
     # Define aggregation rules per column
     agg_rules = {}
     if 'heart_rate' in work.columns:

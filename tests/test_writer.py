@@ -19,7 +19,8 @@ def test_activity_serialization():
         duration_sec=3600,
         distance_m=10000,
         device_id="12345",
-        rpe=7
+        rpe=7,
+        work_type="endurance",
     )
     df = pd.DataFrame({'power': [200]*3600, 'heart_rate': [150]*3600})
     act = Activity(metadata=meta, streams=df)
@@ -30,7 +31,36 @@ def test_activity_serialization():
         "dur_index": 1.1,
         "drift_pahr_percent": 2.5,
         "normalized_power": 210.0,
-        "intensity_factor": 0.8
+        "intensity_factor": 0.8,
+        "load_components": {
+            "external": {
+                "duration_min": 60.0,
+                "distance_km": 10.0,
+                "intensity_ratio_avg": 0.8,
+            },
+            "internal": {
+                "srpe_load": 420.0,
+                "time_lt1_sec": 0.0,
+                "time_between_lt1_lt2_sec": 3600.0,
+                "time_gt_lt2_sec": 0.0,
+            },
+            "global": {
+                "mls": 150.5,
+            },
+        },
+        "form_analysis": {"version": "karo_pdf_2026_03_17", "decision": {"final": "stable"}},
+        "planned_interval_blocks": [
+            {
+                "block_index": 1,
+                "count": 20,
+                "representative_duration_sec": 90.0,
+                "representative_distance_m": None,
+                "target_type": "speed",
+                "target_min": 4.5673,
+                "target_max": 5.0481,
+                "planned_source": "nolio_structured_workout",
+            }
+        ],
         # MEC, INT, etc. ignorés par le schéma actuel
     }
     
@@ -52,3 +82,13 @@ def test_activity_serialization():
     assert record['avg_hr'] == 150.0
     assert record['fit_file_path'] == "path/to.fit"
     assert record['rpe'] == 7
+    assert record['work_type'] == "endurance"
+    assert record['manual_work_type'] is None
+    assert record['detected_work_type'] == "endurance"
+    assert record['analysis_dirty'] is False
+    assert record['load_components']['external']['duration_min'] == 60.0
+    assert record['load_components']['internal']['srpe_load'] == 420.0
+    assert record['load_components']['global']['mls'] == 150.5
+    assert record['form_analysis']['version'] == "karo_pdf_2026_03_17"
+    assert record['segmented_metrics']['planned_interval_blocks'][0]['count'] == 20
+    assert record['segmented_metrics']['interval_blocks'] == []

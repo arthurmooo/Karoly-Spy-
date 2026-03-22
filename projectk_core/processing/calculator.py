@@ -144,20 +144,51 @@ class MetricsCalculator:
 
         # 6. Internal Load (INT)
         int_index = 1.0
-        if 'heart_rate' in active_df.columns and profile and profile.lt1_hr is not None and profile.lt2_hr is not None:
-            # Re-apply smoothing ONLY on active data to match notebook
-            hr_smooth = active_df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
-            
-            z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
-            p_hr_lt = z2_count / total_seconds if total_seconds > 0 else 0.0
-            
-            alpha = self.config.get('alpha_load_hr', 0.5)
-            int_index = 1.0 + alpha * p_hr_lt
-        elif 'heart_rate' in active_df.columns:
-            # Still need hr_smooth for durability calculation later
+        int_computed = False
+        z1_count = 0
+        z2_count = 0
+        z3_count = 0
+
+        # hr_smooth always computed (needed for Section 7 durability)
+        if 'heart_rate' in active_df.columns:
             hr_smooth = active_df['heart_rate'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
         else:
             hr_smooth = pd.Series(dtype=float)
+
+        # PRIMARY: INT based on HR thresholds (Z2 + Z3)
+        if 'heart_rate' in active_df.columns and profile and profile.lt1_hr is not None and profile.lt2_hr is not None:
+            z1_count = (hr_smooth < profile.lt1_hr).sum()
+            z2_count = ((hr_smooth >= profile.lt1_hr) & (hr_smooth < profile.lt2_hr)).sum()
+            z3_count = (hr_smooth >= profile.lt2_hr).sum()
+            p_z2 = z2_count / total_seconds if total_seconds > 0 else 0.0
+            p_z3 = z3_count / total_seconds if total_seconds > 0 else 0.0
+            alpha = self.config.get('alpha_load_hr', 0.5)
+            gamma = self.config.get('gamma_load_z3', 1.0)
+            int_index = 1.0 + alpha * p_z2 + gamma * p_z3
+            int_computed = True
+
+        # FALLBACK: INT based on Power/Pace (when HR thresholds absent but CP/CS available)
+        elif profile and cp_value > 0:
+            lt2_threshold = cp_value
+            lt1_threshold = 0.825 * cp_value
+
+            if use_power_as_ref and has_power_stream and 'power' in active_df.columns:
+                ref_smooth = active_df['power'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
+            elif sport == "run" and 'speed' in active_df.columns:
+                ref_smooth = active_df['speed'].rolling(window=30, center=True, min_periods=1).mean().ffill().bfill()
+            else:
+                ref_smooth = pd.Series(dtype=float)
+
+            if not ref_smooth.empty:
+                z1_count = (ref_smooth < lt1_threshold).sum()
+                z2_count = ((ref_smooth >= lt1_threshold) & (ref_smooth < lt2_threshold)).sum()
+                z3_count = (ref_smooth >= lt2_threshold).sum()
+                p_z2 = z2_count / total_seconds if total_seconds > 0 else 0.0
+                p_z3 = z3_count / total_seconds if total_seconds > 0 else 0.0
+                alpha = self.config.get('alpha_load_hr', 0.5)
+                gamma = self.config.get('gamma_load_z3', 1.0)
+                int_index = 1.0 + alpha * p_z2 + gamma * p_z3
+                int_computed = True
 
 
         # 7. Durability (DUR) & Decoupling
@@ -212,6 +243,16 @@ class MetricsCalculator:
             beta = self.config.get('beta_dur', 0.08)
             dur_index = 1.0 + beta * max(0.0, drift_abs - drift_threshold)
 
+        # 7b. Perceptive Load (PER) — RPE-based modulation
+        per_index = 1.0
+        rpe_delta = None
+        rpe_valid = meta.rpe is not None and meta.rpe >= 1  # RPE=0 means not yet filled by athlete
+        if rpe_valid:
+            rpe_norm = (meta.rpe - 1) / 9.0  # Nolio 1-10 → 0.0-1.0
+            rpe_delta = rpe_norm - if_mean     # Divergence perceived vs objective
+            k_rpe = self.config.get('k_rpe', 0.3)
+            per_index = max(0.85, min(1.15, 1.0 + k_rpe * rpe_delta))
+
         # 8. Final MLS
         # Karoly's Rule: No thresholds = No MLS (set to null)
         # NEW: Restricted to Running and Cycling only.
@@ -223,10 +264,25 @@ class MetricsCalculator:
             if not any(x in meta.activity_type.lower() for x in ["hiking", "randonnée", "ski", "rando"]):
                 is_eligible_sport = True
 
-        if is_eligible_sport and mec is not None and profile and profile.lt1_hr is not None and profile.lt2_hr is not None:
-            mls_load = mec * int_index * dur_index
+        if is_eligible_sport and mec is not None and int_computed:
+            mls_load = mec * int_index * dur_index * per_index
         else:
             mls_load = None
+
+        active_duration_sec = meta.moving_time_sec if meta.moving_time_sec is not None else meta.duration_sec
+        duration_min = (active_duration_sec / 60.0) if active_duration_sec is not None else None
+        distance_km = (meta.distance_m / 1000.0) if meta.distance_m is not None else None
+        srpe_load = (duration_min * float(meta.rpe)) if duration_min is not None and rpe_valid else None
+        load_components = self._build_load_components(
+            duration_min=duration_min,
+            distance_km=distance_km,
+            intensity_ratio_avg=if_mean if int_computed else None,
+            srpe_load=srpe_load,
+            time_lt1_sec=z1_count if int_computed else None,
+            time_between_lt1_lt2_sec=z2_count if int_computed else None,
+            time_gt_lt2_sec=z3_count if int_computed else None,
+            mls_load=mls_load,
+        )
 
         # 9. Standard Metrics (NP, TSS)
         if has_power_stream:
@@ -239,7 +295,7 @@ class MetricsCalculator:
             tss = 0.0
 
         # 4. Detect Work Type
-        meta.work_type = self.classifier.detect_work_type(
+        detected_work_type = self.classifier.detect_work_type(
             df, 
             meta.activity_name or "", 
             nolio_type or "", 
@@ -248,6 +304,10 @@ class MetricsCalculator:
             is_competition_nolio=is_competition_nolio,
             laps=activity.laps
         )
+        meta.detected_work_type = detected_work_type
+        manual_work_type = (getattr(meta, "manual_work_type", None) or "").strip().lower() or None
+        meta.manual_work_type = manual_work_type
+        meta.work_type = manual_work_type or detected_work_type
 
         # 10. Interval Metrics (Requested by Karoly)
         # We now have two modes: LAP-based (legacy) and MATCHER-based (surgical)
@@ -608,6 +668,12 @@ class MetricsCalculator:
             avg_intervals_pace = None
             last_interval_pace = None
 
+        # Compute HR sub-zones for bilan page aggregate view
+        hr_zones_sec = None
+        if 'heart_rate' in active_df.columns and profile and profile.lt1_hr is not None and profile.lt2_hr is not None:
+            zones = self._compute_hr_zones(active_df['heart_rate'], profile.lt1_hr, profile.lt2_hr)
+            hr_zones_sec = zones if zones else None
+
         return {
             "interval_power_last": round(float(last_interval_power), 1) if last_interval_power is not None else None,
             "interval_hr_last": round(float(last_interval_hr), 1) if last_interval_hr is not None else None,
@@ -625,18 +691,83 @@ class MetricsCalculator:
             "mec": round(mec, 1) if mec is not None else None,
             "int_index": round(int_index, 3),
             "dur_index": round(dur_index, 3),
+            "per_index": round(per_index, 3),
+            "rpe_delta": round(rpe_delta, 3) if rpe_delta is not None else None,
             "drift_pahr_percent": round(drift_pahr_pct, 2),
             "mls_load": round(mls_load, 1) if mls_load is not None else None,
             "normalized_power": round(np_val, 1),
             "tss": round(tss, 1),
             "segmented_metrics": seg_output,
-            "intervals": detected_blocks
+            "load_components": load_components,
+            "intervals": detected_blocks,
+            "hr_zones_sec": hr_zones_sec,
         }
 
     def _to_pace(self, speed_mps: Optional[float]) -> Optional[float]:
         if speed_mps is None or speed_mps <= 0:
             return None
         return 1000.0 / speed_mps / 60.0
+
+    def _compute_hr_zones(
+        self,
+        hr_series: "pd.Series",
+        lt1_hr: float,
+        lt2_hr: float,
+    ) -> Dict[str, int]:
+        """
+        Counts seconds spent in each of the 6 HR sub-zones.
+        Zone boundaries mirror ZoneDistributionChart.computeZoneBoundaries() on the frontend.
+          Z1i  : [0,        lt1/2)
+          Z1ii : [lt1/2,    lt1)
+          Z2i  : [lt1,      lt1 + (lt2-lt1)/2)
+          Z2ii : [lt1+(lt2-lt1)/2, lt2)
+          Z3i  : [lt2,      lt2 + (lt2-lt1)/2)
+          Z3ii : [lt2+(lt2-lt1)/2, ∞)
+        """
+        hr = hr_series.dropna()
+        if len(hr) == 0:
+            return {}
+
+        z1_mid = lt1_hr / 2.0
+        z2_mid = lt1_hr + (lt2_hr - lt1_hr) / 2.0
+        z3_mid = lt2_hr + (lt2_hr - lt1_hr) / 2.0
+
+        return {
+            "Z1i":  int((hr < z1_mid).sum()),
+            "Z1ii": int(((hr >= z1_mid) & (hr < lt1_hr)).sum()),
+            "Z2i":  int(((hr >= lt1_hr) & (hr < z2_mid)).sum()),
+            "Z2ii": int(((hr >= z2_mid) & (hr < lt2_hr)).sum()),
+            "Z3i":  int(((hr >= lt2_hr) & (hr < z3_mid)).sum()),
+            "Z3ii": int((hr >= z3_mid).sum()),
+        }
+
+    def _build_load_components(
+        self,
+        duration_min: Optional[float],
+        distance_km: Optional[float],
+        intensity_ratio_avg: Optional[float],
+        srpe_load: Optional[float],
+        time_lt1_sec: Optional[float],
+        time_between_lt1_lt2_sec: Optional[float],
+        time_gt_lt2_sec: Optional[float],
+        mls_load: Optional[float],
+    ) -> Dict[str, Dict[str, Optional[float]]]:
+        return {
+            "external": {
+                "duration_min": round(float(duration_min), 2) if duration_min is not None else None,
+                "distance_km": round(float(distance_km), 3) if distance_km is not None else None,
+                "intensity_ratio_avg": round(float(intensity_ratio_avg), 3) if intensity_ratio_avg is not None else None,
+            },
+            "internal": {
+                "srpe_load": round(float(srpe_load), 2) if srpe_load is not None else None,
+                "time_lt1_sec": float(time_lt1_sec) if time_lt1_sec is not None else None,
+                "time_between_lt1_lt2_sec": float(time_between_lt1_lt2_sec) if time_between_lt1_lt2_sec is not None else None,
+                "time_gt_lt2_sec": float(time_gt_lt2_sec) if time_gt_lt2_sec is not None else None,
+            },
+            "global": {
+                "mls": round(float(mls_load), 1) if mls_load is not None else None,
+            },
+        }
 
     def _build_interval_blocks_summary_from_detections(
         self,
@@ -656,7 +787,7 @@ class MetricsCalculator:
                 "avg_hr": d.get("avg_hr"),
                 "respect_score": d.get("respect_score")
             })
-        return self._group_and_summarize_interval_entries(normalized, sport)
+        return self._summarize_realized_interval_entries(normalized, sport)
 
     def _build_interval_blocks_summary_from_laps(
         self,
@@ -676,9 +807,57 @@ class MetricsCalculator:
                 "avg_hr": lap.get("avg_heart_rate"),
                 "respect_score": None
             })
-        return self._group_and_summarize_interval_entries(normalized, sport)
+        return self._summarize_realized_interval_entries(normalized, sport)
 
-    def _group_and_summarize_interval_entries(
+    def build_planned_interval_blocks(
+        self,
+        target_grid: Optional[List[Dict[str, Any]]],
+        sport: str,
+        planned_source: str
+    ) -> List[Dict[str, Any]]:
+        if not target_grid:
+            return []
+
+        normalized = []
+        for idx, target in enumerate(target_grid):
+            duration = float(target.get("duration") or 0)
+            distance = float(target.get("distance_m") or 0)
+            normalized.append({
+                "order": idx,
+                "duration_sec": duration,
+                "target_duration": duration,
+                "target_distance": distance,
+                "target_type": target.get("target_type"),
+                "target_min": target.get("target_min"),
+                "target_max": target.get("target_max"),
+            })
+
+        blocks = self._group_interval_entries(normalized)
+        summaries = []
+        for idx, block in enumerate(blocks, start=1):
+            target_distances = [float(e.get("target_distance") or 0) for e in block if float(e.get("target_distance") or 0) > 0]
+            target_durations = [float(e.get("target_duration") or 0) for e in block if float(e.get("target_duration") or 0) > 0]
+            representative_distance = target_distances[0] if target_distances else None
+            representative_duration = target_durations[0] if target_durations else None
+
+            target_type = next((e.get("target_type") for e in block if e.get("target_type")), None)
+            mins = [float(e.get("target_min")) for e in block if e.get("target_min") is not None]
+            maxs = [float(e.get("target_max")) for e in block if e.get("target_max") is not None]
+
+            summaries.append({
+                "block_index": idx,
+                "count": len(block),
+                "representative_duration_sec": round(representative_duration, 1) if representative_duration else None,
+                "representative_distance_m": round(representative_distance, 1) if representative_distance else None,
+                "target_type": target_type or ("power" if sport == "bike" else "speed"),
+                "target_min": round(min(mins), 4) if mins else None,
+                "target_max": round(max(maxs), 4) if maxs else None,
+                "planned_source": planned_source,
+            })
+
+        return summaries
+
+    def _summarize_realized_interval_entries(
         self,
         entries: List[Dict[str, Any]],
         sport: str
@@ -686,29 +865,7 @@ class MetricsCalculator:
         if not entries:
             return []
 
-        blocks: List[List[Dict[str, Any]]] = [[entries[0]]]
-        for entry in entries[1:]:
-            current_block = blocks[-1]
-            prev = current_block[-1]
-
-            prev_dist = float(prev.get("target_distance") or 0)
-            curr_dist = float(entry.get("target_distance") or 0)
-            prev_dur = float(prev.get("target_duration") or prev.get("duration_sec") or 0)
-            curr_dur = float(entry.get("target_duration") or entry.get("duration_sec") or 0)
-
-            same_block = False
-            if prev_dist > 0 and curr_dist > 0:
-                ratio = curr_dist / prev_dist if prev_dist > 0 else 0
-                same_block = 0.75 <= ratio <= 1.35
-            elif prev_dur > 0 and curr_dur > 0:
-                ratio = curr_dur / prev_dur if prev_dur > 0 else 0
-                same_block = 0.75 <= ratio <= 1.35
-
-            if same_block:
-                current_block.append(entry)
-            else:
-                blocks.append([entry])
-
+        blocks = self._group_interval_entries(entries)
         summaries = []
         for idx, block in enumerate(blocks, start=1):
             durations = [float(e.get("duration_sec") or 0) for e in block]
@@ -765,6 +922,46 @@ class MetricsCalculator:
             })
 
         return self._prune_noise_interval_blocks(summaries)
+
+    def _group_and_summarize_interval_entries(
+        self,
+        entries: List[Dict[str, Any]],
+        sport: str
+    ) -> List[Dict[str, Any]]:
+        # Backward-compatible alias used by existing tests and audit scripts.
+        return self._summarize_realized_interval_entries(entries, sport)
+
+    def _group_interval_entries(
+        self,
+        entries: List[Dict[str, Any]]
+    ) -> List[List[Dict[str, Any]]]:
+        if not entries:
+            return []
+
+        blocks: List[List[Dict[str, Any]]] = [[entries[0]]]
+        for entry in entries[1:]:
+            current_block = blocks[-1]
+            prev = current_block[-1]
+
+            prev_dist = float(prev.get("target_distance") or 0)
+            curr_dist = float(entry.get("target_distance") or 0)
+            prev_dur = float(prev.get("target_duration") or prev.get("duration_sec") or 0)
+            curr_dur = float(entry.get("target_duration") or entry.get("duration_sec") or 0)
+
+            same_block = False
+            if prev_dist > 0 and curr_dist > 0:
+                ratio = curr_dist / prev_dist if prev_dist > 0 else 0
+                same_block = 0.75 <= ratio <= 1.35
+            elif prev_dur > 0 and curr_dur > 0:
+                ratio = curr_dur / prev_dur if prev_dur > 0 else 0
+                same_block = 0.75 <= ratio <= 1.35
+
+            if same_block:
+                current_block.append(entry)
+            else:
+                blocks.append([entry])
+
+        return blocks
 
     def _prune_noise_interval_blocks(self, blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

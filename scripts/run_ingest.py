@@ -411,6 +411,16 @@ class IngestionRobot:
             time.sleep(1.0)
             self.process_athlete(athlete, date_from, date_to)
 
+        # Storage monitoring (non-blocking)
+        try:
+            from projectk_core.monitoring.storage_monitor import StorageMonitor
+            monitor = StorageMonitor(self.db)
+            result = monitor.check_and_log()
+            if result.get("status") in ("warning", "critical"):
+                print(f"⚠️  STORAGE {result['status'].upper()}: {result['total_gb']:.1f} GB / 100 GB ({result['pct']}%)")
+        except Exception as e:
+            print(f"   Storage check failed (non-blocking): {e}")
+
         print("\n🏁 Ingestion Complete.")
 
     def process_webhooks(self):

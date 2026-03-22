@@ -8,6 +8,7 @@ Usage:
     python scripts/backfill_streams_laps.py --apply      # write to DB
     python scripts/backfill_streams_laps.py --limit 10   # process max N activities
     python scripts/backfill_streams_laps.py --date 2026-03-10 --apply  # specific date
+    python scripts/backfill_streams_laps.py --missing-elapsed-t --intervals-only --apply
 """
 import sys
 import os
@@ -27,12 +28,24 @@ def main():
     parser.add_argument("--apply", action="store_true", help="Actually write to DB (default: dry-run)")
     parser.add_argument("--limit", type=int, default=0, help="Max activities to process (0 = all)")
     parser.add_argument("--date", type=str, default=None, help="Filter by date (YYYY-MM-DD)")
+    parser.add_argument("--activity-id", type=str, default=None, help="Backfill a single activity id")
+    parser.add_argument(
+        "--missing-elapsed-t",
+        action="store_true",
+        help="Backfill activities whose cached streams exist but still lack elapsed_t",
+    )
+    parser.add_argument(
+        "--intervals-only",
+        action="store_true",
+        help="Restrict selection to interval sessions (work_type = intervals)",
+    )
     args = parser.parse_args()
 
     db = DBConnector()
     storage = StorageManager()
 
-    # Fetch activities with a FIT file but no streams yet (paginated, Supabase max 1000/query)
+    # Fetch activities with a FIT file but no streams yet (or missing elapsed_t)
+    # (paginated, Supabase max 1000/query)
     activities = []
     page_size = 1000
     offset = 0
@@ -40,21 +53,37 @@ def main():
     while True:
         query = (
             db.client.table("activities")
-            .select("id, fit_file_path, session_date, activity_name, sport_type")
-            .is_("activity_streams", "null")
+            .select("id, fit_file_path, session_date, activity_name, sport_type, work_type, activity_streams")
             .not_.is_("fit_file_path", "null")
             .order("session_date", desc=True)
             .range(offset, offset + page_size - 1)
         )
 
+        if not args.missing_elapsed_t:
+            query = query.is_("activity_streams", "null")
+
         if args.date:
             query = query.gte("session_date", f"{args.date}T00:00:00").lte("session_date", f"{args.date}T23:59:59")
+        if args.activity_id:
+            query = query.eq("id", args.activity_id)
+        if args.intervals_only:
+            query = query.eq("work_type", "intervals")
 
         result = query.execute()
         batch = result.data or []
+
+        if args.missing_elapsed_t:
+            batch = [
+                act for act in batch
+                if act.get("activity_streams")
+                and isinstance(act["activity_streams"], list)
+                and len(act["activity_streams"]) > 0
+                and "elapsed_t" not in (act["activity_streams"][0] or {})
+            ]
+
         activities.extend(batch)
 
-        if len(batch) < page_size:
+        if args.activity_id or len(result.data or []) < page_size:
             break
         offset += page_size
 

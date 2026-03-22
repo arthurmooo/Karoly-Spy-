@@ -45,13 +45,14 @@ def test_run_energy_excludes_conversion_factor():
     # Execute
     metrics = calc.compute(activity, profile)
     
-    # Expected Calculation (New)
+    # Expected Calculation:
     # kcal = 70.0 * (1.0 + 0) = 70.0
-    # mec_base should be 70.0 kJ (conceptually)
-    
+    # energy_kj = kcal * RUN_COEFF(0.77) = 53.9
+    # RUN_COEFF aligns Run MLS with Bike MLS at equivalent effort
+
     # If 4.184 was applied, result would be ~292.88
-    
-    assert metrics['energy_kj'] == 70.0
+
+    assert metrics['energy_kj'] == pytest.approx(53.9, abs=0.1)
     assert metrics['mec'] is not None
     # Intensity factor should be applied to MEC
     # IF calculation depends on CP which is 0 here, so fallback logic applies.

@@ -11,26 +11,8 @@ from projectk_core.db.connector import DBConnector
 from projectk_core.integrations.nolio import NolioClient
 
 def get_internal_sport(nolio_sport: str) -> str:
-    # Robust Mapping for Nolio Sports (French & English)
-    # Order matters here for priority
-    sport_map = {
-        "Bike": ["Vélo", "Cyclisme", "VTT", "Cycling", "Biking", "Road cycling", "Virtual ride", "Mountain cycling", "Gravel"],
-        "Swim": ["Natation", "Swimming", "Nage"],
-        "Strength": ["Renforcement musculaire", "Musculation", "PPG", "Strength", "Marche", "Gainage"],
-        "Run": ["Course à pied", "Running", "Trail", "Jogging", "Ski de randonnée", "Ski de fond", "Randonnée", "Rando"]
-    }
-    
-    if not nolio_sport:
-        return "Other"
-        
-    nolio_sport_lower = nolio_sport.lower()
-    
-    # Priority check: Bike/Strength first, then Swim, then Run
-    for category in ["Bike", "Strength", "Swim", "Run"]:
-        keywords = sport_map[category]
-        if any(kw.lower() in nolio_sport_lower for kw in keywords):
-            return category
-    return "Other"
+    from projectk_core.logic.sport_mapper import normalize_sport
+    return normalize_sport(nolio_sport or "")
 
 def fix_history():
     db = DBConnector()

@@ -62,6 +62,8 @@ class ActivityWriter:
             "rpe": int(meta.rpe) if meta.rpe is not None else None,
             "missing_rpe_flag": meta.rpe is None,
             "work_type": meta.work_type,
+            "manual_work_type": meta.manual_work_type,
+            "detected_work_type": meta.detected_work_type or meta.work_type,
             "elevation_gain": meta.elevation_gain,
             
             # Weather
@@ -91,6 +93,7 @@ class ActivityWriter:
                 "interval_pahr_mean": metrics_dict.get("interval_pahr_mean"),
                 "interval_pahr_last": metrics_dict.get("interval_pahr_last"),
                 "interval_blocks": metrics_dict.get("interval_blocks") or [],
+                "planned_interval_blocks": metrics_dict.get("planned_interval_blocks") or [],
                 "per_index": metrics_dict.get("per_index"),
                 "rpe_delta": metrics_dict.get("rpe_delta"),
             },

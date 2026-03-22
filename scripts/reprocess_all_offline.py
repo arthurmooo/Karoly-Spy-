@@ -20,14 +20,8 @@ def reprocess_all_offline():
     
     print(f"📊 Found {len(activities)} activities to re-process.")
     
-    sport_map = {
-        "Bike": ["Vélo", "Cyclisme", "VTT", "Cycling", "Biking", "Road cycling", "Virtual ride", "Mountain cycling", "Gravel"],
-        "Swim": ["Natation", "Swimming", "Nage"],
-        "Strength": ["Renforcement musculaire", "Musculation", "PPG", "Strength", "Marche", "Gainage"],
-        "Ski": ["Ski de randonnée", "Ski de fond"],
-        "Run": ["Course à pied", "Running", "Trail", "Jogging", "Randonnée", "Rando"]
-    }
-    
+    from projectk_core.logic.sport_mapper import normalize_sport
+
     updates = 0
     for act in activities:
         db_id = act['id']
@@ -35,16 +29,9 @@ def reprocess_all_offline():
         activity_name = act.get('activity_name') or ""
         current_sport = act.get('sport_type')
         current_work = act.get('work_type')
-        
+
         # A. Re-classify Sport
-        found_category = None
-        source_lower = source_sport.lower()
-        for category, keywords in sport_map.items():
-            if any(kw.lower() in source_lower for kw in keywords):
-                found_category = category
-                break
-        
-        new_sport = found_category or "Other"
+        new_sport = normalize_sport(source_sport)
         
         # B. Re-classify Work Type (Endurance / Intervals / Competition)
         # We simulate the detect_work_type but without the signal (df empty)

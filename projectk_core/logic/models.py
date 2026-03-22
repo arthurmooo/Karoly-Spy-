@@ -88,6 +88,9 @@ class ActivityMetadata(BaseModel):
     device_id: Optional[str] = None
     rpe: Optional[float] = Field(None, ge=0, le=10)
     work_type: Optional[str] = Field(None, description="endurance, intervals, competition")
+    manual_work_type: Optional[str] = Field(None, description="Coach override for work_type")
+    detected_work_type: Optional[str] = Field(None, description="Classifier output before manual override")
+    analysis_dirty: bool = Field(False, description="Derived analysis is pending recomputation")
     temp_avg: Optional[float] = None
     humidity_avg: Optional[float] = None
     weather_source: Optional[str] = Field(None, description="device, openweathermap")
@@ -112,6 +115,7 @@ class SegmentationOutput(BaseModel):
     splits_4: Optional[Dict[str, SegmentData]] = None
     manual: Optional[Dict[str, SegmentData]] = None
     drift_percent: Optional[float] = Field(None, description="Drift between first and last segment")
+    planned_interval_blocks: Optional[List[Dict[str, Any]]] = None
 
 class ActivityMetrics(BaseModel):
     """
@@ -144,10 +148,12 @@ class ActivityMetrics(BaseModel):
     interval_pahr_mean: Optional[float] = None
     interval_pahr_last: Optional[float] = None
     interval_blocks: Optional[List[Dict[str, Any]]] = None
+    planned_interval_blocks: Optional[List[Dict[str, Any]]] = None
     
     # Smart Segmentation Metrics
     segmented_metrics: Optional[SegmentationOutput] = None
     form_analysis: Optional[Dict[str, Any]] = None
+    load_components: Optional[Dict[str, Any]] = None
 
 class PlannedInterval(BaseModel):
     """

@@ -13,14 +13,14 @@ import pandas as pd
 from projectk_core.logic.models import Activity
 
 
-SOT_VERSION = "karo_pdf_2026_03_20"
+SOT_VERSION = "karo_pdf_2026_03_20b"
 MIN_BETA_SAMPLES = 8
 MAX_BETA_SAMPLES = 20
 MIN_BASELINE_SESSIONS = 5
 MAX_BASELINE_SESSIONS = 8
 TEMP_BIN_WIDTH_C = 2.0
 OUTPUT_STABLE_TOLERANCE = 0.03
-OUTPUT_COMPARABLE_MAX_TOLERANCE = 0.08
+OUTPUT_COMPARABLE_MAX_TOLERANCE = 0.10
 LOW_GRADE_THRESHOLD = 0.02
 MAX_GRADE_ABS = 0.40
 GRADE_WINDOW_M = 40.0
@@ -530,7 +530,6 @@ class FormAnalysisEngine:
                 sport,
                 "continuous_tempo",
                 environment["location"],
-                environment["terrain"],
             ]
         )
         return {"template_key": template_key, "output_band": band}

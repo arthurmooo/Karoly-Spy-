@@ -171,6 +171,7 @@ class ReprocessingEngine:
             # Get Plan from Nolio
             nolio_id = act_record.get('nolio_id')
             plan = None
+            planned_source = None
             activity_title = ""
 
             # ===== PRESERVE EXISTING DATA (2026-02-04) =====
@@ -199,6 +200,26 @@ class ReprocessingEngine:
                              if not structure_source:
                                  planned_title = planned.get('name', '')
                                  plan = self.text_plan_parser.parse(planned_title)
+                                 if plan:
+                                     planned_source = "text_fallback"
+
+                    if not structure_source and athlete_nolio_id:
+                        fuzzy_plan = self.nolio.find_planned_workout(
+                            athlete_id=athlete_nolio_id,
+                            date=start_time,
+                            title_filter=activity_title or existing_activity_name,
+                        )
+                        if fuzzy_plan:
+                            full_fuzzy_plan = self.nolio.get_planned_workout(
+                                int(fuzzy_plan.get('nolio_id')),
+                                athlete_id=athlete_nolio_id,
+                            ) or fuzzy_plan
+                            structure_source = full_fuzzy_plan.get('structured_workout') or full_fuzzy_plan.get('structure')
+                            if not structure_source:
+                                fuzzy_title = full_fuzzy_plan.get('name', '')
+                                plan = self.text_plan_parser.parse(fuzzy_title)
+                                if plan:
+                                    planned_source = "text_fallback"
                     
                     if structure_source:
                         # merge_adjacent_work=True fusionne les blocs Z3+Z2 adjacents (système Karoly)
@@ -207,17 +228,20 @@ class ReprocessingEngine:
                             sport_type=sport,
                             merge_adjacent_work=True
                         )
+                        planned_source = "nolio_structured_workout"
                         print(f"      [bold green]💎 Deep Plan Found:[/bold green] {len(plan)} intervals detected from JSON.")
                     elif not plan and activity_title:
                         # Strategy B: Text Parsing
                         plan = self.text_plan_parser.parse(activity_title)
                         if plan:
-                             print(f"      [bold cyan]📝 Text Plan Parsed:[/bold cyan] {len(plan)} intervals from '{activity_title}'")
+                            planned_source = "text_fallback"
+                            print(f"      [bold cyan]📝 Text Plan Parsed:[/bold cyan] {len(plan)} intervals from '{activity_title}'")
                 else:
                     # Nolio API returned None — fallback to existing DB name
                     activity_title = existing_activity_name
                     plan = self.text_plan_parser.parse(activity_title)
                     if plan:
+                        planned_source = "text_fallback"
                         print(f"      [bold cyan]📝 Text Plan Parsed (API Fallback):[/bold cyan] {len(plan)} intervals from '{activity_title}'")
             else:
                 # API disabled (offline mode) or failed or returned None - use existing name from database
@@ -225,6 +249,7 @@ class ReprocessingEngine:
                 # Try to parse text plan from existing title
                 plan = self.text_plan_parser.parse(activity_title)
                 if plan:
+                    planned_source = "text_fallback"
                     print(f"      [bold cyan]📝 Text Plan Parsed (Fallback/Offline):[/bold cyan] {len(plan)} intervals from '{activity_title}'")
 
             if plan:
@@ -347,6 +372,12 @@ class ReprocessingEngine:
             if not df.empty:
                 target_grid = plan if isinstance(plan, list) else None
                 metrics_dict = self.calculator.compute(activity, profile, target_grid=target_grid)
+                if target_grid and planned_source:
+                    metrics_dict["planned_interval_blocks"] = self.calculator.build_planned_interval_blocks(
+                        target_grid=target_grid,
+                        sport=sport.lower(),
+                        planned_source=planned_source,
+                    )
 
                 # Merge interval detector metadata (completion/source).
                 # _adapt_output (interval_detector) is the source of truth for HR/pace
