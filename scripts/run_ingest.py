@@ -88,16 +88,17 @@ class IngestionRobot:
             print(f"⚠️ Failed to fetch thresholds from Google Sheet: {e}")
             return {}
 
-    def sync_athletes_roster(self, force_metrics: bool = False, specific_athlete_name: Optional[str] = None):
+    def sync_athletes_roster(self, force_metrics: bool = False, force_health: bool = False, specific_athlete_name: Optional[str] = None):
         """
         Fetches athletes from Nolio and ensures they exist in DB.
         Syncs physiological metrics ONLY during the night run (02:00-04:00 UTC) or if forced.
+        Syncs health readiness (rMSSD, HR, sleep) during night AND midday (10:00-12:00 UTC) windows.
         """
         import json
 
         # Load Local Registry from Google Sheet (Priority)
         local_registry = self._fetch_gsheet_physio()
-        
+
         # Fallback/Merge with local file if it exists
         registry_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'physio_registry.json')
         if os.path.exists(registry_path):
@@ -112,10 +113,11 @@ class IngestionRobot:
                 print(f"⚠️ Failed to load local physio_registry.json: {e}")
 
         current_hour = datetime.now(timezone.utc).hour
-        # On définit la fenêtre de synchro profonde (ex: 2h du matin UTC)
-        is_main_run = (2 <= current_hour <= 4) or force_metrics
-        
-        print(f"🔄 Syncing Athlete Roster (Metrics sync: {'ENABLED' if is_main_run else 'SKIPPED for quota'})")
+        # Two separate gates: physio (night only) vs health (night + midday)
+        is_physio_run = (2 <= current_hour <= 4) or force_metrics
+        is_health_run = (2 <= current_hour <= 4) or (10 <= current_hour <= 12) or force_metrics or force_health
+
+        print(f"🔄 Syncing Athlete Roster (Physio: {'ENABLED' if is_physio_run else 'SKIPPED'} | Health: {'ENABLED' if is_health_run else 'SKIPPED'})")
         try:
             nolio_athletes = self.nolio.get_managed_athletes()
             
@@ -149,107 +151,130 @@ class IngestionRobot:
                 
                 athlete_uuid = res.data[0]['id']
 
-                # 2. Sync Metrics (CP, CS, Weight, VO2max) - ONLY during main run
-                if not is_main_run:
-                    continue
+                # 2. Health sync (rMSSD, HR, sleep) — runs at night AND midday
+                if is_health_run:
+                    try:
+                        print(f"   ❤️ Syncing health readiness for {na.get('name')}...")
+                        health_data = self.nolio.get_athlete_health_metrics(nid, days=self.history_days)
 
-                print(f"   📊 Syncing metrics from Nolio for {na.get('name')}...")
-                try:
-                    meta = self.nolio.get_athlete_metrics(nid)
-                    
-                    # Extraction des valeurs clés
-                    # Nolio structure: {"field_name": {"unit": "...", "data": [{"value": X, "date": "..."}]}}
-                    def get_latest(key):
-                        field = meta.get(key, {})
-                        data = field.get("data", [])
-                        return data[0]["value"] if data else None
+                        # Ghost cleanup: nullify health fields for dates present in DB but absent from API
+                        now = datetime.now(timezone.utc)
+                        sync_start = (now - timedelta(days=self.history_days)).strftime("%Y-%m-%d")
+                        sync_end = now.strftime("%Y-%m-%d")
+                        existing_rows = self.db.client.table("daily_readiness")\
+                            .select("date")\
+                            .eq("athlete_id", athlete_uuid)\
+                            .gte("date", sync_start)\
+                            .lte("date", sync_end)\
+                            .execute().data
+                        existing_dates = {row["date"] for row in existing_rows}
+                        api_dates = set(health_data.keys())
+                        ghost_dates = existing_dates - api_dates
 
-                    weight = get_latest("weight")
-                    cp_bike = get_latest("criticalpowercycling")
-                    cs_run_raw = get_latest("criticalspeedrunning") # in sec/km or min/km
-                    rmssd = get_latest("rmssd")
-                    resting_hr = get_latest("hrrest") or get_latest("restinghr")
-                    
-                    # 2.1 Sync HRV (Daily Readiness)
-                    if rmssd or resting_hr:
-                        print(f"      💓 Syncing HRV for {na.get('name')}...")
-                        self.db.client.table("daily_readiness").upsert({
-                            "athlete_id": athlete_uuid,
-                            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                            "rmssd": rmssd,
-                            "resting_hr": resting_hr
-                        }, on_conflict="athlete_id, date").execute()
+                        if ghost_dates:
+                            print(f"      👻 Cleaning {len(ghost_dates)} ghost date(s): {sorted(ghost_dates)[:5]}...")
+                            for ghost in ghost_dates:
+                                self.db.client.table("daily_readiness").update({
+                                    "rmssd": None,
+                                    "resting_hr": None,
+                                    "sleep_duration": None,
+                                    "sleep_score": None
+                                }).eq("athlete_id", athlete_uuid).eq("date", ghost).execute()
 
-                    # Conversion CS: sec/km -> m/s
-                    cs_run = None
-                    if cs_run_raw:
-                        # Si Adrien est à 206s/km -> 1000 / 206 = 4.85 m/s
-                        cs_run = 1000.0 / float(cs_run_raw) if float(cs_run_raw) > 0 else None
+                        # Upsert health data for each date from API
+                        for day_str, metrics in health_data.items():
+                            self.db.client.table("daily_readiness").upsert({
+                                "athlete_id": athlete_uuid,
+                                "date": day_str,
+                                "rmssd": metrics.get("rmssd"),
+                                "resting_hr": metrics.get("resting_hr"),
+                                "sleep_duration": metrics.get("sleep_duration"),
+                                "sleep_score": metrics.get("sleep_score")
+                            }, on_conflict="athlete_id, date").execute()
 
-                    # 2.2 Mise à jour HISTORISÉE des profils (SCD Type 2)
-                    # On boucle sur les sports gérés (Bike / Run)
-                    for sport_type in ["Bike", "Run"]:
-                        lt1_hr = None
-                        lt2_hr = None
-                        current_cp_cs = cp_bike if sport_type == "Bike" else cs_run
+                        if health_data:
+                            print(f"      ✅ Health data synced for {len(health_data)} days.")
 
-                        # A. Check Local Registry First (Priority Override)
-                        if athlete_uuid in local_registry:
-                            local_data = local_registry[athlete_uuid]
-                            if sport_type == "Bike":
-                                lt1_hr = local_data.get("lt1_bike")
-                                lt2_hr = local_data.get("lt2_bike")
+                            # Update Baselines (30d rolling averages)
+                            print(f"      📈 Updating physiological baselines for {na.get('name')}...")
+                            baselines = self.readiness_calc.calculate_baselines(athlete_uuid, now.date())
+
+                            self.db.client.table("daily_readiness").upsert({
+                                "athlete_id": athlete_uuid,
+                                "date": now.strftime("%Y-%m-%d"),
+                                "rmssd_30d_avg": baselines.get("rmssd_30d_avg"),
+                                "resting_hr_30d_avg": baselines.get("resting_hr_30d_avg")
+                            }, on_conflict="athlete_id, date").execute()
+                            print(f"      ✅ Baselines updated: RMSSD_30d={baselines.get('rmssd_30d_avg')}ms, RHR_30d={baselines.get('resting_hr_30d_avg')}bpm")
+
+                    except Exception as e:
+                        print(f"      ⚠️ Could not sync health for {na.get('name')}: {e}")
+
+                # 3. Physio sync (CP, CS, LT1/LT2 profiles) — night run only
+                if is_physio_run:
+                    print(f"   📊 Syncing physio metrics from Nolio for {na.get('name')}...")
+                    try:
+                        meta = self.nolio.get_athlete_metrics(nid)
+
+                        def get_latest(key):
+                            field = meta.get(key, {})
+                            data = field.get("data", [])
+                            return data[0]["value"] if data else None
+
+                        weight = get_latest("weight")
+                        cp_bike = get_latest("criticalpowercycling")
+                        cs_run_raw = get_latest("criticalspeedrunning")
+                        rmssd = get_latest("rmssd")
+                        resting_hr = get_latest("hrrest") or get_latest("restinghr")
+
+                        # Sync today's HRV from physio endpoint (redundant but harmless if health already ran)
+                        if rmssd or resting_hr:
+                            self.db.client.table("daily_readiness").upsert({
+                                "athlete_id": athlete_uuid,
+                                "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                                "rmssd": rmssd,
+                                "resting_hr": resting_hr
+                            }, on_conflict="athlete_id, date").execute()
+
+                        # Conversion CS: sec/km -> m/s
+                        cs_run = None
+                        if cs_run_raw:
+                            cs_run = 1000.0 / float(cs_run_raw) if float(cs_run_raw) > 0 else None
+
+                        # SCD Type 2 profile sync (Bike / Run)
+                        for sport_type in ["Bike", "Run"]:
+                            lt1_hr = None
+                            lt2_hr = None
+                            current_cp_cs = cp_bike if sport_type == "Bike" else cs_run
+
+                            # A. Check Local Registry First (Priority Override)
+                            if athlete_uuid in local_registry:
+                                local_data = local_registry[athlete_uuid]
+                                if sport_type == "Bike":
+                                    lt1_hr = local_data.get("lt1_bike")
+                                    lt2_hr = local_data.get("lt2_bike")
+                                else:
+                                    lt1_hr = local_data.get("lt1_run")
+                                    lt2_hr = local_data.get("lt2_run")
+
+                                if lt1_hr or lt2_hr:
+                                    print(f"      📂 Using GSheet Registry for {sport_type}: LT1={lt1_hr}, LT2={lt2_hr}")
+
+                            # B. Fallback to Nolio API
+                            if not lt1_hr:
+                                lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
+                            if not lt2_hr:
+                                lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr") or get_latest("lacticthreshold")
+
+                            if lt1_hr and lt2_hr:
+                                self._sync_physio_profile(athlete_uuid, sport_type, current_cp_cs, weight, lt1_hr, lt2_hr)
                             else:
-                                lt1_hr = local_data.get("lt1_run")
-                                lt2_hr = local_data.get("lt2_run")
-                            
-                            if lt1_hr or lt2_hr:
-                                print(f"      📂 Using GSheet Registry for {sport_type}: LT1={lt1_hr}, LT2={lt2_hr}")
+                                print(f"      ⚠️ Missing LT1/LT2 for {na.get('name')} in {sport_type}. Profile sync skipped.")
 
-                        # B. Fallback to Nolio API
-                        if not lt1_hr:
-                            lt1_hr = get_latest("K_LT1_HR") or get_latest("k_lt1_hr")
-                        if not lt2_hr:
-                            lt2_hr = get_latest("K_LT2_HR") or get_latest("k_lt2_hr") or get_latest("lacticthreshold")
+                        print(f"      ✅ Physio metrics synced for {na.get('name')}.")
 
-                        if lt1_hr and lt2_hr:
-                            self._sync_physio_profile(athlete_uuid, sport_type, current_cp_cs, weight, lt1_hr, lt2_hr)
-                        else:
-                            print(f"      ⚠️ Missing LT1/LT2 for {na.get('name')} in {sport_type}. Profile sync skipped.")
-                    
-                    print(f"      ✅ Metrics synced for {na.get('name')}.")
-
-                    # 3. Sync Daily Health Readiness (RMSSD, Sleep, RHR)
-                    print(f"      ❤️ Syncing health readiness for {na.get('name')}...")
-                    health_data = self.nolio.get_athlete_health_metrics(nid, days=self.history_days)
-                    for day_str, metrics in health_data.items():
-                        self.db.client.table("daily_readiness").upsert({
-                            "athlete_id": athlete_uuid,
-                            "date": day_str,
-                            "rmssd": metrics.get("rmssd"),
-                            "resting_hr": metrics.get("resting_hr"),
-                            "sleep_duration": metrics.get("sleep_duration"),
-                            "sleep_score": metrics.get("sleep_score")
-                        }, on_conflict="athlete_id, date").execute()
-                    
-                    if health_data:
-                        print(f"      ✅ Health data synced for {len(health_data)} days.")
-                        
-                        # 4. Update Baselines (30d rolling averages)
-                        print(f"      📈 Updating physiological baselines for {na.get('name')}...")
-                        baselines = self.readiness_calc.calculate_baselines(athlete_uuid, datetime.now(timezone.utc).date())
-                        
-                        # Apply baselines to the most recent entry (today)
-                        self.db.client.table("daily_readiness").upsert({
-                            "athlete_id": athlete_uuid,
-                            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                            "rmssd_30d_avg": baselines.get("rmssd_30d_avg"),
-                            "resting_hr_30d_avg": baselines.get("resting_hr_30d_avg")
-                        }, on_conflict="athlete_id, date").execute()
-                        print(f"      ✅ Baselines updated: RMSSD_30d={baselines.get('rmssd_30d_avg')}ms, RHR_30d={baselines.get('resting_hr_30d_avg')}bpm")
-
-                except Exception as e:
-                    print(f"      ⚠️ Could not sync metrics from Nolio for {nid}: {e}")
+                    except Exception as e:
+                        print(f"      ⚠️ Could not sync physio metrics from Nolio for {nid}: {e}")
 
         except Exception as e:
             print(f"⚠️ Error during athlete discovery: {e}")
@@ -380,11 +405,11 @@ class IngestionRobot:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    def run(self, specific_athlete_name: Optional[str] = None, force_metrics: bool = False):
+    def run(self, specific_athlete_name: Optional[str] = None, force_metrics: bool = False, force_health: bool = False):
         print(f"🚀 Starting Ingestion Robot (Window: {self.history_days} days)")
 
         # 1. Sync Roster (Discovery Phase)
-        self.sync_athletes_roster(force_metrics=force_metrics, specific_athlete_name=specific_athlete_name)
+        self.sync_athletes_roster(force_metrics=force_metrics, force_health=force_health, specific_athlete_name=specific_athlete_name)
 
         # 2. Process Webhooks first (Priority)
         self.process_webhooks()
@@ -909,9 +934,10 @@ if __name__ == "__main__":
     parser.add_argument("--athlete", type=str, help="Filter by athlete first name")
     parser.add_argument("--writeback", action="store_true", help="Enable writing scores back to Nolio comments")
     parser.add_argument("--force", action="store_true", help="Force metrics and health sync regardless of hour")
+    parser.add_argument("--force-health", action="store_true", help="Force health readiness sync (rMSSD, HR, sleep)")
     parser.add_argument("--force-refresh", action="store_true", help="Force re-processing of existing activities")
-    
+
     args = parser.parse_args()
-    
+
     robot = IngestionRobot(history_days=args.days, enable_writeback=args.writeback, force_refresh=args.force_refresh)
-    robot.run(specific_athlete_name=args.athlete, force_metrics=args.force)
+    robot.run(specific_athlete_name=args.athlete, force_metrics=args.force, force_health=args.force_health)

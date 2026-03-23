@@ -129,7 +129,9 @@ class NolioClient:
                     if nolio_key == "sleep":
                         val = round(val / 3600.0, 2)
                         
-                    daily_data[d][internal_key] = val
+                    # First entry wins — Nolio returns the most recent/primary entry first
+                    if daily_data[d][internal_key] is None:
+                        daily_data[d][internal_key] = val
                     
         return daily_data
 

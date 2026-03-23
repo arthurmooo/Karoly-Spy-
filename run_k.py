@@ -33,7 +33,7 @@ def cmd_ingest(args):
     try:
         from scripts.run_ingest import IngestionRobot
         robot = IngestionRobot(history_days=args.days)
-        robot.run(specific_athlete_name=args.athlete, force_metrics=args.sync_metrics)
+        robot.run(specific_athlete_name=args.athlete, force_metrics=args.sync_metrics, force_health=getattr(args, 'sync_health', False))
         console.print(f"\n[bold green]✅ Ingestion Sequence Complete.[/bold green]")
     except Exception as e:
         console.print(f"\n[bold red]❌ Ingestion Failed:[/bold red] {e}")
@@ -114,6 +114,7 @@ Examples:
     parser_ingest.add_argument("--days", type=int, default=14, help="Number of days to look back (default: 14)")
     parser_ingest.add_argument("--athlete", type=str, help="Filter by athlete first name")
     parser_ingest.add_argument("--sync-metrics", action="store_true", help="Force deep sync of athlete metrics (CP, CS...)")
+    parser_ingest.add_argument("--sync-health", action="store_true", help="Force health readiness sync (rMSSD, HR, sleep)")
     parser_ingest.set_defaults(func=cmd_ingest)
     
     # --- Command: reprocess ---
