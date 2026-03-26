@@ -35,8 +35,16 @@ class StorageManager:
         
         return path
 
-    def download_fit_file(self, path: str) -> bytes:
+    def download_fit_file(self, path: str) -> bytes | None:
         """
         Downloads a file from the bucket given its path.
+        Returns None if the file is not found (404 / ghost entry).
         """
-        return self.client.storage.from_(self.BUCKET_NAME).download(path)
+        try:
+            return self.client.storage.from_(self.BUCKET_NAME).download(path)
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "404" in err_msg or "not found" in err_msg or "Expecting value" in str(e):
+                print(f"      ⚠️ Storage 404: {path} (ghost entry or missing blob)")
+                return None
+            raise
