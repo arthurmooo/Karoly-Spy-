@@ -137,7 +137,7 @@ export function ProfilesPage() {
           <select
             value={selectedAthleteId ?? ""}
             onChange={(e) => setSelectedAthleteId(e.target.value || null)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             <option value="">-- Sélectionnez un athlète --</option>
             {athletes.map((a) => (
@@ -221,7 +221,7 @@ export function ProfilesPage() {
             )}
 
             {/* Formulaire Ajout */}
-            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors bg-transparent shadow-none">
+            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-all duration-150 bg-transparent">
               <CardContent className="p-6 space-y-4">
                 <h3 className="text-base font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
                   <Icon name="add_circle" className="text-slate-400" />
@@ -261,10 +261,10 @@ export function ProfilesPage() {
             {archivedBike.length === 0 ? (
               <p className="text-xs text-slate-400">Aucun profil archivé</p>
             ) : (
-              <div className="rounded-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <button
                   onClick={() => setBikeArchiveOpen((v) => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all duration-150"
                 >
                   <div className="flex items-center gap-3">
                     <Icon name="history" className="text-slate-400" />
@@ -353,7 +353,7 @@ export function ProfilesPage() {
             )}
 
             {/* Formulaire Ajout */}
-            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors bg-transparent shadow-none">
+            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-all duration-150 bg-transparent">
               <CardContent className="p-6 space-y-4">
                 <h3 className="text-base font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
                   <Icon name="add_circle" className="text-slate-400" />
@@ -385,10 +385,10 @@ export function ProfilesPage() {
             {archivedRun.length === 0 ? (
               <p className="text-xs text-slate-400">Aucun profil archivé</p>
             ) : (
-              <div className="rounded-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <button
                   onClick={() => setRunArchiveOpen((v) => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all duration-150"
                 >
                   <div className="flex items-center gap-3">
                     <Icon name="history" className="text-slate-400" />
@@ -425,23 +425,23 @@ export function ProfilesPage() {
       )}
 
       {/* Footer Légende Clinique */}
-      <div className="bg-primary/5 dark:bg-primary/10 rounded-sm p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="bg-primary/5 dark:bg-primary/10 rounded-xl p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="flex gap-4">
-          <div className="w-1.5 bg-accent-blue rounded-sm shrink-0" />
+          <div className="w-1.5 bg-accent-blue rounded-full shrink-0" />
           <div>
             <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">LT1 "Seuil Aérobie"</h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">Limite supérieure de l'endurance fondamentale. Au-delà, la concentration de lactate commence à augmenter légèrement au-dessus du niveau de repos.</p>
           </div>
         </div>
         <div className="flex gap-4">
-          <div className="w-1.5 bg-accent-orange rounded-sm shrink-0" />
+          <div className="w-1.5 bg-accent-orange rounded-full shrink-0" />
           <div>
             <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">LT2 "Seuil Anaérobie"</h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">Intensité maximale où la production et l'élimination du lactate s'équilibrent. Au-delà, l'accumulation est rapide et la fatigue imminente.</p>
           </div>
         </div>
         <div className="flex gap-4">
-          <div className="w-1.5 bg-primary rounded-sm shrink-0" />
+          <div className="w-1.5 bg-primary rounded-full shrink-0" />
           <div>
             <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">FTP/CP "Puissance Seuil"</h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">Puissance mécanique maximale qu'un athlète peut théoriquement maintenir pendant environ 60 minutes sans fatigue excessive.</p>

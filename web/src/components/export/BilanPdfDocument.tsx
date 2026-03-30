@@ -18,6 +18,8 @@ import type {
 } from "@/services/stats.service";
 import type { TextInsight, FocusAlert } from "@/services/analysis.service";
 import type { AcwrMetricSnapshot, AcwrStatus } from "@/types/acwr";
+import { getDecouplingState } from "@/lib/karolyMetrics";
+import { getSportConfig } from "@/lib/constants";
 
 /* ─── colours ─── */
 const BLUE = "#2563EB";
@@ -40,19 +42,9 @@ const RED = "#EF4444";
 const RED_LIGHT = "#FEE2E2";
 const WHITE = "#FFFFFF";
 
-/* ─── sport colours (matching mockup) ─── */
-const SPORT_COLORS: Record<string, string> = {
-  RUNNING: "#EF4444",
-  CYCLING: "#F59E0B",
-  SWIMMING: "#3B82F6",
-  TRAIL: "#8B5CF6",
-  SKI_FOND: "#06B6D4",
-  MUSCULATION: "#94A3B8",
-  AUTRES: "#94A3B8",
-};
-
+/* ─── sport colours (from centralised SPORT_CONFIG) ─── */
 function sportColor(key: string): string {
-  return SPORT_COLORS[key] ?? SLATE_300;
+  return getSportConfig(key).hexColor;
 }
 
 /* ─── heatmap gradient (cool → warm like mockup) ─── */
@@ -116,6 +108,28 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 10,
     marginTop: 26,
+  },
+
+  /* ─ Coach comment ─ */
+  coachBox: {
+    backgroundColor: BLUE_LIGHT,
+    borderLeft: `3px solid ${BLUE}`,
+    borderRadius: 4,
+    padding: 12,
+    marginBottom: 14,
+  },
+  coachTitle: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: BLUE,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  coachText: {
+    fontSize: 9,
+    color: SLATE_700,
+    lineHeight: 1.5,
   },
 
   /* ─ Focus alert ─ */
@@ -361,9 +375,16 @@ function acwrStatusLabel(status: AcwrStatus): string {
 
 function decouplingBadge(value: number | null): { bg: string; color: string; label: string } {
   if (value == null) return { bg: SLATE_100, color: SLATE_500, label: "N/A" };
-  if (Math.abs(value) < 5) return { bg: GREEN_LIGHT, color: GREEN, label: "Bon" };
-  if (Math.abs(value) < 10) return { bg: AMBER_LIGHT, color: AMBER, label: "Modéré" };
-  return { bg: RED_LIGHT, color: RED, label: "Élevé" };
+  switch (getDecouplingState(value)) {
+    case "good":
+      return { bg: GREEN_LIGHT, color: GREEN, label: "Bon" };
+    case "moderate":
+      return { bg: AMBER_LIGHT, color: AMBER, label: "Modere" };
+    case "high":
+      return { bg: RED_LIGHT, color: RED, label: "Eleve" };
+    default:
+      return { bg: SLATE_100, color: SLATE_500, label: "N/A" };
+  }
 }
 
 const SEVERITY_DOT_COLOR: Record<string, string> = {
@@ -655,6 +676,7 @@ export interface BilanPdfDocumentProps {
   report: AthleteKpiReport;
   athleteName: string;
   acwrMetrics?: AcwrMetricSnapshot[];
+  coachComment?: string;
   generatedAt?: Date;
 }
 
@@ -664,6 +686,7 @@ export function BilanPdfDocument({
   report,
   athleteName,
   acwrMetrics,
+  coachComment,
   generatedAt = new Date(),
 }: BilanPdfDocumentProps) {
   const dateStr = generatedAt.toLocaleDateString("fr-FR", {
@@ -690,6 +713,14 @@ export function BilanPdfDocument({
             <Text style={s.periodText}>{report.currentRangeLabel}</Text>
           </View>
         </View>
+
+        {/* Coach comment */}
+        {coachComment && coachComment.trim() !== "" && (
+          <View style={s.coachBox}>
+            <Text style={s.coachTitle}>Mot du Coach</Text>
+            <Text style={s.coachText}>{coachComment}</Text>
+          </View>
+        )}
 
         {/* Focus Alert */}
         {report.focusAlert && <FocusCoachBox alert={report.focusAlert} />}
@@ -740,7 +771,7 @@ export function BilanPdfDocument({
         {report.sportDecoupling.length > 0 && (
           <>
             <Text style={s.sectionTitle}>
-              Durabilité Moyenne Par Sport (Découplage Aérobie)
+              Decouplage Moyen Par Sport
             </Text>
             <DecouplingTable items={report.sportDecoupling} />
           </>

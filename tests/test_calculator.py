@@ -124,8 +124,7 @@ def test_pahr_drift_calculation(basic_physio_profile):
     Test du calcul de drift.
     1ère moitié: Power 200, HR 140 -> Ratio 1.428
     2ème moitié: Power 200, HR 154 -> Ratio 1.298
-    Drift = (1.298 / 1.428) - 1 = -0.09 (-9%)
-    Abs Drift = 9%
+    Drift = 1 - (1.298 / 1.428) = +0.09 (+9%)
     Threshold = 3%
     Penalty = 9 - 3 = 6%
     DUR = 1 + 0.08 * 6 = 1.48
@@ -155,12 +154,7 @@ def test_pahr_drift_calculation(basic_physio_profile):
     calc = MetricsCalculator(MockConfig())
     result = calc.compute(activity, basic_physio_profile)
     
-    assert result['drift_pahr_percent'] == pytest.approx(-9.1, 0.2) # approx 130/143 vs 143/140...
-    # Vérifions le calcul exact :
-    # P1/H1 = 200/140 = 1.4285
-    # P2/H2 = 200/154 = 1.2987
-    # Drift = (1.2987 / 1.4285) - 1 = 0.909 - 1 = -0.0909 (-9.09%)
-    
+    assert result['drift_pahr_percent'] == pytest.approx(9.1, 0.2)
     # The production calculator skips the first 10 minutes on sessions > 20min,
     # so the effective drift penalty is lower than a full-session calculation.
     assert result['dur_index'] == pytest.approx(1.342, 0.01)
@@ -237,6 +231,35 @@ def test_multi_block_interval_summary_uses_primary_block(monkeypatch):
     assert blocks[1]["count"] == 1
     # Legacy metrics should follow the primary block (5x1km), not the long tempo block.
     assert result["interval_pace_last"] == pytest.approx(2.96, 0.05)
+
+
+def test_decoupling_index_matches_segmented_drift_for_same_session():
+    seconds = 2400
+    half = seconds // 2
+    df = pd.DataFrame({
+        'timestamp': pd.date_range(start='2024-01-01', periods=seconds, freq='s'),
+        'speed': ([4.0] * half) + ([4.0] * half),
+        'heart_rate': ([150.0] * half) + ([160.0] * half),
+    })
+
+    meta = ActivityMetadata(
+        activity_type="Run",
+        start_time=datetime(2024, 1, 1),
+        duration_sec=seconds,
+        distance_m=9600.0,
+    )
+    activity = Activity(metadata=meta, streams=df)
+    profile = PhysioProfile(
+        lt1_hr=140,
+        lt2_hr=170,
+        cp_cs=4.0,
+        valid_from=datetime(2024, 1, 1),
+    )
+
+    calc = MetricsCalculator(MockConfig())
+    result = calc.compute(activity, profile, nolio_type="Endurance")
+
+    assert result["segmented_metrics"].drift_percent == pytest.approx(result["drift_pahr_percent"], abs=0.01)
 
 
 def test_manual_work_type_override_wins_over_detected_type(basic_physio_profile):

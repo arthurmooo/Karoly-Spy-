@@ -1,12 +1,20 @@
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
+import { Link } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
+import { useAuth } from "@/hooks/useAuth";
+import { isCoach } from "@/lib/auth/roles";
+import { getSportConfig } from "@/lib/constants";
 import { formatDuration } from "@/services/format.service";
 import type { WeeklyHeatmapData, WeeklyHeatmapLevel } from "@/services/load.service";
 
 interface WeeklyHeatmapProps {
   data: WeeklyHeatmapData | null;
   isLoading?: boolean;
+}
+
+function activityPath(id: string, coach: boolean): string {
+  return coach ? `/activities/${id}` : `/mon-espace/activities/${id}`;
 }
 
 interface LevelStyle {
@@ -60,6 +68,9 @@ function formatTooltipDate(isoDate: string): string {
 }
 
 export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
+  const { role } = useAuth();
+  const coach = isCoach(role);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -67,7 +78,7 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
           {Array.from({ length: 7 }, (_, index) => (
             <div
               key={index}
-              className="h-28 animate-pulse rounded-sm border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800"
+              className="h-28 animate-pulse rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800"
             />
           ))}
         </div>
@@ -78,7 +89,7 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
 
   if (!data) {
     return (
-      <div className="flex items-center gap-2 rounded-sm border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+      <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
         <Icon name="calendar_today" className="text-lg" />
         Aucune donnee de charge disponible.
       </div>
@@ -111,7 +122,7 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
                 key={day.date}
                 tabIndex={0}
                 title={tooltip}
-                className={`group relative flex min-h-28 flex-col justify-between rounded-sm border px-3 py-3 transition-transform focus:outline-none focus:ring-2 focus:ring-primary/50 ${style.bgClass} ${style.borderClass}`}
+                className={`group relative flex min-h-28 flex-col justify-between rounded-xl border px-3 py-3 transition-transform focus:outline-none focus:ring-2 focus:ring-primary/50 ${style.bgClass} ${style.borderClass}`}
               >
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
@@ -137,21 +148,40 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
                   </div>
                 </div>
 
-                <div className={`pointer-events-none absolute bottom-full z-20 hidden w-56 pb-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 lg:block ${tooltipPos}`}>
-                  <div className="rounded-sm bg-slate-900 px-3 py-2 text-xs text-white shadow-xl dark:bg-slate-700">
-                    <p className="font-semibold capitalize text-slate-100">
-                      {formatTooltipDate(day.date)}
-                    </p>
-                    <p className="mt-1 text-slate-200">
-                      {Math.round(day.mls).toLocaleString("fr-FR")} MLS
-                    </p>
-                    <p className="text-slate-300">{formatDuration(day.durationSec)} d'effort</p>
-                    <p className="text-slate-300">
-                      {day.sessionCount} seance{day.sessionCount > 1 ? "s" : ""}
-                    </p>
-                    <p className={`mt-1 font-semibold ${style.tooltipClass}`}>
-                      {style.label}
-                    </p>
+                <div className={`pointer-events-none absolute bottom-full z-20 hidden pb-1.5 lg:group-hover:block lg:group-focus-within:block ${tooltipPos}`}>
+                  <div className="pointer-events-auto w-max max-w-56 rounded-lg bg-slate-900/95 px-2.5 py-2 text-[11px] leading-tight text-white shadow-lg ring-1 ring-white/10 backdrop-blur-sm dark:bg-slate-800/95">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="font-medium capitalize text-slate-200">
+                        {format(parseISO(day.date), "EEE d MMM", { locale: fr })}
+                      </p>
+                      <span className={`text-[10px] font-semibold uppercase ${style.tooltipClass}`}>
+                        {style.label}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-1.5 text-slate-300">
+                      <span className="font-semibold text-white">{Math.round(day.mls).toLocaleString("fr-FR")}</span>
+                      <span>MLS</span>
+                      <span className="text-slate-500">·</span>
+                      <span>{formatDuration(day.durationSec)}</span>
+                    </div>
+                    {day.activities.length > 0 && (
+                      <div className="mt-1.5 space-y-px border-t border-slate-700/60 pt-1.5">
+                        {day.activities.map((act) => {
+                          const cfg = getSportConfig(act.sport);
+                          return (
+                          <Link
+                            key={act.id}
+                            to={activityPath(act.id, coach)}
+                            className="flex items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:bg-white/10"
+                          >
+                            <Icon name={cfg.icon} className={`text-xs ${cfg.textColor}`} />
+                            <span className="flex-1 truncate text-slate-300">{act.name}</span>
+                            <span className="tabular-nums text-slate-500">{Math.round(act.mls)}</span>
+                          </Link>
+                        );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -167,7 +197,7 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
             return (
               <div
                 key={level}
-                className={`h-4 w-6 rounded-sm border ${style.bgClass} ${style.borderClass}`}
+                className={`h-4 w-6 rounded-lg border ${style.bgClass} ${style.borderClass}`}
                 aria-hidden="true"
               />
             );

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell } from "recharts";
 import type { BlockGroupedIntervals, PlannedIntervalBlock } from "@/types/activity";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { formatPaceDecimal, speedToPaceDecimal } from "@/services/format.service";
@@ -138,10 +138,14 @@ function buildTargetVsActualChartModel(
   }
 
   if (isBike) {
+    const maxVal = Math.max(...allValues);
+    const minVal = Math.min(...allValues);
+    const range = maxVal - minVal || maxVal * 0.1;
+    const padding = Math.max(range * 0.35, 10);
     return {
       chartData: rows,
-      yMax: 0,
-      domainMin: 0,
+      yMax: Math.ceil(maxVal + padding),
+      domainMin: Math.floor(Math.max(0, minVal - padding)),
       hasPlannedTargets: true,
     };
   }
@@ -210,13 +214,14 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
       )}
       <div className="h-[220px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={barData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }} barGap={-30} barCategoryGap="20%">
+          <BarChart data={barData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }} barCategoryGap="20%">
             <XAxis
               type="number"
               dataKey="index"
               domain={[0.5, barData.length + 0.5]}
               allowDecimals={false}
-              tickCount={barData.length}
+              ticks={barData.map((d) => d.index)}
+              tickFormatter={(v: number) => `R${v}`}
               tick={{ fontSize: 11 }}
               tickLine={false}
               axisLine={false}
@@ -225,7 +230,7 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
               tick={{ fontSize: 11, fill: "#64748b" }}
               tickLine={false}
               axisLine={false}
-              domain={isBike ? undefined : [0, yMax - domainMin]}
+              domain={isBike ? [domainMin, yMax] : [0, yMax - domainMin]}
               tickFormatter={
                 isBike
                   ? (v: number) => `${Math.round(v)}W`
@@ -233,26 +238,22 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
               }
             />
 
-            {/* Invisible base to offset the range bar */}
-            <Bar dataKey="rangeBase" stackId="planned" fill="transparent" isAnimationActive={false} barSize={36} />
-            {/* Visible range bar: the target zone */}
-            <Bar
-              dataKey="rangeHeight"
-              stackId="planned"
-              isAnimationActive={false}
-              barSize={36}
-              radius={[3, 3, 3, 3]}
-            >
-              {barData.map((row, i) => (
-                <Cell
+            {/* Planned target zone rendered as ReferenceArea (coordinate-based, no bar alignment issues) */}
+            {barData.map((row, i) =>
+              row.rangeHeight > 0 ? (
+                <ReferenceArea
                   key={`range-${i}`}
-                  fill={row.rangeHeight > 0 ? "#F9731633" : "transparent"}
-                  stroke={row.rangeHeight > 0 ? "#F97316" : "transparent"}
+                  x1={row.index - 0.15}
+                  x2={row.index + 0.15}
+                  y1={row.rangeBase}
+                  y2={row.rangeBase + row.rangeHeight}
+                  fill="#F9731633"
+                  stroke="#F97316"
                   strokeWidth={1.5}
                   strokeDasharray="5 3"
                 />
-              ))}
-            </Bar>
+              ) : null
+            )}
 
             {/* Single-value planned line (when no range) */}
             {barData.map((row) =>
@@ -284,9 +285,9 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
             <Tooltip
               cursor={{ fill: "transparent" }}
               contentStyle={{
-                borderRadius: "8px",
-                border: "none",
-                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                borderRadius: 16,
+                border: 'none',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
                 fontSize: "12px",
                 backgroundColor: "white",
               }}
@@ -308,12 +309,12 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
                   <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-md dark:border-slate-700 dark:bg-slate-800">
                     <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Intervalle {label}</p>
                     <div className="flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#2563EB" }} />
+                      <span className="inline-block h-2.5 w-2.5 rounded-lg" style={{ backgroundColor: "#2563EB" }} />
                       <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Réalisé : {actualLabel}</span>
                     </div>
                     {targetLabel && (
                       <div className="mt-0.5 flex items-center gap-2">
-                        <span className="inline-block h-2.5 w-2.5 rounded-sm border-2 border-dashed" style={{ borderColor: "#F97316", backgroundColor: "#F9731620" }} />
+                        <span className="inline-block h-2.5 w-2.5 rounded-lg border-2 border-dashed" style={{ borderColor: "#F97316", backgroundColor: "#F9731620" }} />
                         <span className="text-sm text-slate-600 dark:text-slate-300">Cible : {targetLabel}</span>
                       </div>
                     )}
@@ -334,11 +335,11 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
       {/* Legend */}
       <div className="flex items-center justify-center gap-5 text-xs text-slate-500 dark:text-slate-400">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: "#2563EB" }} />
+          <span className="inline-block h-3 w-3 rounded-lg" style={{ backgroundColor: "#2563EB" }} />
           Réalisé
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded-sm border-2 border-dashed" style={{ borderColor: "#F97316", backgroundColor: "#F9731620" }} />
+          <span className="inline-block h-3 w-3 rounded-lg border-2 border-dashed" style={{ borderColor: "#F97316", backgroundColor: "#F9731620" }} />
           Cible (prévu)
         </span>
       </div>

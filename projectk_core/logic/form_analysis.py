@@ -776,7 +776,7 @@ class FormAnalysisEngine:
         ea_first_raw = float(first_half["output_value"].mean() / first_half["heart_rate"].mean())
         ea_second_raw = float(second_half["output_value"].mean() / second_half["heart_rate"].mean())
         ea_today_raw = float(output_mean / hr_mean_raw) if hr_mean_raw > 0 else None
-        dec_raw = ((ea_second_raw / ea_first_raw) - 1.0) * 100.0 if ea_first_raw > 0 else 0.0
+        dec_raw = (1.0 - (ea_second_raw / ea_first_raw)) * 100.0 if ea_first_raw > 0 else 0.0
 
         signature = self._build_continuous_signature(
             sport=sport,
@@ -828,7 +828,7 @@ class FormAnalysisEngine:
         ea_first = float(first_half["output_value"].mean() / hr_first_corr) if hr_first_corr > 0 else None
         ea_second = float(second_half["output_value"].mean() / hr_second_corr) if hr_second_corr > 0 else None
         ea_today = float(output_mean / temperature_ctx["hr_corr"]) if temperature_ctx["hr_corr"] > 0 else None
-        dec_today = ((ea_second / ea_first) - 1.0) * 100.0 if ea_first and ea_first > 0 else temperature_ctx["drift_corr"]
+        dec_today = (1.0 - (ea_second / ea_first)) * 100.0 if ea_first and ea_first > 0 else temperature_ctx["drift_corr"]
 
         baseline_rows = self._collect_baseline_rows(matched_rows=matched_rows)
         baseline_ea_values: List[float] = []
@@ -1102,7 +1102,7 @@ class FormAnalysisEngine:
             return None
         ea_first_raw = float(np.mean(ea_raw_values[:2]))
         ea_last_raw = float(np.mean(ea_raw_values[-2:]))
-        dec_int_raw = ((ea_last_raw / ea_first_raw) - 1.0) * 100.0 if ea_first_raw > 0 else 0.0
+        dec_int_raw = (1.0 - (ea_last_raw / ea_first_raw)) * 100.0 if ea_first_raw > 0 else 0.0
 
         recovery_duration = None
         if len(reps) > 1:
@@ -1167,7 +1167,7 @@ class FormAnalysisEngine:
         ea_first = float(np.mean(ea_values[:2]))
         ea_last = float(np.mean(ea_values[-2:]))
         ea_mean = float(np.mean(ea_values))
-        dec_int = ((ea_last / ea_first) - 1.0) * 100.0 if ea_first > 0 else 0.0
+        dec_int = (1.0 - (ea_last / ea_first)) * 100.0 if ea_first > 0 else 0.0
         hrend_drift = float(hr_corr_values[-1] - hr_corr_values[0])
 
         baseline_rows = self._collect_baseline_rows(matched_rows=matched_rows)

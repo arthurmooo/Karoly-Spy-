@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
-import { format, parseISO } from "date-fns";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { addMonths, addWeeks, endOfWeek, format, parseISO, subMonths, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
+import { Dialog, DialogHeader, DialogBody, DialogFooter } from "@/components/ui/Dialog";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -21,6 +22,7 @@ import { WeeklyHeatmap } from "@/components/charts/WeeklyHeatmap";
 import { FocusCoach } from "@/components/analysis/FocusCoach";
 import { TextInsights } from "@/components/analysis/TextInsights";
 import { HrZonesBilan } from "@/components/analysis/HrZonesBilan";
+import { BilanPeriodToolbar } from "@/components/bilan/BilanPeriodToolbar";
 import { AthleteSubNav } from "@/components/layout/AthleteSubNav";
 import { useAuth } from "@/hooks/useAuth";
 import { useAthleteKpis } from "@/hooks/useAthleteKpis";
@@ -28,7 +30,9 @@ import { useExportBilan } from "@/hooks/useExportBilan";
 import { useAcwr } from "@/hooks/useAcwr";
 import { getAthleteById } from "@/repositories/athlete.repository";
 import { getAthleteDailyLoadHistory } from "@/repositories/load.repository";
+import { getDecouplingState } from "@/lib/karolyMetrics";
 import { buildWeeklyHeatmapData, type WeeklyHeatmapData } from "@/services/load.service";
+import { buildPeriodLabel, isCurrentPeriod as checkIsCurrentPeriod } from "@/services/stats.service";
 import { getSportConfig } from "@/lib/constants";
 import type { Athlete } from "@/types/athlete";
 import type { KpiPeriod } from "@/services/stats.service";
@@ -37,32 +41,82 @@ interface AthleteBilanPageProps {
   athleteId?: string;
 }
 
-const PERIOD_OPTIONS: Array<{ key: KpiPeriod; label: string }> = [
-  { key: "week", label: "Semaine" },
-  { key: "month", label: "Mois" },
-];
-
 function getDecouplingBadgeVariant(value: number | null): "emerald" | "amber" | "red" | "slate" {
-  if (value == null) return "slate";
-  if (Math.abs(value) < 5) return "emerald";
-  if (Math.abs(value) < 10) return "amber";
-  return "red";
+  switch (getDecouplingState(value)) {
+    case "good":
+      return "emerald";
+    case "moderate":
+      return "amber";
+    case "high":
+      return "red";
+    default:
+      return "slate";
+  }
 }
 
 export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageProps = {}) {
   const { id: paramAthleteId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const athleteId = propAthleteId ?? paramAthleteId ?? null;
   const isAthleteMode = !!propAthleteId;
   const { role } = useAuth();
   const showCoachAcwr = role === "coach" && !isAthleteMode && !!athleteId;
 
+  // URL-driven period & anchor date
+  const period: KpiPeriod = (searchParams.get("period") as KpiPeriod) || "week";
+  const dateParam = searchParams.get("date");
+  const anchorDate = useMemo(
+    () => (dateParam ? parseISO(dateParam) : new Date()),
+    [dateParam]
+  );
+  const isCurrent = checkIsCurrentPeriod(period, anchorDate);
+  const periodTitle = buildPeriodLabel(period, anchorDate);
+
+  const setPeriod = useCallback(
+    (newPeriod: KpiPeriod) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("period", newPeriod);
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const handleNavigate = useCallback(
+    (direction: "prev" | "next") => {
+      const delta = direction === "prev" ? -1 : 1;
+      const newDate =
+        period === "week"
+          ? (delta > 0 ? addWeeks(anchorDate, 1) : subWeeks(anchorDate, 1))
+          : (delta > 0 ? addMonths(anchorDate, 1) : subMonths(anchorDate, 1));
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("date", format(newDate, "yyyy-MM-dd"));
+        if (!next.has("period")) next.set("period", period);
+        return next;
+      });
+    },
+    [anchorDate, period, setSearchParams]
+  );
+
+  const handleTodayClick = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("date");
+      return next;
+    });
+  }, [setSearchParams]);
+
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [athleteLoading, setAthleteLoading] = useState(true);
-  const [period, setPeriod] = useState<KpiPeriod>("week");
   const [weeklyHeatmapData, setWeeklyHeatmapData] = useState<WeeklyHeatmapData | null>(null);
   const [isWeeklyHeatmapLoading, setIsWeeklyHeatmapLoading] = useState(false);
 
-  const { report, isLoading } = useAthleteKpis(athleteId, period);
+  const [sportFilter, setSportFilter] = useState("TOUT");
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [coachComment, setCoachComment] = useState("");
+  const { report, isLoading } = useAthleteKpis(athleteId, period, anchorDate, sportFilter);
   const { detail: acwrDetail, isLoading: acwrLoading } = useAcwr({ athleteId, enabled: !!athleteId });
   const { exportPdf, isExporting } = useExportBilan();
 
@@ -93,6 +147,9 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
     };
   }, [athleteId]);
 
+  const anchorIso = format(anchorDate, "yyyy-MM-dd");
+  const weekEndIso = format(endOfWeek(anchorDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -102,13 +159,12 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
       return () => { isCancelled = true; };
     }
 
-    const todayIso = format(new Date(), "yyyy-MM-dd");
     setIsWeeklyHeatmapLoading(true);
 
-    getAthleteDailyLoadHistory(athleteId, todayIso)
+    getAthleteDailyLoadHistory(athleteId, weekEndIso)
       .then((rows) => {
         if (isCancelled) return;
-        setWeeklyHeatmapData(buildWeeklyHeatmapData(rows, todayIso));
+        setWeeklyHeatmapData(buildWeeklyHeatmapData(rows, anchorIso));
       })
       .catch((error) => {
         console.error(error);
@@ -121,9 +177,10 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
       });
 
     return () => { isCancelled = true; };
-  }, [athleteId]);
+  }, [athleteId, anchorIso, weekEndIso]);
 
-  if (athleteLoading || isLoading) {
+  // Full spinner only on very first load (no data yet)
+  if (athleteLoading || (isLoading && !report)) {
     return (
       <div className="flex items-center justify-center py-32">
         <Icon name="progress_activity" className="animate-spin text-primary text-3xl" />
@@ -155,59 +212,106 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
         <AthleteSubNav athlete={athlete} active="bilan" />
       )}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
-            {isAthleteMode ? "Mon bilan" : `Bilan KPI · ${athleteName}`}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {report.periodLabel} · {report.currentRangeLabel}
-          </p>
-          <p className="text-sm text-slate-500">
-            Comparaison à date · {report.comparisonRangeLabel}
-          </p>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">
+          {isAthleteMode ? "Mon bilan" : `Bilan · ${athleteName}`}
+        </h1>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 rounded-sm border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
-            {PERIOD_OPTIONS.map((option) => (
-              <button
-                key={option.key}
-                onClick={() => setPeriod(option.key)}
-                className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${
-                  period === option.key
-                    ? "bg-primary text-white"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+        <button
+          disabled={isExporting || !report}
+          className="inline-flex items-center gap-2 self-start rounded-full bg-accent-orange px-4 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-accent-orange/90 active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none"
+          onClick={() => setShowExportDialog(true)}
+        >
+          <Icon
+            name={isExporting ? "progress_activity" : "download"}
+            className={`text-[16px] ${isExporting ? "animate-spin" : ""}`}
+          />
+          {isExporting ? "Export..." : "Exporter PDF"}
+        </button>
 
-          <Button
-            size="sm"
-            disabled={isExporting || !report}
-            className="bg-accent-orange hover:bg-accent-orange/90 text-white"
-            onClick={() => {
-              if (!report) return;
-              const acwrMetrics = acwrDetail
-                ? [acwrDetail.external, acwrDetail.internal, acwrDetail.global]
-                : undefined;
-              exportPdf(report, athleteName, acwrMetrics);
-            }}
-          >
-            <Icon
-              name={isExporting ? "progress_activity" : "download"}
-              className={`text-sm ${isExporting ? "animate-spin" : ""}`}
+        <Dialog open={showExportDialog} onClose={() => setShowExportDialog(false)}>
+          <DialogHeader>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              Exporter le bilan PDF
+            </h2>
+          </DialogHeader>
+          <DialogBody>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Commentaire coach
+            </label>
+            <textarea
+              value={coachComment}
+              onChange={(e) => setCoachComment(e.target.value)}
+              placeholder="Ajoute ton feedback pour l'athlète (optionnel)..."
+              rows={5}
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
             />
-            {isExporting ? "Export..." : "Exporter PDF"}
-          </Button>
-
-        </div>
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              Ce commentaire apparaîtra en haut du PDF, bien visible pour l'athlète.
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="secondary" onClick={() => setShowExportDialog(false)}>
+                Annuler
+              </Button>
+              <Button
+                disabled={isExporting}
+                onClick={() => {
+                  if (!report) return;
+                  const acwrMetrics = acwrDetail
+                    ? [acwrDetail.external, acwrDetail.internal, acwrDetail.global]
+                    : undefined;
+                  setShowExportDialog(false);
+                  exportPdf(report, athleteName, acwrMetrics, coachComment.trim() || undefined);
+                }}
+              >
+                <Icon
+                  name={isExporting ? "progress_activity" : "picture_as_pdf"}
+                  className={`text-[16px] ${isExporting ? "animate-spin" : ""}`}
+                />
+                Générer le PDF
+              </Button>
+            </div>
+          </DialogFooter>
+        </Dialog>
       </div>
 
+      <BilanPeriodToolbar
+        period={period}
+        periodTitle={periodTitle}
+        rangeLabel={report.currentRangeLabel}
+        comparisonLabel={report.comparisonRangeLabel}
+        onPeriodChange={setPeriod}
+        onNavigate={handleNavigate}
+        onTodayClick={handleTodayClick}
+        isCurrentPeriod={isCurrent}
+      />
+
       {report.focusAlert && <FocusCoach alert={report.focusAlert} />}
+
+      {/* ── Sport filter chips ── */}
+      {report.availableSports.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <SportChip
+            label="Tous"
+            isActive={sportFilter === "TOUT"}
+            onClick={() => setSportFilter("TOUT")}
+          />
+          {report.availableSports.map((key) => {
+            const config = getSportConfig(key);
+            return (
+              <SportChip
+                key={key}
+                label={config.label}
+                icon={config.icon}
+                isActive={sportFilter === key}
+                onClick={() => setSportFilter(key)}
+              />
+            );
+          })}
+        </div>
+      )}
 
       <KpiCards cards={report.cards} />
 
@@ -231,7 +335,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
                   Heatmap charge 7j
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  Répartition MLS de la semaine en cours.
+                  Répartition MLS de la {isCurrent ? "semaine en cours" : "semaine sélectionnée"}.
                 </p>
               </div>
               {weeklyHeatmapData && (
@@ -303,10 +407,10 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
                   return (
                     <div
                       key={item.sportKey}
-                      className="flex items-center justify-between gap-4 rounded-sm border border-slate-200 px-4 py-3 dark:border-slate-800"
+                      className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-800"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`rounded-sm p-2 ${config.bgLight}`}>
+                        <div className={`rounded-lg p-2 ${config.bgLight}`}>
                           <Icon name={config.icon} className={config.textColor} />
                         </div>
                         <div>
@@ -351,6 +455,32 @@ function SectionChevron() {
   );
 }
 
+function SportChip({
+  label,
+  icon,
+  isActive,
+  onClick,
+}: {
+  label: string;
+  icon?: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
+        isActive
+          ? "bg-blue-600 text-white shadow-sm"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+      }`}
+    >
+      {icon && <Icon name={icon} className="text-[14px]" />}
+      {label}
+    </button>
+  );
+}
+
 function BilanSection({
   icon,
   title,
@@ -364,7 +494,7 @@ function BilanSection({
 }) {
   return (
     <Disclosure defaultOpen={defaultOpen}>
-      <DisclosureTrigger className="group flex w-full items-center justify-between rounded-sm px-1 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/30">
+      <DisclosureTrigger className="group flex w-full items-center justify-between rounded-lg px-1 py-2 transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-800/30">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           <Icon name={icon} className="text-lg text-blue-600 dark:text-blue-400" />
           {title}

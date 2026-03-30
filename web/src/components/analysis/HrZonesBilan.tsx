@@ -67,7 +67,7 @@ export function HrZonesBilan({ hrZones }: HrZonesBilanProps) {
                   onMouseLeave={() => setHovered(null)}
                 >
                   <div
-                    className="w-3 h-3 rounded-sm shrink-0"
+                    className="w-3 h-3 rounded-lg shrink-0"
                     style={{ backgroundColor: z.color }}
                   />
                   <span className="text-xs text-slate-600 dark:text-slate-400">

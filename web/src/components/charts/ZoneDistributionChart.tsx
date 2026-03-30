@@ -154,7 +154,7 @@ export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Prop
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
         {data.map((d) => (
           <span key={d.zone} className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: d.color }} />
+            <span className="inline-block h-2.5 w-2.5 rounded-lg" style={{ backgroundColor: d.color }} />
             {d.zone}: {d.percent}% ({formatDuration(d.seconds)})
           </span>
         ))}

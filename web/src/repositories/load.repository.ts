@@ -15,6 +15,9 @@ export interface DailyLoadHistoryRow {
   session_date: string;
   load_index: number | null;
   duration_sec: number | null;
+  activity_name: string | null;
+  sport_type: string | null;
+  work_type: string | null;
 }
 
 function toUtcDayBoundary(date: string, boundary: "start" | "end"): string {
@@ -177,7 +180,8 @@ export async function getAcwrMonitoringRows(
       "athlete_id, athlete, session_date, duration_sec, moving_time_sec, distance_m, load_index, rpe, external_duration_min, external_distance_km, external_intensity_ratio_avg, internal_srpe_load, internal_time_lt1_sec, internal_time_between_lt1_lt2_sec, internal_time_gt_lt2_sec, global_mls"
     )
     .gte("session_date", sinceIso)
-    .order("session_date", { ascending: false });
+    .order("session_date", { ascending: false })
+    .limit(5000);
 
   if (athleteId) {
     acwrQuery = acwrQuery.eq("athlete_id", athleteId);
@@ -199,7 +203,8 @@ export async function getAcwrMonitoringRows(
       "athlete_id, session_date, duration_sec, moving_time_sec, distance_m, load_index, rpe, athletes!inner(first_name, last_name)"
     )
     .gte("session_date", sinceIso)
-    .order("session_date", { ascending: false });
+    .order("session_date", { ascending: false })
+    .limit(5000);
 
   if (athleteId) {
     fallbackQuery = fallbackQuery.eq("athlete_id", athleteId);
@@ -220,7 +225,7 @@ export async function getAthleteDailyLoadHistory(
 
   const { data, error } = await supabase
     .from("activities")
-    .select("id, session_date, load_index, duration_sec")
+    .select("id, session_date, load_index, duration_sec, activity_name, sport_type, work_type")
     .eq("athlete_id", athleteId)
     .gte("session_date", toUtcDayBoundary(toLocalIsoDate(since), "start"))
     .lte("session_date", toUtcDayBoundary(anchorDate, "end"))

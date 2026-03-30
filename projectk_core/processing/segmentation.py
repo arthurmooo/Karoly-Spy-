@@ -11,7 +11,7 @@ class SegmentCalculator:
     
     def calculate_segment(self, df: pd.DataFrame, activity_type: str) -> SegmentData:
         """
-        Calculates HR, Speed/Power, Ratio and Torque for a given data slice.
+        Calculates HR, Speed/Power, EA ratio and Torque for a given data slice.
         Following Karoly's logic: Run uses km/h, Bike uses Watts.
         """
         if df.empty:
@@ -58,9 +58,9 @@ class SegmentCalculator:
             
             avg_torque = float(df['torque'].mean()) if 'torque' in df.columns else None
             
-            if avg_power and avg_hr and avg_power > 0:
-                # Raw Ratio: avg_hr / avg_power
-                ratio = avg_hr / avg_power
+            if avg_power and avg_hr and avg_hr > 0:
+                # Aerobic efficiency (EA): output / HR
+                ratio = avg_power / avg_hr
         elif is_run:
             # Run/Trail: Karoly uses km/h
             if 'speed' in df.columns:
@@ -71,9 +71,9 @@ class SegmentCalculator:
                 else:
                     avg_speed = float(raw_speed_avg)
                     
-            if avg_speed and avg_hr and avg_speed > 0:
-                # Efficiency Factor: HR / Speed (km/h)
-                ratio = avg_hr / avg_speed
+            if avg_speed and avg_hr and avg_hr > 0:
+                # Aerobic efficiency (EA): output / HR
+                ratio = avg_speed / avg_hr
         # Other sports (Swim, Strength) only get HR by default in SegmentData
                 
         return SegmentData(
@@ -175,7 +175,7 @@ class SegmentCalculator:
     def calculate_drift(self, splits: Dict[str, SegmentData]) -> Optional[float]:
         """
         Calculates the percentage drift between the first and last phase.
-        Following Karoly: ((Ratio_last / Ratio_first) - 1) * 100
+        Following Karoly: (1 - EA_last / EA_first) * 100
         """
         if not splits or len(splits) < 2:
             return None
@@ -185,5 +185,5 @@ class SegmentCalculator:
         last = splits[keys[-1]]
         
         if first.ratio and last.ratio and first.ratio > 0:
-            return ((last.ratio / first.ratio) - 1) * 100
+            return (1 - (last.ratio / first.ratio)) * 100
         return None

@@ -103,7 +103,7 @@ class SegmentData(BaseModel):
     hr: Optional[float] = None
     speed: Optional[float] = None
     power: Optional[float] = None
-    ratio: Optional[float] = Field(None, description="Efficiency Factor (HR/Speed or HR/Power)")
+    ratio: Optional[float] = Field(None, description="Aerobic efficiency (Speed/HR or Power/HR)")
     torque: Optional[float] = None
 
 class SegmentationOutput(BaseModel):

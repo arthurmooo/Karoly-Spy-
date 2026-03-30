@@ -359,7 +359,7 @@ export function HealthPage() {
           Suivi Biometrique & Readiness
         </h2>
         <div className="flex items-center gap-4">
-          <button className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+          <button className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150">
             <Icon name="notifications" className="text-2xl" />
             {alertCount > 0 && (
               <span className="absolute top-2 right-2 w-2 h-2 bg-accent-orange rounded-full border-2 border-white dark:border-slate-900" />
@@ -424,7 +424,7 @@ export function HealthPage() {
           />
 
           <div
-            className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors rounded-sm p-8 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50/50 dark:bg-slate-900/50"
+            className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-all duration-150 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50/50 dark:bg-slate-900/50"
             onClick={handleImportClick}
             onDragOver={(event) => {
               event.preventDefault();
@@ -439,7 +439,7 @@ export function HealthPage() {
               }
             }}
           >
-            <div className="bg-accent-blue/10 rounded-sm p-4 mb-4">
+            <div className="bg-accent-blue/10 rounded-xl p-4 mb-4">
               <Icon name="cloud_upload" className="text-accent-blue text-3xl" />
             </div>
             <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
@@ -467,13 +467,13 @@ export function HealthPage() {
                   </div>
                   <button
                     onClick={clearStagedImport}
-                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150"
                   >
                     <Icon name="close" className="text-xl" />
                   </button>
                 </DialogHeader>
                 <DialogBody className="space-y-5">
-                  <div className="rounded-sm border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -526,7 +526,7 @@ export function HealthPage() {
                     <select
                       value={importAthleteId}
                       onChange={(event) => setImportAthleteId(event.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     >
                       <option value="">Choisir un athlète</option>
                       {athletes.map((athlete) => (
@@ -647,7 +647,7 @@ export function HealthPage() {
                 alertCount > 0
                   ? "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
                   : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-              } p-3 rounded-sm`}
+              } p-3 rounded-xl`}
             >
               <Icon name="health_and_safety" className="text-2xl" />
             </div>
@@ -680,7 +680,7 @@ export function HealthPage() {
         </Card>
         <Card>
           <CardContent className="p-6 flex items-start gap-4">
-            <div className="bg-primary/10 text-primary p-3 rounded-sm">
+            <div className="bg-primary/10 text-primary p-3 rounded-xl">
               <Icon name="groups" className="text-2xl" />
             </div>
             <div>
@@ -700,7 +700,7 @@ export function HealthPage() {
         </Card>
         <Card>
           <CardContent className="p-6 flex items-start gap-4">
-            <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 p-3 rounded-sm">
+            <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 p-3 rounded-xl">
               <Icon name="history" className="text-2xl" />
             </div>
             <div>
@@ -727,7 +727,7 @@ export function HealthPage() {
           <select
             value={selectedAthleteId}
             onChange={(event) => setSelectedAthleteId(event.target.value)}
-            className="w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            className="w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             <option value="all">Tous les athletes</option>
             {athletes.map((athlete) => (
@@ -808,12 +808,12 @@ export function HealthPage() {
                   return (
                     <tr
                       key={`${row.athlete_id}-${row.date}`}
-                      className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
+                      className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-150"
                     >
                       <td className="px-6 py-3 whitespace-nowrap">
                         <Link
                           to={`/athletes/${row.athlete_id}/trends`}
-                          className="flex items-center gap-2 hover:text-primary transition-colors"
+                          className="flex items-center gap-2 hover:text-primary transition-all duration-150"
                         >
                           <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
                             {row.athlete.charAt(0)}

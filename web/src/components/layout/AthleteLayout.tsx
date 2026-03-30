@@ -38,9 +38,9 @@ export function AthleteLayout() {
               data-testid={item.testId}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-colors",
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150",
                   isActive
-                    ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white"
+                    ? "bg-slate-100 font-semibold text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
                     : "font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
                 )
               }
@@ -56,7 +56,7 @@ export function AthleteLayout() {
             onClick={toggleTheme}
             aria-label={theme === "light" ? "Activer le mode sombre" : "Activer le mode clair"}
             data-testid="athlete-theme-toggle"
-            className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-150 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Icon name={theme === "light" ? "dark_mode" : "light_mode"} className="text-xl shrink-0" />
             {theme === "light" ? "Mode Sombre" : "Mode Clair"}
@@ -65,7 +65,7 @@ export function AthleteLayout() {
             onClick={() => signOut()}
             aria-label="Déconnexion"
             data-testid="athlete-signout"
-            className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
           >
             <Icon name="logout" className="text-xl shrink-0" />
             Déconnexion
@@ -95,7 +95,7 @@ export function AthleteLayout() {
             type="button"
             aria-label="Fermer le menu"
             onClick={() => setIsMobileMenuOpen(false)}
-            className="rounded-sm p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+            className="rounded-xl p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
             data-testid="athlete-mobile-menu-close"
           >
             <Icon name="close" className="text-xl" />
@@ -110,9 +110,9 @@ export function AthleteLayout() {
               data-testid={`${item.testId}-mobile`}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-colors",
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150",
                   isActive
-                    ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white"
+                    ? "bg-slate-100 font-semibold text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
                     : "font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
                 )
               }
@@ -128,7 +128,7 @@ export function AthleteLayout() {
             onClick={toggleTheme}
             aria-label={theme === "light" ? "Activer le mode sombre" : "Activer le mode clair"}
             data-testid="athlete-theme-toggle-mobile"
-            className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-150 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Icon name={theme === "light" ? "dark_mode" : "light_mode"} className="text-xl shrink-0" />
             {theme === "light" ? "Mode Sombre" : "Mode Clair"}
@@ -137,7 +137,7 @@ export function AthleteLayout() {
             onClick={() => signOut()}
             aria-label="Déconnexion"
             data-testid="athlete-signout-mobile"
-            className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
           >
             <Icon name="logout" className="text-xl shrink-0" />
             Déconnexion
@@ -146,11 +146,11 @@ export function AthleteLayout() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="inline-flex items-center gap-2 rounded-sm border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             data-testid="athlete-mobile-menu-button"
           >
             <Icon name="menu" className="text-lg" />

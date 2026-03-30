@@ -2,7 +2,9 @@ import {
   addMilliseconds,
   addWeeks,
   endOfMonth,
+  endOfWeek,
   format,
+  isSameDay,
   parseISO,
   startOfMonth,
   startOfWeek,
@@ -67,6 +69,7 @@ export interface AthleteKpiReport {
   insights: TextInsight[];
   focusAlert: FocusAlert | null;
   hrZones: HrZonesAggregate | null;
+  availableSports: string[];
 }
 
 interface PeriodWindow {
@@ -105,9 +108,17 @@ const WEEKLY_LOAD_POINT_COUNT = 8;
 const MAX_DISTRIBUTION_SPORTS = 3;
 
 function getCurrentPeriodWindow(period: KpiPeriod, now: Date): PeriodWindow {
+  const start = period === "week" ? startOfWeek(now, { weekStartsOn: 1 }) : startOfMonth(now);
+  const today = new Date();
+  const periodEnd = period === "week"
+    ? endOfWeek(now, { weekStartsOn: 1 })
+    : endOfMonth(now);
+  // If `now` falls in the real current period, cap at today (partial).
+  // Otherwise (historical), use the full period end.
+  const isCurrentPeriod = today >= start && today <= periodEnd;
   return {
-    start: period === "week" ? startOfWeek(now, { weekStartsOn: 1 }) : startOfMonth(now),
-    end: now,
+    start,
+    end: isCurrentPeriod ? today : periodEnd,
   };
 }
 
@@ -419,33 +430,66 @@ export function getAthleteKpiFetchRange(period: KpiPeriod, now = new Date()): Pe
 
   return {
     start,
-    end: now,
+    end: currentWindow.end,
   };
+}
+
+export function buildPeriodLabel(period: KpiPeriod, now: Date): string {
+  const today = new Date();
+  const start = period === "week" ? startOfWeek(now, { weekStartsOn: 1 }) : startOfMonth(now);
+  const currentStart = period === "week" ? startOfWeek(today, { weekStartsOn: 1 }) : startOfMonth(today);
+  if (isSameDay(start, currentStart)) {
+    return period === "week" ? "Cette semaine" : "Ce mois-ci";
+  }
+  if (period === "week") {
+    return format(start, "'Semaine du' d MMMM yyyy", { locale: fr });
+  }
+  return format(start, "MMMM yyyy", { locale: fr });
+}
+
+export function isCurrentPeriod(period: KpiPeriod, anchorDate: Date): boolean {
+  const today = new Date();
+  const start = period === "week" ? startOfWeek(anchorDate, { weekStartsOn: 1 }) : startOfMonth(anchorDate);
+  const currentStart = period === "week" ? startOfWeek(today, { weekStartsOn: 1 }) : startOfMonth(today);
+  return isSameDay(start, currentStart);
 }
 
 export function buildAthleteKpiReport(
   rows: StatsActivityRow[],
   period: KpiPeriod,
-  now = new Date()
+  now = new Date(),
+  sportFilter?: string
 ): AthleteKpiReport {
   const currentWindow = getCurrentPeriodWindow(period, now);
   const previousWindow = getPreviousPeriodWindow(period, currentWindow);
   const normalizedRows = rows.map(normalizeActivity);
   const currentRows = normalizedRows.filter((row) => isWithinWindow(row.sessionDate, currentWindow));
   const previousRows = normalizedRows.filter((row) => isWithinWindow(row.sessionDate, previousWindow));
+
+  // Sport filter applies only to KPI cards (+ deltas)
+  const applySportFilter = sportFilter && sportFilter !== "TOUT";
+  const kpiCurrentRows = applySportFilter
+    ? currentRows.filter((row) => row.sportKey === sportFilter)
+    : currentRows;
+  const kpiPreviousRows = applySportFilter
+    ? previousRows.filter((row) => row.sportKey === sportFilter)
+    : previousRows;
+
   const { insights, focusAlert } = generateInsights(currentRows, previousRows);
+  const availableSports = [...new Set(currentRows.map((row) => row.sportKey))];
 
   return {
     period,
-    periodLabel: period === "week" ? "Cette semaine" : "Ce mois-ci",
+    periodLabel: buildPeriodLabel(period, now),
     currentRangeLabel: formatRangeLabel(currentWindow),
     comparisonRangeLabel: formatRangeLabel(previousWindow),
-    cards: buildKpiCards(currentRows, previousRows),
+    cards: buildKpiCards(kpiCurrentRows, kpiPreviousRows),
     distribution: buildDistribution(currentRows),
     weeklyLoad: buildWeeklyLoad(normalizedRows, now),
     sportDecoupling: buildSportDecoupling(currentRows),
     insights,
     focusAlert,
     hrZones: aggregateHrZones(currentRows),
+    availableSports,
   };
 }

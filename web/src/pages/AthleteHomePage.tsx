@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { SessionFilters } from "@/components/filters/SessionFilters";
 import { SortableHeader } from "@/components/tables/SortableHeader";
-import { SPORT_ICONS, SPORT_COLORS } from "@/lib/constants";
+import { getSportConfig } from "@/lib/constants";
 import { useAthleteGroups } from "@/hooks/useAthleteGroups";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useActivities } from "@/hooks/useActivities";
@@ -77,7 +77,7 @@ export function AthleteHomePage() {
       ? sortRows(activities, (a) => a.pace_sort_value, sortDir)
       : activities;
 
-  const rowLinkClassName = "block -mx-4 -my-3 px-4 py-3 transition-colors";
+  const rowLinkClassName = "block -mx-4 -my-3 px-4 py-3 transition-all duration-150";
 
   const athleteName = profile
     ? `${profile.first_name} ${profile.last_name}`
@@ -96,7 +96,7 @@ export function AthleteHomePage() {
             {profileLoading ? "Mon espace" : athleteName ? `${athleteName}` : "Mon espace"}
             {groupLabel && athleteGroup && (
               <span
-                className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium text-white"
+                className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium text-white"
                 style={{ backgroundColor: athleteGroup.color }}
               >
                 {groupLabel}
@@ -160,13 +160,13 @@ export function AthleteHomePage() {
                 </tr>
               ) : (
                 displayActivities.map((act) => {
-                  const sportKey = act.sport.toUpperCase();
+                  const sportCfg = getSportConfig(act.sport);
                   const detailHref = `/mon-espace/activities/${act.id}`;
 
                   return (
                     <tr
                       key={act.id}
-                      className="cursor-pointer transition-colors hover:bg-primary/5 dark:hover:bg-primary/10"
+                      className="cursor-pointer transition-all duration-150 hover:bg-primary/5 dark:hover:bg-primary/10"
                     >
                       <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">
                         <Link to={detailHref} className={rowLinkClassName}>
@@ -181,7 +181,7 @@ export function AthleteHomePage() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         <Link to={detailHref} className={rowLinkClassName}>
                           <div className="flex items-center gap-2">
-                            <Icon name={SPORT_ICONS[sportKey] ?? "exercise"} className={SPORT_COLORS[sportKey] ?? ""} />
+                            <Icon name={sportCfg.icon} className={sportCfg.textColor} />
                             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{act.sport}</span>
                           </div>
                         </Link>

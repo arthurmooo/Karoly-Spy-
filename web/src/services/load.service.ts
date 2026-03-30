@@ -31,6 +31,15 @@ export type WeeklyHeatmapLevel =
   | "high"
   | "very_high";
 
+export interface WeeklyHeatmapActivity {
+  id: string;
+  name: string;
+  sport: string;
+  workType: string | null;
+  mls: number;
+  durationSec: number;
+}
+
 export interface WeeklyHeatmapDay {
   date: string;
   label: string;
@@ -38,6 +47,7 @@ export interface WeeklyHeatmapDay {
   durationSec: number;
   sessionCount: number;
   level: WeeklyHeatmapLevel;
+  activities: WeeklyHeatmapActivity[];
 }
 
 export interface WeeklyHeatmapData {
@@ -155,6 +165,7 @@ export function buildWeeklyHeatmapData(
   const weekStartDate = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekEndDate = endOfWeek(anchor, { weekStartsOn: 1 });
   const dayMap = new Map<string, { mls: number; durationSec: number; sessionCount: number }>();
+  const activityMap = new Map<string, WeeklyHeatmapActivity[]>();
 
   for (const row of rows) {
     const localDate = toLocalIsoDate(new Date(row.session_date));
@@ -163,6 +174,17 @@ export function buildWeeklyHeatmapData(
     current.durationSec += row.duration_sec ?? 0;
     current.sessionCount += 1;
     dayMap.set(localDate, current);
+
+    const activities = activityMap.get(localDate) ?? [];
+    activities.push({
+      id: row.id,
+      name: row.activity_name ?? "Séance",
+      sport: row.sport_type ?? "",
+      workType: row.work_type ?? null,
+      mls: row.load_index ?? 0,
+      durationSec: row.duration_sec ?? 0,
+    });
+    activityMap.set(localDate, activities);
   }
 
   const thresholds = buildThresholds(
@@ -181,6 +203,7 @@ export function buildWeeklyHeatmapData(
       durationSec: aggregated.durationSec,
       sessionCount: aggregated.sessionCount,
       level: getWeeklyHeatmapLevel(aggregated.mls, thresholds),
+      activities: activityMap.get(isoDate) ?? [],
     };
   });
 

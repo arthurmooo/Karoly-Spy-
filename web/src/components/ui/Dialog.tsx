@@ -34,12 +34,12 @@ export function Dialog({ open, onClose, children }: DialogProps) {
   return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={(event) => {
         if (event.target === overlayRef.current) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+      <div className="dialog-enter bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
         {children}
       </div>
     </div>,

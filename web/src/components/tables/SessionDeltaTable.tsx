@@ -7,7 +7,7 @@ interface Props {
 
 export function SessionDeltaTable({ summary }: Props) {
   return (
-    <div className="overflow-hidden rounded-sm border border-slate-200 dark:border-slate-800">
+    <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <table className="w-full border-collapse text-left">
         <thead>
           <tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-900/70 dark:text-slate-400">

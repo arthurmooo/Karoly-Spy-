@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -9,7 +10,7 @@ import {
   DisclosureTrigger,
   DisclosureContent,
 } from "@/components/ui/Disclosure";
-import type { AthleteGroup } from "@/types/athlete";
+import type { Athlete, AthleteGroup } from "@/types/athlete";
 
 const COLOR_PALETTE = [
   "#2563EB",
@@ -24,6 +25,7 @@ const COLOR_PALETTE = [
 
 interface GroupManagerProps {
   groups: AthleteGroup[];
+  athletes: Athlete[];
   athleteCountByGroup: Record<string, number>;
   onCreateGroup: (name: string, color: string) => Promise<void>;
   onUpdateGroup: (id: string, updates: { name?: string; color?: string }) => Promise<void>;
@@ -58,12 +60,18 @@ function ColorPicker({
 
 export function GroupManager({
   groups,
+  athletes,
   athleteCountByGroup,
   onCreateGroup,
   onUpdateGroup,
   onDeleteGroup,
   onReorderGroups,
 }: GroupManagerProps) {
+  const navigate = useNavigate();
+
+  // Expanded group
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+
   // Create dialog
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
@@ -144,57 +152,97 @@ export function GroupManager({
             {/* Group list */}
             {groups.map((group, index) => {
               const count = athleteCountByGroup[group.id] ?? 0;
+              const isExpanded = expandedGroupId === group.id;
+              const groupAthletes = athletes.filter(
+                (a) => a.athlete_group_id === group.id
+              );
               return (
-                <div
-                  key={group.id}
-                  className="flex items-center gap-3 p-2 rounded-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
-                >
+                <div key={group.id}>
                   <div
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: group.color }}
-                  />
-                  <span className="text-sm font-medium text-slate-900 dark:text-white flex-1">
-                    {group.name}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {count} athl.
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleMoveUp(index)}
-                      disabled={index === 0}
-                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+                    className="flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-150"
+                    onClick={() =>
+                      setExpandedGroupId(isExpanded ? null : group.id)
+                    }
+                  >
+                    <Icon
+                      name={isExpanded ? "expand_more" : "chevron_right"}
+                      className="text-slate-400 text-sm shrink-0"
+                    />
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: group.color }}
+                    />
+                    <span className="text-sm font-medium text-slate-900 dark:text-white flex-1">
+                      {group.name}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {count} athl.
+                    </span>
+                    <div
+                      className="flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Icon name="keyboard_arrow_up" className="text-sm" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleMoveDown(index)}
-                      disabled={index === groups.length - 1}
-                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
-                    >
-                      <Icon name="keyboard_arrow_down" className="text-sm" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditGroup(group);
-                        setEditName(group.name);
-                        setEditColor(group.color);
-                      }}
-                      className="p-1 text-slate-400 hover:text-primary transition-colors"
-                    >
-                      <Icon name="edit" className="text-sm" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(group)}
-                      className="p-1 text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <Icon name="delete" className="text-sm" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveUp(index)}
+                        disabled={index === 0}
+                        className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 transition-all duration-150"
+                      >
+                        <Icon name="keyboard_arrow_up" className="text-sm" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveDown(index)}
+                        disabled={index === groups.length - 1}
+                        className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 transition-all duration-150"
+                      >
+                        <Icon name="keyboard_arrow_down" className="text-sm" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditGroup(group);
+                          setEditName(group.name);
+                          setEditColor(group.color);
+                        }}
+                        className="p-1 text-slate-400 hover:text-primary transition-all duration-150"
+                      >
+                        <Icon name="edit" className="text-sm" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(group)}
+                        className="p-1 text-slate-400 hover:text-red-500 transition-all duration-150"
+                      >
+                        <Icon name="delete" className="text-sm" />
+                      </button>
+                    </div>
                   </div>
+                  {isExpanded && (
+                    <div className="ml-8 mt-1 mb-1 space-y-0.5">
+                      {groupAthletes.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-1 pl-2">
+                          Aucun athlète dans ce groupe
+                        </p>
+                      ) : (
+                        groupAthletes.map((a) => (
+                          <div
+                            key={a.id}
+                            className="flex items-center gap-2 py-1 pl-2 rounded cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all duration-150"
+                            onClick={() => navigate(`/athletes/${a.id}/bilan`)}
+                          >
+                            <div className="w-5 h-5 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[9px] font-medium text-slate-600 dark:text-slate-400 shrink-0">
+                              {a.first_name.charAt(0)}
+                              {a.last_name.charAt(0)}
+                            </div>
+                            <span className="text-xs text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors">
+                              {a.first_name} {a.last_name}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -221,7 +269,7 @@ export function GroupManager({
           </h3>
           <button
             onClick={() => setShowCreate(false)}
-            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150"
           >
             <Icon name="close" className="text-xl" />
           </button>
@@ -262,7 +310,7 @@ export function GroupManager({
           </h3>
           <button
             onClick={() => setEditGroup(null)}
-            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150"
           >
             <Icon name="close" className="text-xl" />
           </button>
@@ -302,7 +350,7 @@ export function GroupManager({
           </h3>
           <button
             onClick={() => setDeleteTarget(null)}
-            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150"
           >
             <Icon name="close" className="text-xl" />
           </button>

@@ -182,17 +182,17 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
             <p className="mb-2 font-semibold text-slate-900 dark:text-white">{activeSegment.point.label}</p>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#3b82f6]" />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#3b82f6]" />
                 <span className="text-slate-500">FC</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.fc_abs}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#f97316]" />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#f97316]" />
                 <span className="text-slate-500">{isBike ? "Puissance" : "Allure"}</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.allure_abs}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#22c55e]" />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#22c55e]" />
                 <span className="text-slate-500">Ratio</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.ratio_abs}</span>
               </div>
@@ -202,7 +202,7 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
       </div>
 
       {degradationSegment != null && (
-        <div className="flex items-start gap-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/50 dark:bg-amber-900/20">
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/50 dark:bg-amber-900/20">
           <Icon name="warning" className="mt-0.5 text-amber-600 dark:text-amber-400" />
           <p className="text-xs text-amber-700 dark:text-amber-300">
             Dégradation progressive détectée — la fatigue s&apos;est installée à partir du segment {labels[degradationSegment - 1]}.

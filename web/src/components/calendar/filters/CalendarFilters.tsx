@@ -24,7 +24,7 @@ export function CalendarFilters({
         <select
           value={selectedAthleteId || ""}
           onChange={(e) => onAthleteChange(e.target.value || null)}
-          className="w-full sm:w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          className="w-full sm:w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         >
           <option value="">Tous les athlètes</option>
           {athletes.map((ath) => (
@@ -37,7 +37,7 @@ export function CalendarFilters({
         <select
           value={selectedSport || "Tous les sports"}
           onChange={(e) => onSportChange(e.target.value)}
-          className="w-full sm:w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          className="w-full sm:w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         >
           <option value="Tous les sports">Tous les sports</option>
           {SPORT_CONFIG.map(s => (
@@ -48,7 +48,7 @@ export function CalendarFilters({
 
       <button
         onClick={onTodayClick}
-        className="bg-accent-orange hover:bg-accent-orange/90 text-white px-3 py-1.5 rounded-sm text-sm font-semibold transition-colors flex items-center gap-2"
+        className="bg-accent-orange hover:bg-accent-orange/90 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 flex items-center gap-2"
       >
         <Icon name="today" className="text-lg" />
         Aujourd'hui

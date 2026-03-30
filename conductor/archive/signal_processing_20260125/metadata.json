@@ -1,0 +1,8 @@
+{
+  "track_id": "signal_processing_20260125",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-25T14:30:00Z",
+  "updated_at": "2026-01-25T14:30:00Z",
+  "description": "Refine IntervalMatcher with Difference of Means (DoM), Cadence Snapping, and Plateau Stability checks to achieve < 3s RMSE on reference sessions."
+}

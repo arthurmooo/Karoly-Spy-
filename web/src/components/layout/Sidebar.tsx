@@ -22,7 +22,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 flex flex-col transition-all duration-200",
+        "bg-white dark:bg-slate-900 border-r border-slate-200/60 dark:border-slate-800/60 h-screen sticky top-0 flex flex-col transition-all duration-200",
         collapsed ? "w-16" : "w-64"
       )}
     >
@@ -45,10 +45,10 @@ export function Sidebar() {
             data-testid={item.testId}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm transition-colors",
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150",
                 collapsed && "justify-center px-2",
                 isActive
-                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
+                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shadow-sm"
                   : "font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
               )
             }
@@ -67,7 +67,7 @@ export function Sidebar() {
           aria-label={theme === "light" ? "Activer le mode sombre" : "Activer le mode clair"}
           data-testid="coach-theme-toggle"
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-150",
             collapsed && "justify-center px-2"
           )}
         >
@@ -80,7 +80,7 @@ export function Sidebar() {
           aria-label="Déconnexion"
           data-testid="coach-signout"
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-150",
             collapsed && "justify-center px-2"
           )}
         >
@@ -93,7 +93,7 @@ export function Sidebar() {
           title={collapsed ? "Agrandir" : "Réduire"}
           aria-label={collapsed ? "Agrandir la navigation" : "Réduire la navigation"}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-150",
             collapsed && "justify-center px-2"
           )}
         >

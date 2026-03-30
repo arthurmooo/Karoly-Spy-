@@ -17,7 +17,12 @@ SELECT
     COALESCE(a.source_sport, a.sport_type) AS sport,
     a.load_index AS mls,
     a.rpe,
-    ROUND(((a.segmented_metrics->'splits_2'->'phase_2'->>'ratio')::float / (a.segmented_metrics->'splits_2'->'phase_1'->>'ratio')::float)::numeric, 2) AS decouplage,
+    ROUND((
+        1 - (
+            (a.segmented_metrics->'splits_2'->'phase_2'->>'ratio')::float
+            / NULLIF((a.segmented_metrics->'splits_2'->'phase_1'->>'ratio')::float, 0)
+        )
+    )::numeric * 100, 2) AS decouplage,
     ROUND((a.duration_sec / 60.0)::numeric, 1) AS duree_min,
     ROUND((a.distance_m / 1000.0)::numeric, 2) AS km,
     a.avg_hr AS bpm_moyen,
@@ -44,7 +49,12 @@ SELECT
         WHEN a.avg_hr > 0 THEN ROUND((a.avg_power / a.avg_hr)::numeric, 2)
         ELSE NULL 
     END AS ratio_efficacite,
-    ROUND(((a.segmented_metrics->'splits_2'->'phase_2'->>'ratio')::float / (a.segmented_metrics->'splits_2'->'phase_1'->>'ratio')::float)::numeric, 2) AS decouplage_relatif,
+    ROUND((
+        1 - (
+            (a.segmented_metrics->'splits_2'->'phase_2'->>'ratio')::float
+            / NULLIF((a.segmented_metrics->'splits_2'->'phase_1'->>'ratio')::float, 0)
+        )
+    )::numeric * 100, 2) AS decouplage_relatif,
     a.temp_avg AS temp,
     a.humidity_avg AS hum
 FROM activities a
@@ -69,10 +79,10 @@ SELECT
     COALESCE(a.activity_name, 'Session ' || a.nolio_id) AS course_name,
     ROUND((a.duration_sec / 60.0)::numeric, 1) AS temps_min,
     ROUND((a.distance_m / 1000.0)::numeric, 2) AS dist_totale_km,
-    ROUND((dc.r1 / dc.r1)::numeric, 2) AS decoupling_q1,
-    ROUND((dc.r2 / dc.r1)::numeric, 2) AS decoupling_q2,
-    ROUND((dc.r3 / dc.r1)::numeric, 2) AS decoupling_q3,
-    ROUND((dc.r4 / dc.r1)::numeric, 2) AS decoupling_q4,
+    ROUND(((1 - (dc.r1 / NULLIF(dc.r1, 0))) * 100)::numeric, 2) AS decoupling_q1,
+    ROUND(((1 - (dc.r2 / NULLIF(dc.r1, 0))) * 100)::numeric, 2) AS decoupling_q2,
+    ROUND(((1 - (dc.r3 / NULLIF(dc.r1, 0))) * 100)::numeric, 2) AS decoupling_q3,
+    ROUND(((1 - (dc.r4 / NULLIF(dc.r1, 0))) * 100)::numeric, 2) AS decoupling_q4,
     (a.segmented_metrics->>'drift_percent')::float AS derive_totale_pct
 FROM activities a
 JOIN athletes ath ON a.athlete_id = ath.id

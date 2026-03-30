@@ -82,6 +82,13 @@ describe("generateInsights", () => {
     expect(good!.title).toContain("Excellent");
   });
 
+  it("treats negative decoupling as favorable", () => {
+    const current = [makeRow({ decouplingIndex: -4.2 })];
+    const result = generateInsights(current, []);
+    expect(result.focusAlert).toBeNull();
+    expect(result.insights.find((i) => i.id === "decoupling-high")).toBeUndefined();
+  });
+
   it("detects decoupling delta > 3pts", () => {
     const current = [makeRow({ decouplingIndex: 10 })];
     const previous = [makeRow({ decouplingIndex: 5 })];
@@ -91,10 +98,10 @@ describe("generateInsights", () => {
     expect(dec!.title).toContain("hausse");
   });
 
-  it("detects low durability < 0.8", () => {
-    const current = [makeRow({ durabilityIndex: 0.6 }), makeRow({ durabilityIndex: 0.7 })];
+  it("detects elevated durability penalty", () => {
+    const current = [makeRow({ durabilityIndex: 1.16 }), makeRow({ durabilityIndex: 1.22 })];
     const result = generateInsights(current, []);
-    const dur = result.insights.find((i) => i.id === "durability-low");
+    const dur = result.insights.find((i) => i.id === "durability-penalty");
     expect(dur).toBeDefined();
     expect(dur!.severity).toBe("warning");
   });
@@ -130,19 +137,19 @@ describe("generateInsights", () => {
     expect(result.insights.find((i) => i.id === "sessions-low")).toBeUndefined();
   });
 
-  it("generates focusAlert on cardiac drift > 5%", () => {
+  it("generates focusAlert on decoupling > 5%", () => {
     const current = [
-      makeRow({ activityId: "id-am", activityName: "Footing AM", segmentedMetrics: { drift_percent: 6.5 } }),
-      makeRow({ activityName: "VMA", segmentedMetrics: { drift_percent: 2 } }),
-      makeRow({ activityId: "id-long", activityName: "Long run", segmentedMetrics: { drift_percent: 8 } }),
+      makeRow({ activityId: "id-am", activityName: "Footing AM", decouplingIndex: 6.5 }),
+      makeRow({ activityName: "VMA", decouplingIndex: 2 }),
+      makeRow({ activityId: "id-long", activityName: "Long run", decouplingIndex: 8 }),
     ];
     const result = generateInsights(current, []);
     expect(result.focusAlert).not.toBeNull();
     expect(result.focusAlert!.sessions).toHaveLength(2);
     expect(result.focusAlert!.sessions).toEqual(
       expect.arrayContaining([
-        { id: "id-am", name: "Footing AM" },
-        { id: "id-long", name: "Long run" },
+        expect.objectContaining({ id: "id-am", name: "Footing AM" }),
+        expect.objectContaining({ id: "id-long", name: "Long run" }),
       ])
     );
     const drift = result.insights.find((i) => i.id === "drift-alert");
@@ -150,8 +157,8 @@ describe("generateInsights", () => {
     expect(drift!.severity).toBe("alert");
   });
 
-  it("no focusAlert when no drift > 5%", () => {
-    const current = [makeRow({ segmentedMetrics: { drift_percent: 3 } })];
+  it("no focusAlert when no decoupling > 5%", () => {
+    const current = [makeRow({ decouplingIndex: 4.2 })];
     const result = generateInsights(current, []);
     expect(result.focusAlert).toBeNull();
     expect(result.insights.find((i) => i.id === "drift-alert")).toBeUndefined();

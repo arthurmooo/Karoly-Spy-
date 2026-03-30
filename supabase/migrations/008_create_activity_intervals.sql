@@ -19,9 +19,8 @@ CREATE TABLE IF NOT EXISTS activity_intervals (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Index for performance
 CREATE INDEX IF NOT EXISTS idx_activity_intervals_activity_id ON activity_intervals(activity_id);
 
--- RLS (Service Role Only for now, matching other tables)
 ALTER TABLE activity_intervals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Service role full access" ON activity_intervals;
 CREATE POLICY "Service role full access" ON activity_intervals FOR ALL TO service_role USING (true);

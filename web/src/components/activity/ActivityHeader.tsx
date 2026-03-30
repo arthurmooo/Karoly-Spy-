@@ -84,7 +84,7 @@ export function ActivityHeader({
     <div>
       <button
         onClick={onBack}
-        className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-primary"
+        className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary"
         data-testid="activity-back-button"
       >
         <Icon name="arrow_back" className="text-lg" />
@@ -114,7 +114,7 @@ export function ActivityHeader({
                   type="button"
                   onClick={() => !isSavingWorkType && setPopoverOpen((v) => !v)}
                   disabled={isSavingWorkType}
-                  className="group flex items-center gap-1 rounded-sm transition-all"
+                  className="group flex items-center gap-1 rounded-lg transition-all"
                   title="Modifier le type de séance"
                 >
                   <Badge variant={hasManualOverride ? "orange" : "primary"}>
@@ -129,7 +129,7 @@ export function ActivityHeader({
                   </Badge>
                   <Icon
                     name="edit"
-                    className="text-[14px] text-slate-400 transition-colors group-hover:text-primary dark:text-slate-500 dark:group-hover:text-primary"
+                    className="text-[14px] text-slate-400 transition-all duration-150 group-hover:text-primary dark:text-slate-500 dark:group-hover:text-primary"
                   />
                 </button>
               ) : (
@@ -147,7 +147,7 @@ export function ActivityHeader({
                         key={option.value || "auto"}
                         type="button"
                         onClick={() => handleSelectWorkType(option.value)}
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/60 ${
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-700/60 ${
                           isActive
                             ? "font-semibold text-primary"
                             : "text-slate-700 dark:text-slate-300"

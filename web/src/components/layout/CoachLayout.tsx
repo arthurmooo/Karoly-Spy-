@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { useStorageHealth } from "@/hooks/useStorageHealth";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { Sidebar, COACH_NAV_ITEMS } from "./Sidebar";
@@ -9,6 +10,7 @@ import { Sidebar, COACH_NAV_ITEMS } from "./Sidebar";
 export function CoachLayout() {
   const { signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { pct, status: storageStatus } = useStorageHealth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -44,7 +46,7 @@ export function CoachLayout() {
             type="button"
             aria-label="Fermer le menu"
             onClick={() => setIsMobileMenuOpen(false)}
-            className="rounded-sm p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+            className="rounded-xl p-2 text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
             data-testid="coach-mobile-menu-close"
           >
             <Icon name="close" className="text-xl" />
@@ -59,9 +61,9 @@ export function CoachLayout() {
               data-testid={`${item.testId}-mobile`}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-colors",
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150",
                   isActive
-                    ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white"
+                    ? "bg-slate-100 font-semibold text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
                     : "font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
                 )
               }
@@ -76,7 +78,7 @@ export function CoachLayout() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-150 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
             aria-label={theme === "light" ? "Activer le mode sombre" : "Activer le mode clair"}
             data-testid="coach-theme-toggle-mobile"
           >
@@ -86,7 +88,7 @@ export function CoachLayout() {
           <button
             type="button"
             onClick={() => signOut()}
-            className="flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
             aria-label="Déconnexion"
             data-testid="coach-signout-mobile"
           >
@@ -97,11 +99,11 @@ export function CoachLayout() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="inline-flex items-center gap-2 rounded-sm border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             data-testid="coach-mobile-menu-button"
           >
             <Icon name="menu" className="text-lg" />
@@ -109,6 +111,19 @@ export function CoachLayout() {
           </button>
           <img src="/ks-logo.png" alt="KS Endurance Training" className="h-8 w-auto dark:brightness-90" />
         </div>
+
+        {storageStatus === "warning" && (
+          <div className="bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800 px-4 py-2.5 text-sm text-orange-800 dark:text-orange-300 flex items-center gap-2">
+            <Icon name="warning_amber" className="text-orange-500 shrink-0" />
+            <span>Stockage FIT bientôt plein ({pct}%). Contactez votre administrateur.</span>
+          </div>
+        )}
+        {storageStatus === "critical" && (
+          <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2.5 text-sm text-red-800 dark:text-red-300 flex items-center gap-2">
+            <Icon name="error" className="text-red-500 shrink-0" />
+            <span>Stockage FIT critique ({pct}%) ! Contactez votre administrateur immédiatement.</span>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />

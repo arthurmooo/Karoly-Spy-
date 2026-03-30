@@ -152,7 +152,7 @@ export function CoachFeedbackPanel({
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Commentaire remonté</p>
             <textarea
               readOnly
-              className="h-28 w-full resize-none rounded-sm border border-slate-200 bg-slate-50 p-3 text-sm italic text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+              className="h-28 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm italic text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
               value={athleteFeedback}
               placeholder="Aucun commentaire de l'athlète remonté depuis Nolio"
             />
@@ -170,7 +170,7 @@ export function CoachFeedbackPanel({
           {isCoach ? (
             <>
               <textarea
-                className="h-24 w-full resize-none rounded-sm border border-slate-200 bg-white p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                className="h-24 w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                 placeholder="Écrire un feedback à l'athlète..."
                 value={coachNote}
                 onChange={(e) => setCoachNote(e.target.value)}
@@ -199,7 +199,7 @@ export function CoachFeedbackPanel({
               )}
             </>
           ) : (
-            <div className="rounded-sm border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 {activity.coach_comment?.trim() || "Aucune note du coach pour le moment."}
               </p>

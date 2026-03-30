@@ -18,20 +18,6 @@ interface ChartRow {
   avgRpe: number | null;
 }
 
-function toHexColor(bgColor: string): string {
-  switch (bgColor) {
-    case "bg-accent-orange":
-      return "#f97316";
-    case "bg-accent-blue":
-      return "#3b82f6";
-    case "bg-teal-500":
-      return "#14b8a6";
-    case "bg-violet-500":
-      return "#8b5cf6";
-    default:
-      return "#94a3b8";
-  }
-}
 
 interface TooltipPayloadItem {
   payload: ChartRow;
@@ -74,7 +60,7 @@ export function VolumeDistribution({ items }: VolumeDistributionProps) {
         return {
           name: item.label,
           value: item.percent,
-          fill: toHexColor(config.bgColor),
+          fill: config.hexColor,
           hours: item.hours,
           distanceKm: item.distanceKm,
           avgRpe: item.avgRpe,

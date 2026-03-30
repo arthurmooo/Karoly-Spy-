@@ -77,6 +77,8 @@ export interface Activity {
   interval_detection_source: string | null;
   decoupling_index: number | null;
   durability_index: number | null;
+  temp_avg?: number | null;
+  elevation_gain?: number | null;
   manual_activity_name?: string | null;
   fit_file_path?: string | null;
   source_json?: ActivitySourceJson | null;
@@ -215,7 +217,7 @@ export interface ComparisonAlert {
 }
 
 export interface ComparisonDeltaRow {
-  key: "volume" | "duration" | "main_metric" | "hr" | "decoupling";
+  key: "volume" | "duration" | "main_metric" | "hr" | "decoupling" | "temperature" | "elevation";
   label: string;
   currentValue: string;
   referenceValue: string;

@@ -145,17 +145,17 @@ export function TempoPhaseComparison({ splits2, sportType, hideTitle }: Props & 
             <p className="mb-2 font-semibold text-slate-900 dark:text-white">{activeSegment.point.label}</p>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#3b82f6]" />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#3b82f6]" />
                 <span className="text-slate-500">FC</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.fc_abs}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#f97316]" />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#f97316]" />
                 <span className="text-slate-500">{isBike ? "Puissance" : "Allure"}</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.allure_abs}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-[#22c55e]" />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#22c55e]" />
                 <span className="text-slate-500">Ratio</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.ratio_abs}</span>
               </div>

@@ -9,6 +9,25 @@ from projectk_core.processing.interval_matcher import IntervalMatcher
 from projectk_core.processing.lap_calculator import LapCalculator
 from projectk_core.processing.confidence import VALIDATION_THRESHOLD, is_high_confidence_match
 
+
+def sanitize_elevation(elevation_gain: float, distance_m: float) -> float:
+    """Guard against elevation stored in wrong units (mm instead of m).
+    Some devices/APIs report total_ascent in millimeters; this detects
+    implausible D+/km ratios and corrects by ÷1000.
+    Max plausible ratio: ~150 m/km (extreme mountain trail)."""
+    if not elevation_gain or elevation_gain <= 0:
+        return 0.0
+    if not distance_m or distance_m <= 0:
+        return elevation_gain if elevation_gain < 5000 else elevation_gain / 1000.0
+    dist_km = distance_m / 1000.0
+    if dist_km < 0.5:
+        return elevation_gain if elevation_gain < 5000 else elevation_gain / 1000.0
+    ratio = elevation_gain / dist_km
+    if ratio > 150:
+        return elevation_gain / 1000.0
+    return elevation_gain
+
+
 class MetricsCalculator:
     """
     Core calculation engine for Project K.
@@ -119,7 +138,7 @@ class MetricsCalculator:
                 # UPDATE 2026-02-01: Removed 4.184 factor to align Run with Bike (Calorie-equivalent)
                 weight = profile.weight if profile and profile.weight else 70.0
                 dist_km = meta.distance_m / 1000.0 if meta.distance_m else 0.0
-                ascent_m = meta.elevation_gain if meta.elevation_gain else 0.0
+                ascent_m = sanitize_elevation(meta.elevation_gain, meta.distance_m)
                 
                 # Base Mechanical Cost = Weight * (Distance_km + Ascent_km)
                 # Ascent logic: 100m D+ = 1km plat (so D+ / 100 adds to km)
@@ -236,12 +255,11 @@ class MetricsCalculator:
                 ratio_2 = val2 / h2 if h2 > 0 else np.nan
                 
                 if not (np.isnan(ratio_1) or np.isnan(ratio_2) or ratio_1 == 0):
-                    drift_pahr_pct = (ratio_2 / ratio_1 - 1) * 100
-                
-            drift_abs = abs(drift_pahr_pct)
+                    drift_pahr_pct = (1 - (ratio_2 / ratio_1)) * 100
+
             drift_threshold = self.config.get('drift_threshold_percent', 3.0)
             beta = self.config.get('beta_dur', 0.08)
-            dur_index = 1.0 + beta * max(0.0, drift_abs - drift_threshold)
+            dur_index = 1.0 + beta * max(0.0, drift_pahr_pct - drift_threshold)
 
         # 7b. Perceptive Load (PER) — RPE-based modulation
         per_index = 1.0

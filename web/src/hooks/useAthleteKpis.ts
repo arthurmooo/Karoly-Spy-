@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getStatsActivities } from "@/repositories/stats.repository";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getStatsActivities, type StatsActivityRow } from "@/repositories/stats.repository";
 import {
   buildAthleteKpiReport,
   getAthleteKpiFetchRange,
@@ -7,21 +7,34 @@ import {
   type KpiPeriod,
 } from "@/services/stats.service";
 
-export function useAthleteKpis(athleteId: string | null, period: KpiPeriod) {
-  const [report, setReport] = useState<AthleteKpiReport | null>(null);
+export function useAthleteKpis(
+  athleteId: string | null,
+  period: KpiPeriod,
+  anchorDate?: Date,
+  sportFilter?: string
+) {
+  const [rawRows, setRawRows] = useState<StatsActivityRow[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
+
+  // Stable string key to avoid re-renders from Date object identity
+  const anchorKey = anchorDate ? anchorDate.toISOString().slice(0, 10) : "today";
 
   useEffect(() => {
     if (!athleteId) {
-      setReport(null);
+      setRawRows(null);
       setIsLoading(false);
+      hasLoadedOnce.current = false;
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
+    // Only show full loading state on first load; keep stale data on subsequent fetches
+    if (!hasLoadedOnce.current) {
+      setIsLoading(true);
+    }
 
-    const now = new Date();
+    const now = anchorDate ?? new Date();
     const range = getAthleteKpiFetchRange(period, now);
 
     getStatsActivities({
@@ -31,11 +44,12 @@ export function useAthleteKpis(athleteId: string | null, period: KpiPeriod) {
     })
       .then((rows) => {
         if (cancelled) return;
-        setReport(buildAthleteKpiReport(rows, period, now));
+        setRawRows(rows);
+        hasLoadedOnce.current = true;
       })
       .catch((error) => {
         console.error(error);
-        if (!cancelled) setReport(null);
+        if (!cancelled) setRawRows(null);
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -44,7 +58,13 @@ export function useAthleteKpis(athleteId: string | null, period: KpiPeriod) {
     return () => {
       cancelled = true;
     };
-  }, [athleteId, period]);
+  }, [athleteId, period, anchorKey]);
+
+  const report = useMemo<AthleteKpiReport | null>(() => {
+    if (!rawRows) return null;
+    const now = anchorDate ?? new Date();
+    return buildAthleteKpiReport(rawRows, period, now, sportFilter);
+  }, [rawRows, period, anchorDate, sportFilter]);
 
   return { report, isLoading };
 }

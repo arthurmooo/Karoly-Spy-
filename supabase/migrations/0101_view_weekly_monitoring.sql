@@ -1,4 +1,4 @@
--- Migration: 010_view_weekly_monitoring.sql
+-- Migration: 0101_view_weekly_monitoring.sql
 -- Description: Analytics views for weekly load and health trends.
 
 -- 1. Vue Hebdomadaire (La "Matrice" Coach)

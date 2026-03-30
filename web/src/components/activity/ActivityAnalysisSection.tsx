@@ -52,7 +52,7 @@ export function ActivityAnalysisSection({ activity, intervals, intervalsByBlock,
   return (
     <Card>
       <Disclosure defaultOpen={false}>
-        <DisclosureTrigger className="w-full border-b border-slate-200 px-6 py-4 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 transition-colors">
+        <DisclosureTrigger className="w-full border-b border-slate-200 px-6 py-4 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 transition-all duration-150">
           <AnalysisTriggerContent />
         </DisclosureTrigger>
         <DisclosureContent>
@@ -147,7 +147,7 @@ export function ActivityAnalysisSection({ activity, intervals, intervalsByBlock,
                       hideTitle
                     />
                     {competitionSplitAlert && (
-                      <div className={`flex flex-1 items-center gap-2 rounded-sm border px-3 py-2 ${
+                      <div className={`flex flex-1 items-center gap-2 rounded-xl border px-3 py-2 ${
                         competitionSplitAlert.type === "positive"
                           ? "border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
                           : "border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
@@ -245,7 +245,7 @@ function IntervalsSection({
   return (
     <div className="space-y-4">
       {intervals.some((i) => i.detection_source === "manual") && (
-        <div className="flex items-center gap-2 rounded-sm border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-800/50 dark:bg-orange-900/20">
+        <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-800/50 dark:bg-orange-900/20">
           <Icon name="tune" className="text-orange-600 dark:text-orange-400" />
           <p className="text-xs text-orange-700 dark:text-orange-300">
             Affichage basé sur la détection manuelle.
@@ -258,7 +258,7 @@ function IntervalsSection({
           <button
             type="button"
             onClick={() => setSelectedBlock("all")}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
               selectedBlock === "all"
                 ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -271,7 +271,7 @@ function IntervalsSection({
               key={g.blockIndex}
               type="button"
               onClick={() => setSelectedBlock(g.blockIndex)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
                 selectedBlock === g.blockIndex
                   ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -284,7 +284,7 @@ function IntervalsSection({
       )}
 
       {selectedBlock !== "all" && filteredByBlock.every((g) => g.intervals.length === 0) && (
-        <div className="flex items-center gap-2 rounded-sm border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800/50 dark:bg-blue-900/20">
+        <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800/50 dark:bg-blue-900/20">
           <Icon name="info" className="text-blue-600 dark:text-blue-400" />
           <p className="text-xs text-blue-700 dark:text-blue-300">
             Pas de données individuelles pour ce bloc. Utilisez la détection manuelle pour injecter les intervalles.
@@ -342,7 +342,7 @@ function AnalysisTriggerContent() {
 function CollapsibleSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Disclosure defaultOpen={true}>
-      <DisclosureTrigger className="flex w-full items-center justify-between rounded-sm bg-slate-50/60 px-3 py-2.5 hover:bg-slate-100/60 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 transition-colors">
+      <DisclosureTrigger className="flex w-full items-center justify-between rounded-lg bg-slate-50/60 px-3 py-2.5 hover:bg-slate-100/60 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 transition-all duration-150">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
         <SectionChevron />
       </DisclosureTrigger>
@@ -382,7 +382,7 @@ function IntervalAlerts({ intervals }: { intervals: ActivityInterval[] }) {
   if (hrDrift <= 5 || Math.abs(speedDrift) >= 3) return null;
 
   return (
-    <div className="flex items-start gap-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/50 dark:bg-amber-900/20">
+    <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/50 dark:bg-amber-900/20">
       <Icon name="warning" className="mt-0.5 text-amber-600 dark:text-amber-400" />
       <p className="text-xs text-amber-700 dark:text-amber-300">
         Dégradation détectée : FC en hausse de {hrDrift.toFixed(1)}% sur les 2 derniers intervalles

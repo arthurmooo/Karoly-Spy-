@@ -213,7 +213,7 @@ function computeWindowSummary(windowRows: WindowRow[]): WindowSummary | null {
 
 function SegmentedControl({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
   return (
-    <div role="tablist" className="inline-flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-sm">
+    <div role="tablist" className="inline-flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
       <button role="tab" type="button" aria-selected={value === "intervals"} onClick={() => onChange("intervals")}
         className={cn("px-3 py-1 text-xs font-medium transition-all duration-200 rounded-[3px]",
           value === "intervals" ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white"
@@ -445,12 +445,12 @@ function IntervalBlockView({
       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
         {/* Summary row */}
         <tr
-          className="group cursor-pointer bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors"
+          className="group cursor-pointer bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-all duration-150"
           onClick={onToggle}
         >
           <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-slate-900 dark:text-white">
             <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-200/70 dark:bg-slate-700/50 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
+              <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-200/70 dark:bg-slate-700/50 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-all duration-150">
                 <Icon name="expand_more" className={cn("text-sm text-slate-500 transition-transform duration-200", expanded && "rotate-180")} />
               </span>
               {multiBlock && (
@@ -577,12 +577,12 @@ function WindowBlockView({
       </thead>
       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
         <tr
-          className="group cursor-pointer bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors"
+          className="group cursor-pointer bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-all duration-150"
           onClick={onToggle}
         >
           <td className="whitespace-nowrap px-3 py-2 text-sm font-medium text-slate-900 dark:text-white">
             <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-200/70 dark:bg-slate-700/50 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
+              <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-200/70 dark:bg-slate-700/50 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-all duration-150">
                 <Icon name="expand_more" className={cn("text-sm text-slate-500 transition-transform duration-200", expanded && "rotate-180")} />
               </span>
               {multiBlock && (

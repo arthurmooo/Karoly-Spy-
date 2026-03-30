@@ -27,3 +27,21 @@ data/test_cache/
 
 # Supabase
 supabase/.temp/
+
+# AI tool configs
+.claude/
+.claude-plugin/
+.gemini-clipboard/
+.mcp.json
+
+# Personal / temp / non-project files
+My_Measurements_Android.csv
+nolio_export_users_*.csv
+Fichier-7-2.png
+tmp/
+zip/
+web/test-results/
+deep-research-report.md
+llm_payload_*.json
+retool.json
+Project K-3/

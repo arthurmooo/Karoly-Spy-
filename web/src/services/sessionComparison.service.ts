@@ -287,6 +287,28 @@ export function buildComparisonSummary(current: Activity, reference: Activity): 
       deltaValue: decouplingDelta != null ? formatSignedNumber(decouplingDelta, 1, " pts") : "--",
       trend: getRowTrend(decouplingDelta, true, DECOUPLING_THRESHOLD),
     },
+    {
+      key: "temperature",
+      label: "Température",
+      currentValue: current.temp_avg != null ? `${current.temp_avg.toFixed(1)} °C` : "--",
+      referenceValue: reference.temp_avg != null ? `${reference.temp_avg.toFixed(1)} °C` : "--",
+      deltaValue:
+        current.temp_avg != null && reference.temp_avg != null
+          ? formatSignedNumber(current.temp_avg - reference.temp_avg, 1, " °C")
+          : "--",
+      trend: "neutral",
+    },
+    {
+      key: "elevation",
+      label: "D+",
+      currentValue: current.elevation_gain != null ? `${Math.round(current.elevation_gain)} m` : "--",
+      referenceValue: reference.elevation_gain != null ? `${Math.round(reference.elevation_gain)} m` : "--",
+      deltaValue:
+        current.elevation_gain != null && reference.elevation_gain != null
+          ? formatSignedNumber(current.elevation_gain - reference.elevation_gain, 0, " m")
+          : "--",
+      trend: "neutral",
+    },
   ];
 
   return {
@@ -415,6 +437,7 @@ export interface FormAnalysisKpi {
   value: string;
   delta: string;
   invert: boolean;
+  tooltip: string;
 }
 
 export interface FormAnalysisSummary {
@@ -442,34 +465,39 @@ export function buildFormAnalysisSummary(fa: FormAnalysis): FormAnalysisSummary 
 
   const kpis: FormAnalysisKpi[] = [
     {
-      label: "EA",
+      label: "Eff. Aérobie",
       value: fmtVal(fa.ea?.today, 3),
       delta: fa.ea?.delta_pct != null ? fmtPctVal(fa.ea.delta_pct) : "—",
       invert: false,
+      tooltip: "Rapport output ÷ FC. Plus c'est haut, meilleure est la forme.",
     },
     {
-      label: fa.decoupling?.metric === "dec_int_pct" ? "Dec int" : "Dec",
+      label: fa.decoupling?.metric === "dec_int_pct" ? "Déc. int." : "Découplage",
       value: fa.decoupling?.today != null ? fmtPctVal(fa.decoupling.today) : "—",
       delta: fa.decoupling?.delta != null ? `Δ ${fmtPctVal(fa.decoupling.delta)}` : "—",
       invert: true,
+      tooltip: "Dérive de la FC à allure constante (%). Proche de 0% = bonne endurance.",
     },
     {
-      label: "HRcorr",
+      label: "FC corrigée",
       value: fmtVal(fa.temperature?.hr_corr, 1, " bpm"),
       delta: fa.temperature?.delta_hr_corr != null ? `Δ ${fmtVal(fa.temperature.delta_hr_corr, 1)} bpm` : "—",
       invert: true,
+      tooltip: "FC ajustée pour la température. Permet de comparer les séances.",
     },
     {
       label: "RPE",
       value: fmtVal(fa.rpe?.today, 1),
       delta: fa.rpe?.delta != null ? `Δ ${fmtVal(fa.rpe.delta, 1)}` : "—",
       invert: true,
+      tooltip: "Effort ressenti par l'athlète (1-10). Compare à la moyenne historique.",
     },
     {
-      label: "Output",
+      label: "Allure",
       value: fmtVal(fa.output?.mean, 1, fa.output?.unit ? ` ${fa.output.unit}` : ""),
       delta: fa.output?.delta_pct != null ? fmtPctVal(fa.output.delta_pct) : "—",
       invert: false,
+      tooltip: "Allure ou puissance moyenne sur le segment analysé.",
     },
   ];
 

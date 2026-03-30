@@ -28,7 +28,7 @@ export function FeatureNotice({
   return (
     <div
       className={cn(
-        "rounded-sm border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70",
+        "rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70",
         className
       )}
     >

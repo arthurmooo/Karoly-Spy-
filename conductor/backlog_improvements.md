@@ -54,4 +54,15 @@
 - [ ] **Confidence Scoring**: Refine the `respect_score` to also include a "Signal Quality" metric (e.g., standard deviation of signal during plateau).
 - [ ] **Adaptive Trimming**: Adjust the plateau trim duration based on the signal's second derivative (detecting when it actually stabilizes) rather than fixed seconds.
 - [ ] **HRV/rMSSD Integration**: Add support for physiological metrics (RMSSD) from Nolio's `get/user/meta/` endpoint to enhance training load and readiness analysis. confirmed available in API.### 2026-01-25: Interval Engine Fixes & Robustness\n- Fix: calculator.py missing laps pass to matcher.\n- Improvement: Dynamic intensity thresholds in IntervalMatcher (CP-based or session-mean fallback).\n- Feature: Persistence of activity_intervals in DB.
-\n- [Logic] Power Average (Wmoy): Switch to excluding zeros by default to match Nolio/Karoly logic (Implemented 2026-02-02). Consider making this configurable per sport/athlete in Phase 2.
+- [Logic] Power Average (Wmoy): Switch to excluding zeros by default to match Nolio/Karoly logic (Implemented 2026-02-02). Consider making this configurable per sport/athlete in Phase 2.
+
+### Vigilance Auto-Analysis (2026-03-08: WebApp UI Refactoring)
+- **Key Points of Success**: 
+  - Phase 1: Mapped the "KS ENDURANCE TRAINING" Stitch design tokens to the Next.js globals (Marine Blue, Orange, Slate backgrounds). Global clean-up of legacy Tailwind classes (`zinc-*`, `brand-blue`, `brand-orange`).
+  - Phase 2: Built and deployed **Premium Core Components** (`PremiumCard`, `MetricCard`, `PremiumSelect`, `PremiumButton`) to eradicate ugly native HTML selectors and perfectly replicate the polished mockups.
+  - Page-by-page refactoring validated for Profils Physio, Activity Detail, and Dashboard without breaking Supabase or Recharts logic.
+- **Risks**:
+  - The custom `PremiumSelect` leverages `appearance-none` on a native `<select>` to maintain mobile accessibility. Cross-browser testing on legacy iOS Safari might show slight padding discrepancies.
+- **Watchlist (Technical subjects)**:
+  - Check if any Recharts components explicitly pass `#2563EB` hex colors through React props instead of Tailwind classes.
+  - Review generic forms/buttons that might need rounded corners adjustments (`rounded-md` vs `rounded-full` vs `rounded-2xl`).

@@ -162,12 +162,12 @@ export function ActivitiesPage() {
                 displayActivities.map((act) => {
                   const cfg = getSportConfig(act.sport);
                   const detailHref = `/activities/${act.id}`;
-                  const rowLinkClassName = "block -mx-4 -my-3.5 px-4 py-3.5 transition-colors";
+                  const rowLinkClassName = "block -mx-4 -my-3.5 px-4 py-3.5 transition-all duration-150";
 
                   return (
                     <tr
                       key={act.id}
-                      className="cursor-pointer border-b border-slate-100/70 dark:border-slate-800/40 last:border-0 transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/30"
+                      className="cursor-pointer border-b border-slate-100/70 dark:border-slate-800/40 last:border-0 transition-all duration-150 hover:bg-slate-50/70 dark:hover:bg-slate-800/30"
                     >
                       <td className="px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">
                         <Link to={detailHref} className={rowLinkClassName}>
@@ -177,7 +177,7 @@ export function ActivitiesPage() {
                       <td className="px-4 py-3.5 text-sm text-slate-600 dark:text-slate-300">
                         <Link to={detailHref} className={rowLinkClassName}>
                           <div className="flex items-start gap-2">
-                            <div className="w-6 h-6 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                            <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
                               {act.athlete.charAt(0)}
                             </div>
                             <div className="min-w-0">

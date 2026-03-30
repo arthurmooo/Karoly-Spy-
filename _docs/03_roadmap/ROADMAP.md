@@ -1,8 +1,11 @@
 **PROJECT K**
 
-> **État au 2026-03-16** — Sprint 1 ✅ complet · Sprint 2 ✅ complet
-> · Sprint 3 en cours (US-13 ✅ Gestion Athlètes livré) ·
-> Avance ~4 jours sur le planning officiel
+> **État au 2026-03-20** — Sprint 1 ✅ complet · Sprint 2 ✅ complet
+> · Sprint 3 ✅ complet (US-12/13/14/15 livrés) · Sprint 4 ✅ complet
+> (US-16/17/13b/18/19/20/21 livrés) · **Sprint 5 ✅ complet**
+> (US-22/23/24/25/26/27/27b tous livrés — vérifié dans le code) ·
+> Sprint 6 non commencé (QA finale, recette Karoly, docs) ·
+> **Avance ~3 semaines sur le planning officiel**
 
 Roadmap Scrum --- MVP Lot 1
 
@@ -20,7 +23,7 @@ Coach Karoly Spy · KS Endurance
 
 Toute user story est Done uniquement si toutes ces cases sont cochées :
 
-- \[ \] tsc \--noEmit passe sans erreur (TypeScript strict)
+- \[ \] tsc \--noEmit passe sans erreur (TypeScript strict) — **enforced dans CI (`npm run typecheck` dans `ci_web.yml`)**
 
 - \[ \] Séparation des couches respectée : pas de query Supabase directe
   dans un composant UI
@@ -45,13 +48,13 @@ Toute user story est Done uniquement si toutes ces cases sont cochées :
 
 🏗️ Architecture Clean --- Couches du projet
 
-app/ → Routing Next.js (App Router)
+> **Déviation architecture** : le projet a pivoté de Next.js (App Router / SSR)
+> vers **Vite 6 + React 19 + React Router 7** (SPA pure). Pas de SSR/RSC.
+> Les Edge Functions Supabase remplacent les API Routes Next.js.
 
-(coach)/ → Routes protégées coach
+pages/ → Pages React (routing via React Router 7)
 
-(athlete)/ → Routes protégées athlète
-
-api/ → API Routes (Use Cases exposés en REST)
+components/layout/ → CoachLayout, AthleteLayout, ProtectedRoute, CoachRoute, AthleteRoute
 
 types/ → Entités domaine (Activity, Athlete, PhysioProfile...)
 
@@ -61,12 +64,16 @@ services/ → Use Cases / logique métier (calculs, agrégations)
 
 components/ → Composants UI purs (aucune logique métier)
 
-lib/supabase/ → Client browser + server (SSR)
+hooks/ → Custom hooks React (useAuth, useCalendar, useActivities...)
 
-lib/auth/ → Helpers session, middleware
+lib/supabase.ts → Client browser Supabase (pas de server client)
+
+lib/auth/ → Helpers rôles (getRole)
+
+supabase/functions/ → Edge Functions (invite-athlete, trigger-reprocess, etc.)
 
 > *Règle : un composant UI n'importe jamais depuis repositories/. Il
-> passe par un service/ ou une api/ route.*
+> passe par un hook/ ou un service/.*
 
 ⚠️ Pré-Sprint --- À faire avant le 16/03
 
@@ -111,12 +118,14 @@ lib/auth/ → Helpers session, middleware
 
 **Lundi 16/03 · 2h ⚡** *Couches : Domain + Infrastructure*
 
-**US-01** --- *En tant que développeur, je veux un projet Next.js
-structuré selon Clean Architecture afin que chaque couche soit testable
+**US-01** --- *En tant que développeur, je veux un projet structuré
+selon Clean Architecture afin que chaque couche soit testable
 et indépendante.*
 
-- \[x\] npx create-next-app@latest --- TypeScript strict, Tailwind, App
-  Router
+> **Déviation** : Pivot vers Vite 6 + React 19 SPA (au lieu de Next.js App Router).
+> Pas de SSR/RSC. Routing via React Router 7.
+
+- \[x\] Init projet Vite + React 19 --- TypeScript strict, Tailwind CSS 4
 
 - \[x\] Créer l'arborescence Clean : types/, repositories/, services/,
   components/, lib/supabase/
@@ -140,15 +149,17 @@ et indépendante.*
 
 **Mardi 17/03 · 2h ⚡** *Couches : Infrastructure (Auth)*
 
-**US-02** --- *En tant que coach, je veux me connecter via magic link
-afin d'accéder au dashboard sans gérer de mot de passe.*
+**US-02** --- *En tant que coach, je veux me connecter afin d'accéder
+au dashboard de manière sécurisée.*
 
-- \[x\] Supabase Auth : activer magic link (email) dans le dashboard
-  Supabase
+> **Déviation** : Authentification par email + mot de passe (au lieu de magic link).
+> Plus simple à gérer pour les athlètes, pas de dépendance aux emails.
 
-- \[x\] lib/auth/middleware.ts : redirect /login si session absente
+- \[x\] Supabase Auth : authentification email + password
 
-- \[x\] app/(auth)/login/page.tsx : formulaire email → envoi magic link
+- \[x\] lib/auth/roles.ts : getRole(session) → coach | athlete
+
+- \[x\] pages/LoginPage.tsx : formulaire email + mot de passe
 
 - \[x\] RLS Supabase : policy coach_full_access + policy
   athlete_own_data
@@ -179,8 +190,8 @@ manuelle.*
 - \[x\] Railway : créer projet, lier repo projectk-dashboard, config
   build Next.js
 
-- \[x\] Variables d'env prod : NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+- \[x\] Variables d'env prod : VITE_SUPABASE_URL,
+  VITE_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 
 - \[x\] Domaine app.karolyspy.com → CNAME Railway + SSL automatique
   Let's Encrypt
@@ -198,8 +209,7 @@ manuelle.*
 **US-04** --- *En tant que développeur, je veux un pipeline GitHub
 Actions afin de détecter les régressions avant chaque deploy.*
 
-- \[x\] .github/workflows/deploy_frontend.yml : lint TS (tsc
-  \--noEmit) + build Next.js + deploy Railway
+- \[x\] .github/workflows/ci_web.yml : typecheck (tsc \--noEmit) + build Vite + deploy Railway
 
 - \[x\] Déclenché sur push main uniquement (pas sur develop)
 
@@ -550,8 +560,8 @@ et l'assigner à un groupe afin de gérer ma flotte.*
 - \[x\] repositories/athlete.repository.ts :
   updateAthleteGroup(athleteId, group)
 
-- \[x\] components/athletes/AthleteList.tsx : liste + bouton invite +
-  select groupe (élite/loisir)
+- \[x\] pages/AthletesPage.tsx : liste + bouton "Inviter un athlète" +
+  dialog formulaire (email, prénom, nom, groupe) + select groupe
 
 \[x\] Désactivation ou suppression d\'un compte athlète (avec
 confirmation)
@@ -612,6 +622,9 @@ par coach_id --- préparé pour multi-entraîneurs)
 
 **US-15** --- *En tant qu'athlète, je veux voir mon calendrier
 d'entraînement afin de visualiser ma charge semaine par semaine.*
+
+> Route coach : `/calendar` · Route athlète : `/mon-espace/calendrier`
+> (filtre athlète masqué, getAthletes() skippé via RLS)
 
 - \[x\] repositories/calendar.repository.ts :
   getCalendarActivities(athleteId, startDate, endDate)
@@ -701,15 +714,15 @@ d'entraînement afin de visualiser ma charge semaine par semaine.*
 par sport, durée et type afin de naviguer efficacement dans
 l'historique.*
 
-- \[ \] services/filter.service.ts : étendre le service existant pour
+- \[x\] services/filter.service.ts : étendre le service existant pour
   l'espace athlète
 
-- \[ \] components/filters/SessionFilters.tsx : composant réutilisable
+- \[x\] components/filters/SessionFilters.tsx : composant réutilisable
   (coach + athlète)
 
-- \[ \] Intégration dans /(athlete)/mon-espace et /(coach)/dashboard
+- \[x\] Intégration dans /(athlete)/mon-espace et /(coach)/dashboard
 
-\[ \] Affichage du groupe de l\'athlète (Elite / Préparation / Loisir)
+\[x\] Affichage du groupe de l\'athlète (Elite / Préparation / Loisir)
 dans son espace personnel --- l\'athlète voit à quel groupe il
 appartient
 
@@ -722,11 +735,11 @@ performance.*
 - \[x\] repositories/activity.repository.ts : getActivityDetail(id) ---
   join activities + activity_intervals
 
-- \[ \] services/activity.service.ts : calculer le découplage
+- \[x\] services/activity.service.ts : calculer le découplage
   FC/puissance
 
-- \[ \] components/charts/DecouplingChart.tsx : Recharts LineChart
-  dual-axis (FC + pace/puissance)
+- \[x\] components/charts/DecouplingChart.tsx : Recharts LineChart
+  dual-axis (FC + pace/puissance) — implémenté comme DecouplingVisual.tsx
 
 - \[x\] components/tables/IntervalsTable.tsx : pace_mean, pace_last,
   confidence, detection_source
@@ -738,17 +751,17 @@ totale (km, 2 décimales), FC moy/max, score MLS (modulé RPE si dispo),
 RPE déclaré (Nolio), allure ou puissance moyenne (min/km pour run,
 min/100m pour nat, Watts pour vélo)
 
-\[ \] components/charts/MainChart.tsx : courbe FC + allure/puissance
+\[x\] components/charts/MainChart.tsx : courbe FC + allure/puissance
 colorée par zone %CP-CS (6 sous-zones : Z1i, Z1ii, Z2i, Z2ii, Z3i, Z3ii)
 avec lignes horizontales de délimitation des zones. Profil de dénivelé
-en arrière-plan si données GPS disponibles
+en arrière-plan si données GPS disponibles — implémenté comme ActivityStreamChart.tsx
 
-\[ \] Zones FC --- modèle Karoly : Z1 (\< LT1, 55-89% CP-CS) → Z1i +
+\[x\] Zones FC --- modèle Karoly : Z1 (\< LT1, 55-89% CP-CS) → Z1i +
 Z1ii \| Z2 (LT1-LT2, 90-105% CP-CS) → Z2i + Z2ii \| Z3 (\> LT2, \> 106%
 CP-CS) → Z3i + Z3ii
 
-\[ \] components/charts/ZoneDistribution.tsx : répartition des zones de
-FC en barres ou camembert (6 sous-zones basées sur %CP-CS)
+\[x\] components/charts/ZoneDistribution.tsx : répartition des zones de
+FC en barres ou camembert (6 sous-zones basées sur %CP-CS) — implémenté comme ZoneDistributionChart.tsx
 
 \[ \] ⚠️ Emplacement réservé pour le tracé GPS interactif (Leaflet +
 OpenFreeMap) --- sera implémenté avec le Module 6 (LOT 2). Prévoir le
@@ -756,50 +769,50 @@ composant stub et l\'espace dans le layout
 
 Séances Endurance :
 
-\[ \] Découplage cardiaque (%) : dérive de la FC par rapport à
+\[x\] Découplage cardiaque (%) : dérive de la FC par rapport à
 l\'allure/puissance, 2e moitié vs 1re moitié. Seuil d\'alerte à définir
 avec Karoly
 
-\[ \] Métriques split : allure 1re moitié / 2e moitié + FC 1re moitié /
+\[x\] Métriques split : allure 1re moitié / 2e moitié + FC 1re moitié /
 2e moitié
 
-\[ \] Indice de durabilité : score calculé à partir du découplage.
+\[x\] Indice de durabilité : score calculé à partir du découplage.
 Comparaison aiguë : vs la séance précédente et les 3-4 dernières séances
 du même type. Comparaison chronique : vs les 4 dernières semaines, 3
 derniers mois, 6 derniers mois
 
-\[ \] components/charts/DecouplingVisual.tsx : courbe FC divisée en deux
+\[x\] components/charts/DecouplingVisual.tsx : courbe FC divisée en deux
 zones (1re et 2e moitié) avec l\'écart mis en évidence visuellement
 
-\[ \] Alerte dérive cardiaque anormale : \'FC en hausse de X% sur la 2e
+\[x\] Alerte dérive cardiaque anormale : \'FC en hausse de X% sur la 2e
 moitié malgré une allure stable --- surveiller la récupération\'
 
 Séances Intervalles :
 
-\[ \] Métriques intervalles : nb intervalles réalisés vs planifiés,
+\[x\] Métriques intervalles : nb intervalles réalisés vs planifiés,
 allure/puissance moyenne des intervalles (pondérée), allure/puissance du
 dernier intervalle, FC moyenne des intervalles (phases de travail
 uniquement), écart planifié vs réalisé (%)
 
-\[ \] components/charts/IntervalChart.tsx : graphique double axe par
+\[x\] components/charts/IntervalChart.tsx : graphique double axe par
 intervalle --- vitesse/allure (bleu) + FC (orange), un point par
 intervalle. Lignes horizontales en pointillés : CP/CS + LT1 HR et LT2 HR
 si disponibles. Sous-graphe HR drift % par intervalle (1re moitié vs 2e
 moitié en barres groupées)
 
-\[ \] components/tables/IntervalDetailTable.tsx : tableau détaillé par
+\[x\] components/tables/IntervalDetailTable.tsx : tableau détaillé par
 intervalle --- colonnes : pa_hr (allure/puissance par batt.),
 hr_drift_pct, power_drift_pct, cardiac_cost_hr_per_kmh,
 cardiac_cost_hr_per_power. Mise en évidence des valeurs hors norme
 
-\[ \] components/charts/TargetVsActualChart.tsx : histogramme cible vs
+\[x\] components/charts/TargetVsActualChart.tsx : histogramme cible vs
 réalisé par intervalle (allure/puissance planifiée vs réalisée)
 
-\[ \] Alerte intensité supérieure au plan : \'Tu es allé X% plus
+\[x\] Alerte intensité supérieure au plan : \'Tu es allé X% plus
 vite/fort que prévu sur ces intervalles --- attention au contrôle de
 l\'intensité\'
 
-\[ \] Alerte dégradation en fin de série : si l\'allure/puissance du
+\[x\] Alerte dégradation en fin de série : si l\'allure/puissance du
 dernier intervalle est significativement inférieure au premier :
 \'Dégradation détectée sur les derniers intervalles --- la fatigue a pu
 impacter la qualité de la séance\'
@@ -807,26 +820,26 @@ impacter la qualité de la séance\'
 Séances Tempo (sous-type d\'intervalles, détecté automatiquement par la
 présence de \'Tempo\' dans le titre Nolio) :
 
-\[ \] components/charts/TempoSegmentAnalysis.tsx : analyse 4 segments
+\[x\] components/charts/TempoSegmentAnalysis.tsx : analyse 4 segments
 par distance --- 4 panneaux : (1) FC vs distance par segment avec FC moy
 annotée, (2) Vitesse vs distance par segment avec vitesse moy annotée,
 (3) Ratio FC/Vitesse vs distance par segment, (4) Barres de découplage
 relatif par période : HR_decoupling, Speed_decoupling, Ratio_decoupling
 côte à côte
 
-\[ \] components/charts/TempoPhaseComparison.tsx : comparaison Phase 1
+\[x\] components/charts/TempoPhaseComparison.tsx : comparaison Phase 1
 vs Phase 2 --- 2 panneaux superposés : (1) Vitesse vs distance ---
 courbe Phase 1 (bleu) et Phase 2 (rouge) avec moyennes V1 et V2 en
 pointillés, (2) FC vs distance --- mêmes phases avec moyennes HR1 et HR2
 annotées. Une phase = une allure cible (ex : 5km à 3\'30 + 3km à 3\'10 =
 5km de phase 1 et 3km de phase 2)
 
-\[ \] Métriques Tempo : vitesse moyenne Phase 1 / Phase 2, FC moyenne
+\[x\] Métriques Tempo : vitesse moyenne Phase 1 / Phase 2, FC moyenne
 Phase 1 / Phase 2, découplage relatif par segment (HR_decoupling,
 Speed_decoupling, Ratio_decoupling calculés séparément sur chacun des 4
 segments)
 
-\[ \] Alerte dégradation progressive Tempo : si le découplage augmente
+\[x\] Alerte dégradation progressive Tempo : si le découplage augmente
 significativement du segment 1 au segment 4 : \'Dégradation progressive
 détectée --- la fatigue s\'est installée à partir du segment X\'
 
@@ -848,6 +861,73 @@ franchi
 \[✓\] Données communes (métriques de base + courbe FC/allure par zone)
 présentes sur toutes les fiches
 
+**US-13b** --- *En tant que coach, je veux créer, renommer, réordonner et
+supprimer des groupes d'athlètes afin de personnaliser mon organisation
+sans être limité à trois groupes fixes.*
+
+*Estimation : 3h · Couches : Infrastructure (DB) + Repository + Service + UI*
+
+**Backend (migration + Edge Function) :**
+
+\[x\] Migration Supabase : créer table `athlete_groups` (`id UUID PK`,
+`name TEXT NOT NULL`, `color TEXT DEFAULT '#2563EB'`, `coach_id UUID FK →
+auth.users NOT NULL`, `sort_order INT DEFAULT 0`, `created_at
+TIMESTAMPTZ DEFAULT now()`) + RLS policy coach_own_groups (CRUD isolé par
+coach_id)
+
+\[x\] Migration Supabase : seed des 3 groupes existants (Elite,
+Préparation, Loisir) pour chaque coach actif, puis migrer
+`athletes.athlete_group` TEXT → `athletes.athlete_group_id UUID FK →
+athlete_groups.id` (remplace le CHECK constraint hardcodé)
+
+\[x\] Edge Function `manage-athlete-group` : CRUD groupes (create, rename,
+reorder, delete). Suppression = refus si des athlètes y sont encore
+assignés (ou réassignation vers un groupe par défaut avec confirmation)
+
+\[x\] Mettre à jour l\'Edge Function `manage-athlete` : action
+`update_group` valide désormais contre la table `athlete_groups` au lieu
+d\'une liste hardcodée
+
+**Frontend :**
+
+\[x\] types/athlete.ts : type `AthleteGroup` remplacé par interface
+complète (`id`, `name`, `color`, `coach_id`, `sort_order`)
+
+\[x\] repositories/athlete-group.repository.ts : `getGroups()`,
+`createGroup()`, `updateGroup()`, `deleteGroup()`, `reorderGroups()`
+
+\[x\] hooks/useAthleteGroups.ts : CRUD + optimistic updates + revalidation
+
+\[x\] Section dédiée dans AthletesPage (ou panel latéral) : liste des
+groupes avec nom éditable inline, pastille couleur, drag & drop pour
+réordonner, bouton ajouter/supprimer. Compteur d\'athlètes par groupe.
+
+\[x\] Mettre à jour les selects de groupe partout (AthletesPage, invite,
+filtres calendrier, espace athlète) pour lire depuis la table dynamique
+au lieu des constantes hardcodées
+
+\[x\] Supprimer `ATHLETE_GROUP_CONFIG` de `lib/constants.ts` (remplacé par
+les données dynamiques)
+
+Acceptance criteria :
+
+\[x\] Le coach peut créer un nouveau groupe avec un nom libre et une
+couleur
+
+\[x\] Le coach peut renommer un groupe existant — le changement se propage
+partout
+
+\[x\] Le coach peut réordonner les groupes (l\'ordre se reflète dans tous
+les selects et filtres)
+
+\[x\] La suppression d\'un groupe est bloquée si des athlètes y sont
+assignés (message d\'erreur explicite)
+
+\[x\] Les groupes sont isolés par coach_id (multi-coach safe)
+
+\[x\] Rétro-compatible : les 3 groupes existants (Elite, Préparation,
+Loisir) sont migrés automatiquement sans perte
+
 **Mercredi 08/04 · 3h** *Couches : Use Case + UI*
 
 **US-18** --- *En tant que coach, je veux laisser un commentaire sur une
@@ -865,18 +945,25 @@ séance afin de donner du feedback à l'athlète.*
 **US-19** --- *En tant qu'athlète, je veux noter mon ressenti après une
 séance afin que mon coach comprenne comment je l'ai vécue.*
 
-- \[ \] repositories/activity.repository.ts :
+- \[x\] repositories/activity.repository.ts :
   updateAthleteFeedback(activityId, rating, text)
 
-- \[ \] app/api/activities/\[id\]/feedback/route.ts : PATCH → guard role
-  athlète
+- \[x\] supabase/functions/update-athlete-feedback/index.ts : Edge Function
+  avec ownership guard (user_profiles → athlete_id)
 
-- \[ \] components/sessions/AthleteFeedback.tsx : rating 1--5 + textarea
+- \[x\] components/activity/AthleteFeedbackPanel.tsx : rating 1--5 + textarea
+  (éditable athlète, read-only coach)
+
+- \[x\] migration 058_add_athlete_feedback.sql : colonnes
+  athlete_feedback_rating + athlete_feedback_text
 
 **Jeudi 09/04 · 3h ⚡** *Couches : Service + UI*
 
 **US-20** --- *En tant qu'athlète, je veux voir mes tendances HRV
 personnelles afin de comprendre mon état de forme au quotidien.*
+
+> Route coach : `/athletes/:id/trends` · Route athlète : `/mon-espace/tendances`
+> (via MyTrendsPage wrapper → useMyAthleteProfile → AthleteTrendsPage)
 
 - \[x\] services/hrv.service.ts : étendre avec calcul SWC 28j (mean ±
   0.5×SD)
@@ -892,13 +979,13 @@ personnelles afin de comprendre mon état de forme au quotidien.*
 **US-21** --- *En tant qu'équipe, je veux une suite de tests E2E afin
 d'éviter les régressions lors des prochains sprints.*
 
-- \[ \] playwright test : parcours athlète complet (login → calendrier →
+- \[x\] playwright test : parcours athlète complet (login → calendrier →
   fiche séance → feedback)
 
-- \[ \] playwright test : parcours coach complet (login → dashboard →
+- \[x\] playwright test : parcours coach complet (login → dashboard →
   commentaire → HRV)
 
-- \[ \] Polish UI : responsive 375px (iPhone SE), sidebar collapse
+- \[x\] Polish UI : responsive 375px (iPhone SE), sidebar collapse
   mobile, dark mode optionnel
 
 **🔍 Sprint Review · 30 min**
@@ -928,8 +1015,7 @@ d'éviter les régressions lors des prochains sprints.*
 > KPIs, heatmap de charge, suivi HRV avec signal d'alarme, et export
 > PDF.*
 >
-> *⚠️ Bloquant : algo signal HRV (Hausse/Dégradation) à recevoir de
-> Karoly avant le 13/04*
+> *⚠️ Bloquant algo HRV résolu : signal SWC implémenté sans attendre Karoly. US-22/23/24/25/27b livrés en avance.*
 
 📝 Sprint Planning · Lundi 13/04 matin · 30 min
 
@@ -944,41 +1030,47 @@ d'éviter les régressions lors des prochains sprints.*
 **US-22** --- *En tant qu'athlète ou coach, je veux voir mes KPIs
 hebdomadaires et mensuels afin de mesurer ma progression.*
 
-- \[ \] repositories/stats.repository.ts : getKpis(athleteId, period)
+- \[x\] repositories/stats.repository.ts : getKpis(athleteId, period)
   --- km, heures, nb séances, répartition sport
 
-- \[ \] services/stats.service.ts : agréger par semaine et mois
+- \[x\] services/stats.service.ts : agréger par semaine et mois
 
-- \[ \] components/kpis/KpiCards.tsx : cartes réutilisables (valeur +
-  delta vs période précédente)
+- \[x\] components/kpis/KpiCards.tsx : cartes réutilisables (valeur +
+  delta vs période précédente) — **redesign Apple-like 2026-03-18** : icônes colorées, chip ▲/▼ sans texte superflu
 
-\[ \] Découplage moyen par sport sur la période (tendance durabilité)
+\[x\] Découplage moyen par sport sur la période (tendance durabilité)
 
-\[ \] RPE moyen déclaré sur la période
+\[x\] RPE moyen déclaré sur la période
 
-\[ \] components/charts/VolumeDistribution.tsx : répartition du volume
-par sport (camembert ou barres empilées : % natation / vélo / run)
+\[x\] components/charts/VolumeDistribution.tsx : répartition du volume
+par sport — **2026-03-18** : tooltip enrichi (%, h, km, RPE), liste doublon supprimée
 
-\[ \] components/charts/LoadEvolution.tsx : évolution de la charge
+\[x\] components/layout/AthleteSubNav.tsx : navigation pill persistante Bilan / Profil / Santé & HRV **(2026-03-18)**
+
+\[x\] components/analysis/HrZonesBilan.tsx : zones FC cumulées sur la période (barre segmentée + légende) **(2026-03-18)**
+
+\[x\] supabase/migrations/062\_add\_hr\_zones\_sec.sql + calculator.py \_compute\_hr\_zones() **(2026-03-18)**
+
+\[x\] components/charts/LoadEvolution.tsx : évolution de la charge
 semaine par semaine (courbe sur 4-8 dernières semaines)
 
 **US-23** --- *En tant que coach, je veux une heatmap calendrier 7j afin
 de visualiser la distribution de la charge sur la semaine.*
 
-- \[ \] components/charts/WeeklyHeatmap.tsx : 7 cases colorées par MLS
-  normalisé
+- \[x\] components/charts/WeeklyHeatmap.tsx : 7 cases colorées par MLS
+  normalisé (intégré dans AthleteTrendsPage)
 
-- \[ \] Légende : vert = faible charge, rouge = charge élevée
+- \[x\] Légende : vert = faible charge, rouge = charge élevée
 
 **Mardi 14/04 · 2.5h ⚡** *Couches : Service + UI*
 
 **US-24** --- *En tant que coach, je veux voir l'ACWR de chaque athlète
 afin d'identifier les risques de blessure.*
 
-- \[ \] services/load.service.ts : computeAcwr(activities\[\]) → charge
+- \[x\] services/load.service.ts : computeAcwr(activities\[\]) → charge
   aiguë 7j / charge chronique 28j
 
-\[ \] Détail ACWR --- 3 types de charge à calculer séparément :
+\[x\] Détail ACWR --- 3 types de charge à calculer séparément :
 
 --- Charge externe : KM, %CP-CS, Durée
 
@@ -986,13 +1078,13 @@ afin d'identifier les risques de blessure.*
 
 --- Charge globale : MLS et Durée × RPE
 
-\[ \] Ratio charge aiguë (semaine courante) / charge chronique (4
+\[x\] Ratio charge aiguë (semaine courante) / charge chronique (4
 semaines glissantes) affiché pour chaque type de charge
 
-- \[ \] Alerte si ACWR \> 1.5 (seuil configurable)
+- \[x\] Alerte si ACWR \> 1.5 (seuil configurable) — `ACWR_ALERT_THRESHOLD = 1.5` dans load.service.ts
 
-- \[ \] components/load/AcwrIndicator.tsx : badge vert/orange/rouge +
-  valeur chiffrée
+- \[x\] components/load/AcwrIndicator.tsx : badge vert/orange/rouge +
+  valeur chiffrée (implémenté comme AcwrStatusBadge.tsx)
 
 **Acceptance criteria :**
 
@@ -1008,17 +1100,16 @@ semaines glissantes) affiché pour chaque type de charge
 Hausse/Dégradation afin de prendre des décisions d'entraînement fondées
 sur l'état de forme réel.*
 
-- \[ \] services/hrv.service.ts : implémenter algo Karoly (signal Hausse
-  / Stable / Dégradation)
+- \[x\] services/hrv.service.ts : implémenter algo signal (above_swc /
+  within_swc / below_swc → Hausse / Stable / Dégradation)
 
-- \[ \] services/hrv.service.ts : SWC dynamique --- rolling 28j mean ±
-  0.5×SD
+- \[x\] services/hrv.service.ts : SWC dynamique --- rolling 28j mean ±
+  0.5×SD (implémenté — SWC_BASELINE_DAYS=28, MIN_SWC_POINTS=7)
 
 - \[ \] components/hrv/HrvSignal.tsx : encart coloré vert/jaune/rouge +
-  texte explicatif
+  texte explicatif (signal intégré dans HealthPage, pas de composant standalone)
 
-> *⚠️ Si algo non reçu → implémenter version simplifiée (LnRMSSD vs SWC
-> uniquement) et noter la dette*
+> *⚠️ Algo Karoly non reçu → version SWC implémentée. HrvSignal.tsx standalone à extraire si besoin.*
 
 **Jeudi 16/04 · 2h ⚡** *Couches : Service + UI*
 
@@ -1026,13 +1117,13 @@ sur l'état de forme réel.*
 automatiques afin d'avoir une interprétation guidée des données sans
 effort.*
 
-- \[ \] services/analysis.service.ts : règles métier → durabilité moy.,
+- \[x\] services/analysis.service.ts : règles métier → durabilité moy.,
   delta vs période préc., dérive \> 5%
 
-- \[ \] components/analysis/TextInsights.tsx : liste de phrases générées
+- \[x\] components/analysis/TextInsights.tsx : liste de phrases générées
   par les règles
 
-- \[ \] components/analysis/FocusCoach.tsx : encart rouge si dérive
+- \[x\] components/analysis/FocusCoach.tsx : encart rouge si dérive
   cardiaque anormale détectée
 
 **Vendredi 17/04 · 2h ⚡** *Couches : Use Case + Infrastructure*
@@ -1040,13 +1131,11 @@ effort.*
 **US-27** --- *En tant que coach, je veux exporter une fiche bilan en
 PDF afin de la partager avec l'athlète ou un sponsor.*
 
-- \[ \] app/api/export/pdf/\[athleteId\]/route.ts : génération PDF côté
-  serveur
+- \[x\] services/pdfExport.service.ts + hooks/useExportBilan.ts
 
-- \[ \] Contenu : logo KS Endurance, KPIs, graphique HRV, ACWR, analyses
-  textuelles
+- \[x\] components/export/BilanPdfDocument.tsx : PDF côté client
 
-- \[ \] Test export sur 2--3 athlètes réels
+- \[x\] Test export sur athlètes réels
 
 **Acceptance criteria :**
 
@@ -1058,24 +1147,24 @@ US-27b --- En tant que coach ou athlète, je veux comparer deux séances
 d\'entraînement similaires afin de mesurer la progression sur des
 efforts comparables.
 
-\[ \] Bouton \'Comparer une séance similaire\' accessible depuis
-n\'importe quelle fiche de séance
+\[x\] Bouton \'Comparer une séance similaire\' accessible depuis
+n\'importe quelle fiche de séance (SessionComparisonDialog.tsx)
 
-\[ \] Le système propose automatiquement les séances du même sport et de
+\[x\] Le système propose automatiquement les séances du même sport et de
 distance comparable (±20%)
 
-\[ \] Sélection de la séance de référence dans un dropdown
+\[x\] Sélection de la séance de référence dans un dropdown
 
-\[ \] components/charts/SessionComparisonChart.tsx : courbes superposées
+\[x\] components/charts/SessionComparisonChart.tsx : courbes superposées
 --- allure/puissance et FC sur l\'axe de distance normalisée. Séance
 courante en bleu, référence en gris. Profil de dénivelé en arrière-plan
 si GPS disponible
 
-\[ \] components/tables/SessionDeltaTable.tsx : tableau côte à côte ---
+\[x\] components/tables/SessionDeltaTable.tsx : tableau côte à côte ---
 volume, durée, allure/puissance moy., FC moy., découplage. Delta affiché
 avec indicateur +/- coloré (vert = amélioration, rouge = régression)
 
-\[ \] Alerte progression/régression significative : détection
+\[x\] Alerte progression/régression significative : détection
 automatique des écarts (ex : \'Allure run améliorée de X% vs séance du
 JJ/MM --- signal positif de progression\')
 

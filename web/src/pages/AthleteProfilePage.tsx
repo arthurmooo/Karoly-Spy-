@@ -249,7 +249,7 @@ export function AthleteProfilePage() {
               </Card>
             )}
 
-            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors bg-transparent shadow-none">
+            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-all duration-150 bg-transparent">
               <CardContent className="p-6 space-y-4">
                 <h4 className="text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
                   <Icon name="add_circle" className="text-slate-400" />
@@ -286,10 +286,10 @@ export function AthleteProfilePage() {
             </Card>
 
             {archivedBike.length > 0 && (
-              <div className="rounded-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <button
                   onClick={() => setBikeArchiveOpen((v) => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all duration-150"
                 >
                   <div className="flex items-center gap-3">
                     <Icon name="history" className="text-slate-400" />
@@ -371,7 +371,7 @@ export function AthleteProfilePage() {
               </Card>
             )}
 
-            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-colors bg-transparent shadow-none">
+            <Card className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-primary dark:hover:border-primary transition-all duration-150 bg-transparent">
               <CardContent className="p-6 space-y-4">
                 <h4 className="text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
                   <Icon name="add_circle" className="text-slate-400" />
@@ -400,10 +400,10 @@ export function AthleteProfilePage() {
             </Card>
 
             {archivedRun.length > 0 && (
-              <div className="rounded-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <button
                   onClick={() => setRunArchiveOpen((v) => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all duration-150"
                 >
                   <div className="flex items-center gap-3">
                     <Icon name="history" className="text-slate-400" />

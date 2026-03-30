@@ -8,7 +8,7 @@ def test_calculate_segment_metrics_run():
     # Setup dummy Run data
     df = pd.DataFrame({
         'heart_rate': [140, 150, 160],
-        'speed': [10.0, 11.0, 12.0], # km/h
+        'speed': [10.0 / 3.6, 11.0 / 3.6, 12.0 / 3.6], # m/s
         'distance': [0, 500, 1000] # meters
     })
     
@@ -18,8 +18,8 @@ def test_calculate_segment_metrics_run():
     assert isinstance(data, SegmentData)
     assert data.hr == 150.0
     assert data.speed == 11.0
-    # Ratio = HR / Speed = 150 / 11 = 13.636...
-    assert pytest.approx(data.ratio, 0.1) == 13.6
+    # Ratio = Speed / HR = 11 / 150 = 0.0733...
+    assert data.ratio == pytest.approx(0.073, abs=0.001)
 
 def test_calculate_segment_metrics_bike():
     # Setup dummy Bike data
@@ -34,8 +34,8 @@ def test_calculate_segment_metrics_bike():
     
     assert data.power == 210.0
     assert data.torque == 11.0
-    # Ratio = HR / Power = 145 / 210 = 0.69...
-    assert pytest.approx(data.ratio, 0.01) == 0.69
+    # Ratio = Power / HR = 210 / 145 = 1.448...
+    assert pytest.approx(data.ratio, 0.01) == 1.45
 
 def test_auto_split_logic():
     # 100 rows
@@ -72,7 +72,7 @@ def test_home_trainer_power_filter_stabilizes_ratio():
 
     # Low-power noise should be filtered out in HT mode.
     assert data.power == pytest.approx(250.0, 0.5)
-    assert data.ratio == pytest.approx(0.6, 0.05)
+    assert data.ratio == pytest.approx(1.67, 0.05)
 
 
 def test_auto_split_skips_first_10min_for_q_phases():
@@ -88,3 +88,15 @@ def test_auto_split_skips_first_10min_for_q_phases():
     assert len(splits4) == 4
     # Q1 should be based on post-warmup data.
     assert splits4["phase_1"].hr == pytest.approx(160.0, 0.1)
+
+
+def test_calculate_drift_uses_karoly_formula():
+    calc = SegmentCalculator()
+    splits = {
+        "phase_1": SegmentData(ratio=1.50),
+        "phase_2": SegmentData(ratio=1.35),
+    }
+
+    drift = calc.calculate_drift(splits)
+
+    assert drift == pytest.approx(10.0, 0.01)

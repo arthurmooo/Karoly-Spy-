@@ -77,7 +77,7 @@ export function AthleteFeedbackPanel({
             </div>
           )}
           {text && (
-            <div className="rounded-sm border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
               <p className="text-sm text-slate-600 dark:text-slate-400">{text}</p>
             </div>
           )}
@@ -110,7 +110,7 @@ export function AthleteFeedbackPanel({
                 }
                 aria-pressed={selectedRating === value}
                 data-testid={`athlete-feedback-rating-${value}`}
-                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-colors ${
+                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-all duration-150 ${
                   selectedRating === value
                     ? "border-primary bg-primary text-white"
                     : "border-slate-200 bg-slate-50 text-slate-600 hover:border-primary/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
@@ -130,7 +130,7 @@ export function AthleteFeedbackPanel({
             Commentaire (optionnel)
           </p>
           <textarea
-            className="h-24 w-full resize-none rounded-sm border border-slate-200 bg-white p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            className="h-24 w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
             placeholder="Decrivez votre ressenti..."
             value={feedbackText}
             onChange={(e) => setFeedbackText(e.target.value)}

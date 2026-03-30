@@ -10,11 +10,12 @@ export function useExportBilan() {
       report: AthleteKpiReport,
       athleteName: string,
       acwrMetrics?: AcwrMetricSnapshot[],
+      coachComment?: string,
     ) => {
       setIsExporting(true);
       try {
         const { exportBilanPdf } = await import("@/services/pdfExport.service");
-        await exportBilanPdf({ report, athleteName, acwrMetrics });
+        await exportBilanPdf({ report, athleteName, acwrMetrics, coachComment });
       } catch (err) {
         console.error("PDF export failed:", err);
       } finally {

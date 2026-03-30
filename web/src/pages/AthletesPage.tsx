@@ -165,7 +165,7 @@ export function AthletesPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6 flex items-start gap-4">
-            <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-3 rounded-sm">
+            <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-3 rounded-xl">
               <Icon name="groups" className="text-2xl" />
             </div>
             <div>
@@ -183,7 +183,7 @@ export function AthletesPage() {
         </Card>
         <Card>
           <CardContent className="p-6 flex items-start gap-4">
-            <div className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 p-3 rounded-sm">
+            <div className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 p-3 rounded-xl">
               <Icon name="check_circle" className="text-2xl" />
             </div>
             <div>
@@ -201,7 +201,7 @@ export function AthletesPage() {
         </Card>
         <Card>
           <CardContent className="p-6 flex items-start gap-4">
-            <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 p-3 rounded-sm">
+            <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 p-3 rounded-xl">
               <Icon name="person_off" className="text-2xl" />
             </div>
             <div>
@@ -222,6 +222,7 @@ export function AthletesPage() {
       {/* Group Manager */}
       <GroupManager
         groups={groups}
+        athletes={athletes}
         athleteCountByGroup={athleteCountByGroup}
         onCreateGroup={createGroup}
         onUpdateGroup={updateGroupDef}
@@ -242,7 +243,7 @@ export function AthletesPage() {
           <select
             value={groupFilter}
             onChange={(e) => setGroupFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             <option value="all">Tous les groupes</option>
             {groups.map((g) => (
@@ -254,7 +255,7 @@ export function AthletesPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           >
             <option value="all">Tous les statuts</option>
             <option value="active">Actifs</option>
@@ -317,7 +318,7 @@ export function AthletesPage() {
                   return (
                     <tr
                       key={athlete.id}
-                      className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer"
+                      className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-150 cursor-pointer"
                       onClick={() => navigate(`/athletes/${athlete.id}/profile`)}
                     >
                       {/* Name */}
@@ -344,7 +345,7 @@ export function AthletesPage() {
                             const val = e.target.value;
                             updateGroup(athlete.id, val || null);
                           }}
-                          className="bg-transparent border border-slate-200 dark:border-slate-700 rounded-sm px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          className="bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">Non assigné</option>
                           {groups.map((g) => (
@@ -422,7 +423,7 @@ export function AthletesPage() {
           </h3>
           <button
             onClick={() => setDeactivateTarget(null)}
-            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150"
           >
             <Icon name="close" className="text-xl" />
           </button>
@@ -461,7 +462,7 @@ export function AthletesPage() {
           </h3>
           <button
             onClick={() => setShowInviteDialog(false)}
-            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150"
           >
             <Icon name="close" className="text-xl" />
           </button>
@@ -510,7 +511,7 @@ export function AthletesPage() {
               <select
                 value={inviteForm.athlete_group_id}
                 onChange={(e) => setInviteForm((f) => ({ ...f, athlete_group_id: e.target.value }))}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option value="">Aucun groupe</option>
                 {groups.map((g) => (

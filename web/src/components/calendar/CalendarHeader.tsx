@@ -32,18 +32,18 @@ export function CalendarHeader({ view, currentDate, onViewChange, onNavigate }: 
       </div>
 
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm p-1">
+        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1">
           <button
             onClick={() => onNavigate("prev")}
-            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all duration-150"
           >
             <Icon name="chevron_left" />
           </button>
           
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-sm p-0.5">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
             <button
               onClick={() => onViewChange("week")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${
                 view === "week" ? "bg-primary text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
@@ -51,7 +51,7 @@ export function CalendarHeader({ view, currentDate, onViewChange, onNavigate }: 
             </button>
             <button
               onClick={() => onViewChange("month")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${
                 view === "month" ? "bg-primary text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
@@ -59,7 +59,7 @@ export function CalendarHeader({ view, currentDate, onViewChange, onNavigate }: 
             </button>
             <button
               onClick={() => onViewChange("year")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${
                 view === "year" ? "bg-primary text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
@@ -69,7 +69,7 @@ export function CalendarHeader({ view, currentDate, onViewChange, onNavigate }: 
 
           <button
             onClick={() => onNavigate("next")}
-            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all duration-150"
           >
             <Icon name="chevron_right" />
           </button>

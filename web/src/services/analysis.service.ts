@@ -1,4 +1,5 @@
 import type { NormalizedStatsActivity } from "@/services/stats.service";
+import { isDecouplingAlert } from "@/lib/karolyMetrics";
 
 export interface TextInsight {
   id: string;
@@ -44,13 +45,6 @@ function mean(values: number[]): number | null {
 function deltaPct(current: number | null, previous: number | null): number | null {
   if (current == null || previous == null || previous === 0) return null;
   return ((current - previous) / previous) * 100;
-}
-
-function getDriftPercent(row: NormalizedStatsActivity): number | null {
-  const sm = row.segmentedMetrics;
-  if (!sm || typeof sm !== "object") return null;
-  const drift = (sm as Record<string, unknown>).drift_percent;
-  return typeof drift === "number" ? drift : null;
 }
 
 export function generateInsights(
@@ -127,12 +121,12 @@ export function generateInsights(
   // --- Durabilité ---
   const durValues = currentRows.map((r) => r.durabilityIndex).filter((v): v is number => v != null);
   const avgDur = mean(durValues);
-  if (avgDur != null && avgDur < 0.8) {
+  if (avgDur != null && avgDur > 1.1) {
     insights.push({
-      id: "durability-low",
+      id: "durability-penalty",
       icon: "battery_alert",
       severity: "warning",
-      title: `Indice de durabilité faible (${ONE_DECIMAL.format(avgDur)}) — fatigue en fin de séance`,
+      title: `Penalite de durabilite elevee (${ONE_DECIMAL.format(avgDur)}) — cout cardiaque accru en fin de seance`,
     });
   }
 
@@ -174,11 +168,10 @@ export function generateInsights(
     });
   }
 
-  // --- Dérive cardiaque (FocusAlert) ---
+  // --- Decouplage Karoly (FocusAlert) ---
   const driftSessions: FocusAlertSession[] = [];
   for (const row of currentRows) {
-    const drift = getDriftPercent(row);
-    if (drift != null && drift > 5) {
+    if (isDecouplingAlert(row.decouplingIndex)) {
       driftSessions.push({
         id: row.activityId,
         name: row.activityName || `${row.sportLabel} — ${row.sessionDate.toLocaleDateString("fr-FR")}`,
@@ -193,11 +186,11 @@ export function generateInsights(
       id: "drift-alert",
       icon: "warning",
       severity: "alert",
-      title: `Dérive cardiaque > 5% détectée sur ${driftSessions.length} séance${driftSessions.length > 1 ? "s" : ""}`,
+      title: `Decouplage > 5% detecte sur ${driftSessions.length} seance${driftSessions.length > 1 ? "s" : ""}`,
     });
     focusAlert = {
-      title: "Alerte dérive cardiaque",
-      message: `${driftSessions.length} séance${driftSessions.length > 1 ? "s présentent" : " présente"} une dérive cardiaque supérieure à 5%. Cela peut indiquer une fatigue, une déshydratation ou un surentraînement.`,
+      title: "Alerte decouplage",
+      message: `${driftSessions.length} seance${driftSessions.length > 1 ? "s presentent" : " presente"} un decouplage superieur a 5%. Cela peut indiquer un cout interne accru, de la fatigue ou une hydratation insuffisante.`,
       sessions: driftSessions,
     };
   }

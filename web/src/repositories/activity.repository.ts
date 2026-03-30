@@ -132,7 +132,7 @@ const DETAIL_COLUMNS_CORE = `id, athlete_id, session_date, sport_type, work_type
        manual_interval_block_1_count, manual_interval_block_1_duration_sec,
        manual_interval_block_2_count, manual_interval_block_2_duration_sec,
        interval_detection_source, decoupling_index,
-       durability_index, source_json, segmented_metrics, coach_comment, athlete_comment`;
+       durability_index, temp_avg, elevation_gain, source_json, segmented_metrics, coach_comment, athlete_comment`;
 const DETAIL_COLUMNS_WORK_TYPE_OVERRIDE = "manual_work_type, detected_work_type, analysis_dirty";
 const DETAIL_COLUMNS_FORM_ANALYSIS = "form_analysis";
 const DETAIL_COLUMNS_FEEDBACK = "athlete_feedback_rating, athlete_feedback_text";

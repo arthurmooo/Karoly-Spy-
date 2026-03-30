@@ -45,10 +45,10 @@ export function LoginPage() {
         </p>
       </div>
 
-      <div className="z-10 w-full max-w-[440px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm shadow-none p-6 sm:p-8">
+      <div className="z-10 w-full max-w-[440px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 sm:p-8">
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-sm p-3 flex items-center gap-2">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-xl p-3 flex items-center gap-2">
               <Icon name="error" className="text-red-500" />
               <span className="text-sm text-red-700 dark:text-red-400 font-medium">
                 {error}

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Icon } from "@/components/ui/Icon";
@@ -6,7 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { AcwrStatusBadge } from "@/components/load/AcwrStatusBadge";
-import { MLS_LEVEL, SPORT_ICONS } from "@/lib/constants";
+import { MLS_LEVEL, getSportConfig } from "@/lib/constants";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { WORK_TYPE_OPTIONS } from "@/services/filter.service";
 import { useLoad } from "@/hooks/useLoad";
@@ -19,6 +20,7 @@ import { formatDuration } from "@/services/format.service";
 import { normalizeSportKey } from "@/services/activity.service";
 import { buildAcwrDashboardSummary } from "@/services/load.service";
 import type { AcwrMetricKind, AcwrSnapshotRow, AcwrStatus } from "@/types/acwr";
+import { StorageGauge } from "@/components/system/StorageGauge";
 
 type RecentActivity = Awaited<ReturnType<typeof getRecentActivities>>[number];
 type RecentActivityTab = "TOUT" | "NAT" | "VELO" | "CAP";
@@ -65,8 +67,52 @@ export function DashboardPage() {
   const { healthData, isLoading: readinessLoading } = useReadiness();
 
   const [heatmapGroup, setHeatmapGroup] = useState<string | null>(null);
+  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const groupDropdownRef = useRef<HTMLDivElement>(null);
   const [acwrSortBy, setAcwrSortBy] = useState<AcwrSortBy>("athlete");
   const [acwrSortDir, setAcwrSortDir] = useState<SortDirection>("asc");
+
+  // Close group dropdown on outside click
+  useEffect(() => {
+    if (!groupDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (groupDropdownRef.current && !groupDropdownRef.current.contains(e.target as Node)) {
+        setGroupDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [groupDropdownOpen]);
+
+  // Heatmap tooltip — portal-based, survives overflow:hidden
+  const [heatmapTip, setHeatmapTip] = useState<{
+    key: string;
+    rect: DOMRect;
+    mls: number;
+    heures: number | null;
+    nb_seances: number | null;
+    mls_intv: number | null;
+    weekLabel: string;
+    levelBg: string;
+    levelLabel: string;
+  } | null>(null);
+  const tipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openTip = useCallback(
+    (key: string, el: HTMLElement, data: Omit<NonNullable<typeof heatmapTip>, "key" | "rect">) => {
+      if (tipTimeout.current) clearTimeout(tipTimeout.current);
+      setHeatmapTip({ key, rect: el.getBoundingClientRect(), ...data });
+    },
+    [],
+  );
+
+  const keepTip = useCallback((_key: string) => {
+    if (tipTimeout.current) clearTimeout(tipTimeout.current);
+  }, []);
+
+  const scheduleTipClose = useCallback(() => {
+    tipTimeout.current = setTimeout(() => setHeatmapTip(null), 100);
+  }, []);
 
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [recentTab, setRecentTab] = useState<RecentActivityTab>("TOUT");
@@ -233,13 +279,16 @@ export function DashboardPage() {
                     : `${acwrSummary.warningCount} vigilance · ${acwrSummary.insufficientCount} incomplets`}
                 </p>
               </div>
-              <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-1.5 rounded-sm">
+              <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-1.5 rounded-lg">
                 <Icon name="warning_amber" className="text-sm" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Storage Gauge (auto-hide < 50%) ── */}
+      <StorageGauge />
 
       {/* ── 2×2 Grid — Monitoring + Feed ── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -250,31 +299,51 @@ export function DashboardPage() {
               <Icon name="monitoring" className="text-slate-400" />
               Charge MLS
             </h2>
-            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg overflow-x-auto">
+            <div ref={groupDropdownRef} className="relative">
               <button
-                onClick={() => setHeatmapGroup(null)}
-                className={`px-2 py-1 text-[11px] font-semibold rounded-md transition-all duration-150 whitespace-nowrap ${
-                  heatmapGroup === null
-                    ? "bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
+                onClick={() => setGroupDropdownOpen((v) => !v)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
-                Tous
+                {heatmapGroup ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groups.find((g) => g.id === heatmapGroup)?.color }} />
+                    {groups.find((g) => g.id === heatmapGroup)?.name}
+                  </>
+                ) : (
+                  "Tous les groupes"
+                )}
+                <Icon name="expand_more" className={`text-sm text-slate-400 transition-transform duration-200 ${groupDropdownOpen ? "rotate-180" : ""}`} />
               </button>
-              {groups.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => setHeatmapGroup(g.id)}
-                  className={`flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-md transition-all duration-150 whitespace-nowrap ${
-                    heatmapGroup === g.id
-                      ? "bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white"
-                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
-                  {g.name}
-                </button>
-              ))}
+              {groupDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 z-20 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <button
+                    onClick={() => { setHeatmapGroup(null); setGroupDropdownOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                      heatmapGroup === null
+                        ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {heatmapGroup === null && <Icon name="check" className="text-sm" />}
+                    <span className={heatmapGroup === null ? "" : "ml-5"}>Tous les groupes</span>
+                  </button>
+                  {groups.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => { setHeatmapGroup(g.id); setGroupDropdownOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                        heatmapGroup === g.id
+                          ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
+                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {heatmapGroup === g.id && <Icon name="check" className="text-sm" />}
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                      <span className={heatmapGroup === g.id ? "" : ""}>{g.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <CardContent className="p-0 flex-1 min-h-0 overflow-x-auto overflow-y-auto">
@@ -299,61 +368,56 @@ export function DashboardPage() {
                         key={athlete}
                         type="button"
                         onClick={() => athleteMatch && navigate(`/athletes/${athleteMatch.id}/trends`)}
-                        className="flex items-center gap-4 w-full text-left rounded-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                        className="flex items-center gap-4 w-full text-left rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
                       >
                         <div className="w-28 flex items-center gap-2 shrink-0">
-                          <div className="w-5 h-5 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[9px] font-medium border border-slate-200 dark:border-slate-700">
+                          <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[9px] font-medium border border-slate-200 dark:border-slate-700">
                             {athlete.charAt(0)}
                           </div>
                           <span className="text-xs font-medium truncate">{athlete}</span>
                         </div>
                         <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${heatmapData.weeks.length}, minmax(0, 1fr))` }}>
-                          {heatmapData.weeks.map((week, weekIdx) => {
+                          {heatmapData.weeks.map((week) => {
                             const cell = heatmapData.getCell(athlete, week);
                             const mls = cell?.mls ?? 0;
                             const level = MLS_LEVEL(mls, thresholds);
                             const weekLabel = new Date(week + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-                            const isLast = weekIdx === heatmapData.weeks.length - 1;
+                            const cellKey = `${athlete}-${week}`;
                             return (
                               <div
                                 key={week}
-                                className="relative group h-5 rounded-none cursor-pointer hover:opacity-80 transition-opacity"
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (athleteMatch) {
+                                    navigate(`/athletes/${athleteMatch.id}/bilan?period=week&date=${week}`);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if ((e.key === "Enter" || e.key === " ") && athleteMatch) {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    navigate(`/athletes/${athleteMatch.id}/bilan?period=week&date=${week}`);
+                                  }
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (cell && mls > 0) {
+                                    openTip(cellKey, e.currentTarget, {
+                                      mls,
+                                      heures: cell.heures ?? null,
+                                      nb_seances: cell.nb_seances ?? null,
+                                      mls_intv: cell.mls_moyen_intervalles ?? null,
+                                      weekLabel,
+                                      levelBg: level.bg,
+                                      levelLabel: level.label,
+                                    });
+                                  }
+                                }}
+                                onMouseLeave={scheduleTipClose}
+                                className="relative h-5 rounded-[3px] cursor-pointer hover:scale-y-[1.3] hover:z-10 hover:shadow-sm transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
                                 style={{ backgroundColor: level.bg }}
-                              >
-                                {cell && mls > 0 && (
-                                  <div className={`absolute bottom-full mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 ${isLast ? "right-0" : "left-1/2 -translate-x-1/2"}`}>
-                                    <div className="bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-xl px-3 py-2 min-w-[140px] whitespace-nowrap">
-                                      <p className="font-semibold text-slate-200 mb-1">Sem. du {weekLabel}</p>
-                                      <p className="flex justify-between gap-3">
-                                        <span className="text-slate-400">Charge MLS</span>
-                                        <span className="font-medium">{Math.round(mls).toLocaleString("fr-FR")}</span>
-                                      </p>
-                                      {cell.heures != null && (
-                                        <p className="flex justify-between gap-3">
-                                          <span className="text-slate-400">Heures</span>
-                                          <span className="font-medium">{cell.heures.toFixed(1)} h</span>
-                                        </p>
-                                      )}
-                                      {cell.nb_seances != null && (
-                                        <p className="flex justify-between gap-3">
-                                          <span className="text-slate-400">Séances</span>
-                                          <span className="font-medium">{cell.nb_seances}</span>
-                                        </p>
-                                      )}
-                                      {cell.mls_moyen_intervalles != null && (
-                                        <p className="flex justify-between gap-3">
-                                          <span className="text-slate-400">MLS intv.</span>
-                                          <span className="font-medium">{Math.round(cell.mls_moyen_intervalles).toLocaleString("fr-FR")}</span>
-                                        </p>
-                                      )}
-                                      <p className="mt-1 pt-1 border-t border-slate-700 dark:border-slate-600 text-center" style={{ color: level.bg }}>
-                                        {level.label}
-                                      </p>
-                                    </div>
-                                    <div className={`w-2 h-2 bg-slate-900 dark:bg-slate-700 rotate-45 -mt-1 ${isLast ? "ml-auto mr-4" : "mx-auto"}`} />
-                                  </div>
-                                )}
-                              </div>
+                              />
                             );
                           })}
                         </div>
@@ -440,12 +504,12 @@ export function DashboardPage() {
                   acwrRows.map((row) => (
                     <tr
                       key={row.athlete_id}
-                      className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/athletes/${row.athlete_id}/trends#acwr`)}
+                      className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-150 cursor-pointer"
+                      onClick={() => navigate(`/athletes/${row.athlete_id}/bilan`)}
                     >
                       <td className="px-2 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-sm bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                          <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
                             {row.athlete.charAt(0)}
                           </div>
                           <span className="text-xs font-semibold text-slate-900 dark:text-white truncate max-w-[100px]">
@@ -493,8 +557,8 @@ export function DashboardPage() {
                     onClick={() => setRecentTab(tab)}
                     className={
                       isActive
-                        ? "px-2 py-0.5 text-[11px] font-medium rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-                        : "px-2 py-0.5 text-[11px] font-medium rounded-sm text-slate-500 hover:text-slate-800 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60 transition-colors"
+                        ? "px-2 py-0.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                        : "px-2 py-0.5 text-[11px] font-medium rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60 transition-all duration-150"
                     }
                   >
                     {tab}
@@ -504,7 +568,7 @@ export function DashboardPage() {
               <select
                 value={recentWorkType}
                 onChange={(e) => setRecentWorkType(e.target.value)}
-                className="ml-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="ml-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option value="">Tous types</option>
                 {WORK_TYPE_OPTIONS.map((wt) => (
@@ -534,8 +598,7 @@ export function DashboardPage() {
                   const athleteName = athleteData
                     ? `${athleteData.first_name} ${athleteData.last_name?.charAt(0) ?? ""}.`
                     : "—";
-                  const sportKey = normalizeSportKey(act.sport_type ?? "");
-                  const sportIcon = SPORT_ICONS[sportKey] ?? "exercise";
+                  const sportCfg = getSportConfig(act.sport_type ?? "");
                   const averageHr = act.avg_hr != null ? `${Math.round(act.avg_hr)} bpm` : null;
                   const duration = (act as { moving_time_sec?: number | null }).moving_time_sec
                     ? formatDuration((act as { moving_time_sec: number }).moving_time_sec)
@@ -546,11 +609,11 @@ export function DashboardPage() {
                       key={act.id}
                       type="button"
                       onClick={() => navigate(`/activities/${act.id}`)}
-                      className="w-full flex items-center justify-between p-2 rounded-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700 text-left"
+                      className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 text-left"
                       data-testid={`recent-activity-${act.id}`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Icon name={sportIcon} className="text-slate-400" />
+                        <Icon name={sportCfg.icon} className={sportCfg.textColor} />
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{athleteName}</p>
                           <p className="text-xs text-slate-500 font-mono">{duration}</p>
@@ -597,12 +660,12 @@ export function DashboardPage() {
                       key={alert.athlete_id}
                       type="button"
                       onClick={() => navigate(`/athletes/${alert.athlete_id}/trends`)}
-                      className="w-full text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset rounded-sm transition-colors hover:bg-primary/5 dark:hover:bg-primary/10"
+                      className="w-full text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset rounded-lg transition-all duration-150 hover:bg-primary/5 dark:hover:bg-primary/10"
                       aria-label={`Ouvrir le rapport détaillé de ${alert.athlete}`}
                       data-testid={`health-alert-${alert.athlete_id}`}
                     >
                       <div className="p-2.5 flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0">
+                        <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0">
                           {alert.athlete.charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -625,6 +688,60 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Portal tooltip for MLS heatmap — rendered outside overflow:hidden */}
+      {heatmapTip &&
+        createPortal(
+          <div
+            className="fixed z-[9999] pointer-events-auto"
+            style={{
+              left: Math.min(
+                Math.max(8, heatmapTip.rect.left + heatmapTip.rect.width / 2 - 68),
+                window.innerWidth - 144,
+              ),
+              top: heatmapTip.rect.top - 6,
+              transform: "translateY(-100%)",
+            }}
+            onMouseEnter={() => keepTip(heatmapTip.key)}
+            onMouseLeave={scheduleTipClose}
+          >
+            <div className="rounded-md bg-slate-900 dark:bg-slate-750 shadow-sm shadow-black/25 ring-1 ring-white/[.08] px-2 py-1.5 text-[10px] leading-[14px] text-slate-200 tabular-nums whitespace-nowrap select-none">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: heatmapTip.levelBg }} />
+                <span className="text-slate-400 uppercase tracking-wider font-medium">
+                  {heatmapTip.weekLabel}
+                </span>
+                <span className="text-slate-500 mx-0.5">·</span>
+                <span className="text-slate-400">{heatmapTip.levelLabel}</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-[13px] font-semibold text-white leading-none">
+                  {Math.round(heatmapTip.mls).toLocaleString("fr-FR")}
+                </span>
+                <span className="text-slate-500 text-[9px]">MLS</span>
+                {heatmapTip.heures != null && (
+                  <>
+                    <span className="text-slate-600 mx-px">·</span>
+                    <span className="text-slate-400">{heatmapTip.heures.toFixed(1)}h</span>
+                  </>
+                )}
+                {heatmapTip.nb_seances != null && (
+                  <>
+                    <span className="text-slate-600 mx-px">·</span>
+                    <span className="text-slate-400">{heatmapTip.nb_seances}s</span>
+                  </>
+                )}
+                {heatmapTip.mls_intv != null && (
+                  <>
+                    <span className="text-slate-600 mx-px">·</span>
+                    <span className="text-slate-400">moy {Math.round(heatmapTip.mls_intv).toLocaleString("fr-FR")}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

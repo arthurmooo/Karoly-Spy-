@@ -21,7 +21,7 @@ from projectk_core.integrations.nolio import NolioClient
 from projectk_core.integrations.storage import StorageManager
 from projectk_core.integrations.weather import WeatherClient
 from projectk_core.processing.parser import UniversalParser
-from projectk_core.processing.calculator import MetricsCalculator
+from projectk_core.processing.calculator import MetricsCalculator, sanitize_elevation
 from projectk_core.processing.plan_parser import NolioPlanParser
 from projectk_core.processing.readiness import ReadinessCalculator
 from projectk_core.logic.profile_manager import ProfileManager
@@ -611,9 +611,10 @@ class IngestionRobot:
             # Either 0, or already in meters (e.g. Strength or very small Nolio value)
             distance_m = distance_raw
             
-        elevation_gain = float(nolio_act.get("elevation_pos", nolio_act.get("elevation_gain", 0)))
+        elevation_raw = float(nolio_act.get("elevation_pos", nolio_act.get("elevation_gain", 0)))
+        elevation_gain = sanitize_elevation(elevation_raw, float(distance_m))
         rpe = nolio_act.get("rpe")
-        
+
         meta = ActivityMetadata(
             activity_type=internal_sport,
             activity_name=nolio_act.get("name"),
@@ -713,7 +714,8 @@ class IngestionRobot:
                         
                         # Update elevation if FIT has better data
                         if device_meta.get('total_ascent'):
-                            meta.elevation_gain = float(device_meta['total_ascent'])
+                            fit_elev = float(device_meta['total_ascent'])
+                            meta.elevation_gain = sanitize_elevation(fit_elev, meta.distance_m)
 
                         # UPDATE DISTANCE FROM FIT (Priority source)
                         if 'distance' in df.columns:

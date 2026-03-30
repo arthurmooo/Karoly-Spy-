@@ -15,7 +15,7 @@ export function CalendarGrid({ view, days, onDayClick }: CalendarGridProps) {
   const daysMap = useMemo(() => new Map(days.map(d => [format(d.date, "yyyy-MM-dd"), d])), [days]);
   if (view === "month") {
     return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm overflow-hidden shadow-sm">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
         <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day) => (
             <div key={day} className="py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500 border-r border-slate-200 dark:border-slate-800 last:border-r-0">
@@ -34,7 +34,7 @@ export function CalendarGrid({ view, days, onDayClick }: CalendarGridProps) {
 
   if (view === "week") {
     return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm overflow-hidden shadow-sm flex flex-col h-full">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex flex-col h-full">
         <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 shrink-0">
           {days.map((day, i) => (
             <div
@@ -63,7 +63,7 @@ export function CalendarGrid({ view, days, onDayClick }: CalendarGridProps) {
 
   if (view === "year") {
     return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-sm p-6 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {Array.from({ length: 12 }).map((_, monthIndex) => {
             const monthDate = new Date(days[0]?.date.getFullYear() || new Date().getFullYear(), monthIndex, 1);
@@ -101,7 +101,7 @@ export function CalendarGrid({ view, days, onDayClick }: CalendarGridProps) {
                       <div
                         key={i}
                         onClick={() => onDayClick && onDayClick(date)}
-                        className={`w-3 h-3 rounded-sm ${bgColor} ${dotOpacity} hover:opacity-80 cursor-pointer transition-colors`}
+                        className={`w-3 h-3 rounded-lg ${bgColor} ${dotOpacity} hover:opacity-80 cursor-pointer transition-all duration-150`}
                         title={`${format(date, "d MMMM", { locale: fr })} — ${events.length} séance(s)`}
                       />
                     );

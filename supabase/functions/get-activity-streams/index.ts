@@ -25,6 +25,7 @@ function jsonResponse(body: unknown, status = 200) {
 interface RawRecord {
   elapsed_time?: number;
   timer_time?: number;
+  distance?: number;
   heart_rate?: number;
   speed?: number;
   enhanced_speed?: number;
@@ -36,6 +37,8 @@ interface RawRecord {
 
 interface StreamPoint {
   t: number;
+  elapsed_t?: number;
+  dist_m?: number;
   hr?: number;
   spd?: number;
   pwr?: number;
@@ -47,6 +50,10 @@ function normalizeCadence(value: number | null | undefined, sportType?: string |
   if (value == null) return undefined;
   if (sportType?.toLowerCase() === "run") return value * 2;
   return value;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +119,8 @@ function downsampleStreams(
   // Build raw points — t is cumulative active seconds (not clock-based)
   const raw: {
     t: number;
+    elapsed_t: number;
+    dist_m: number;
     hr?: number;
     spd?: number;
     pwr?: number;
@@ -119,12 +128,32 @@ function downsampleStreams(
     alt?: number;
   }[] = [];
 
+  let firstRawDistance: number | null = null;
+  let reconstructedDistance = 0;
+  let previousTimerTime: number | null = null;
+
   for (let i = 0; i < activeRecords.length; i++) {
     const rec = activeRecords[i];
     const spd = rec.enhanced_speed ?? rec.speed;
     const alt = rec.enhanced_altitude ?? rec.altitude;
+    const elapsedT = Number.isFinite(rec.elapsed_time) ? Number(rec.elapsed_time) : i;
+    const timerTime = Number.isFinite(rec.timer_time) ? Number(rec.timer_time) : i;
+    let distM: number;
+
+    if (isFiniteNumber(rec.distance)) {
+      if (firstRawDistance == null) firstRawDistance = rec.distance;
+      distM = Math.max(0, rec.distance - firstRawDistance);
+    } else {
+      const deltaTimer = previousTimerTime == null ? 0 : Math.max(0, timerTime - previousTimerTime);
+      reconstructedDistance += (spd != null && spd > 0 ? spd : 0) * deltaTimer;
+      distM = reconstructedDistance;
+    }
+    previousTimerTime = timerTime;
+
     raw.push({
       t: i, // cumulative active seconds
+      elapsed_t: elapsedT,
+      dist_m: distM,
       hr: rec.heart_rate ?? undefined,
       spd: spd != null && spd > 0 ? spd : undefined,
       pwr: rec.power != null && rec.power > 0 ? rec.power : undefined,
@@ -136,15 +165,25 @@ function downsampleStreams(
   // Bucket by intervalSec
   const buckets = new Map<
     number,
-    { hrs: number[]; spds: number[]; pwrs: number[]; cads: number[]; alts: number[] }
+    {
+      elapsedTs: number[];
+      dists: number[];
+      hrs: number[];
+      spds: number[];
+      pwrs: number[];
+      cads: number[];
+      alts: number[];
+    }
   >();
 
   for (const pt of raw) {
     const bucket = Math.floor(pt.t / intervalSec) * intervalSec;
     if (!buckets.has(bucket)) {
-      buckets.set(bucket, { hrs: [], spds: [], pwrs: [], cads: [], alts: [] });
+      buckets.set(bucket, { elapsedTs: [], dists: [], hrs: [], spds: [], pwrs: [], cads: [], alts: [] });
     }
     const b = buckets.get(bucket)!;
+    b.elapsedTs.push(pt.elapsed_t);
+    b.dists.push(pt.dist_m);
     if (pt.hr != null) b.hrs.push(pt.hr);
     if (pt.spd != null) b.spds.push(pt.spd);
     if (pt.pwr != null) b.pwrs.push(pt.pwr);
@@ -159,6 +198,8 @@ function downsampleStreams(
     const b = buckets.get(t)!;
     const pt: StreamPoint = { t };
 
+    if (b.elapsedTs.length) pt.elapsed_t = round1(b.elapsedTs[0]);
+    if (b.dists.length) pt.dist_m = round1(b.dists[b.dists.length - 1]);
     if (b.hrs.length) pt.hr = Math.round(mean(b.hrs));
     if (b.spds.length) pt.spd = round2(b.spds[b.spds.length - 1]); // last
     if (b.pwrs.length) pt.pwr = Math.round(mean(b.pwrs));
@@ -322,11 +363,22 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "activity_id required" }, 400);
     }
 
-    // 3. Query activity
+    // 3. Load caller profile for authorization
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from("user_profiles")
+      .select("role, athlete_id")
+      .eq("id", user.id)
+      .single();
+
+    if (profileErr || !profile?.role) {
+      return jsonResponse({ error: "User profile not found" }, 403);
+    }
+
+    // 4. Query activity
     const { data: activity, error: actErr } = await supabaseAdmin
       .from("activities")
       .select(
-        "id, fit_file_path, activity_streams, garmin_laps, sport_type, moving_time_sec"
+        "id, athlete_id, fit_file_path, activity_streams, garmin_laps, sport_type, moving_time_sec, athletes!inner(coach_id)"
       )
       .eq("id", activity_id)
       .single();
@@ -335,8 +387,30 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Activity not found" }, 404);
     }
 
-    // 4. If already cached, return directly
-    if (activity.activity_streams?.length) {
+    const athlete = activity.athletes as unknown as { coach_id: string | null };
+    if (profile.role === "athlete") {
+      if (!profile.athlete_id || activity.athlete_id !== profile.athlete_id) {
+        return jsonResponse({ error: "Unauthorized: this activity does not belong to you" }, 403);
+      }
+    } else if (profile.role === "coach") {
+      if (athlete.coach_id && athlete.coach_id !== user.id) {
+        return jsonResponse({ error: "Unauthorized: not your athlete" }, 403);
+      }
+    } else {
+      return jsonResponse({ error: "Unauthorized role" }, 403);
+    }
+
+    // 5. If already cached, return directly
+    const hasElapsedMapping = activity.activity_streams?.some(
+      (point: StreamPoint) =>
+        typeof point.elapsed_t === "number" && Number.isFinite(point.elapsed_t)
+    );
+    const hasDistanceMapping = activity.activity_streams?.some(
+      (point: StreamPoint) =>
+        typeof point.dist_m === "number" && Number.isFinite(point.dist_m)
+    );
+
+    if (activity.activity_streams?.length && hasElapsedMapping && hasDistanceMapping) {
       return jsonResponse({
         streams: activity.activity_streams,
         laps: activity.garmin_laps ?? null,
@@ -344,7 +418,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 5. Check fit_file_path exists
+    // 6. Check fit_file_path exists
     const fitPath = activity.fit_file_path;
     if (!fitPath) {
       return jsonResponse({
@@ -354,7 +428,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 6. Download FIT from Storage bucket "raw_fits"
+    // 7. Download FIT from Storage bucket "raw_fits"
     const { data: fileData, error: dlErr } = await supabaseAdmin.storage
       .from("raw_fits")
       .download(fitPath);
@@ -367,7 +441,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 7. Parse FIT (with 8s timeout to avoid hanging on corrupt files)
+    // 8. Parse FIT (with 8s timeout to avoid hanging on corrupt files)
     const arrayBuffer = await fileData.arrayBuffer();
     const fitParser = new FitParser({
       force: true,
@@ -400,10 +474,10 @@ Deno.serve(async (req) => {
       ),
     ]);
 
-    // 8. Downsample streams (1Hz → 5s)
+    // 9. Downsample streams (1Hz → 5s)
     const streams = downsampleStreams(parsed.records, 5, activity.sport_type);
 
-    // 9. Serialize laps
+    // 10. Serialize laps
     // Try to get activity start time from first record or first session
     let startTime: Date | null = null;
     if (parsed.records.length > 0) {
@@ -414,7 +488,7 @@ Deno.serve(async (req) => {
     }
     const laps = serializeLaps(parsed.laps, startTime, activity.sport_type);
 
-    // 10. Cache in DB (fire-and-forget, don't block response)
+    // 11. Cache in DB (fire-and-forget, don't block response)
     // Also opportunistically backfill moving_time_sec if NULL
     const updatePayload: Record<string, unknown> = {};
     if (streams.length) updatePayload.activity_streams = streams;

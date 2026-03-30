@@ -1,41 +1,12 @@
-export const SPORT_ICONS: Record<string, string> = {
-  CAP: "directions_run",
-  COURSE: "directions_run",
-  RUN: "directions_run",
-  VELO: "directions_bike",
-  BIKE: "directions_bike",
-  VÉLO: "directions_bike",
-  NAT: "pool",
-  NATATION: "pool",
-  SWIM: "pool",
-  SKI: "downhill_skiing",
-  TRI: "directions_run",
-  MUSC: "fitness_center",
-  STRENGTH: "fitness_center",
-};
-
-export const SPORT_COLORS: Record<string, string> = {
-  CAP: "text-accent-orange",
-  COURSE: "text-accent-orange",
-  RUN: "text-accent-orange",
-  VELO: "text-accent-blue",
-  BIKE: "text-accent-blue",
-  VÉLO: "text-accent-blue",
-  NAT: "text-teal-500",
-  NATATION: "text-teal-500",
-  SWIM: "text-teal-500",
-  SKI: "text-violet-500",
-};
-
 export const SPORT_CONFIG = [
-  { key: "Course à pied", dbKey: "Run", aliases: ["Run", "CAP", "COURSE", "RUN", "Course", "Course à pied"], label: "Course à pied", icon: "directions_run", textColor: "text-accent-orange", bgColor: "bg-accent-orange", bgLight: "bg-accent-orange/10", border: "border-accent-orange" },
-  { key: "Vélo", dbKey: "Bike", aliases: ["Bike", "VELO", "BIKE", "VÉLO"], label: "Vélo", icon: "directions_bike", textColor: "text-accent-blue", bgColor: "bg-accent-blue", bgLight: "bg-accent-blue/10", border: "border-accent-blue" },
-  { key: "Natation", dbKey: "Swim", aliases: ["Swim", "NAT", "NATATION", "SWIM"], label: "Natation", icon: "pool", textColor: "text-teal-600", bgColor: "bg-teal-500", bgLight: "bg-teal-500/10", border: "border-teal-500" },
-  { key: "Ski", dbKey: "Ski", aliases: ["SKI"], label: "Ski", icon: "downhill_skiing", textColor: "text-violet-600", bgColor: "bg-violet-500", bgLight: "bg-violet-500/10", border: "border-violet-500" },
-  { key: "Musculation", dbKey: "Strength", aliases: ["Strength", "MUSC", "STRENGTH"], label: "Musculation", icon: "fitness_center", textColor: "text-slate-600", bgColor: "bg-slate-400", bgLight: "bg-slate-200", border: "border-slate-400" },
+  { key: "Course à pied", dbKey: "Run", aliases: ["Run", "CAP", "COURSE", "RUN", "Course", "Course à pied"], label: "Course à pied", icon: "directions_run", textColor: "text-accent-orange", bgColor: "bg-accent-orange", bgLight: "bg-accent-orange/10", border: "border-accent-orange", hexColor: "#ea580c" },
+  { key: "Vélo", dbKey: "Bike", aliases: ["Bike", "VELO", "BIKE", "VÉLO"], label: "Vélo", icon: "directions_bike", textColor: "text-accent-blue", bgColor: "bg-accent-blue", bgLight: "bg-accent-blue/10", border: "border-accent-blue", hexColor: "#2563eb" },
+  { key: "Natation", dbKey: "Swim", aliases: ["Swim", "NAT", "NATATION", "SWIM"], label: "Natation", icon: "pool", textColor: "text-teal-600", bgColor: "bg-teal-500", bgLight: "bg-teal-500/10", border: "border-teal-500", hexColor: "#14b8a6" },
+  { key: "Ski", dbKey: "Ski", aliases: ["SKI", "Ski de fond", "Ski De Fond"], label: "Ski de fond", icon: "nordic_walking", textColor: "text-violet-600", bgColor: "bg-violet-500", bgLight: "bg-violet-500/10", border: "border-violet-500", hexColor: "#8b5cf6" },
+  { key: "Musculation", dbKey: "Strength", aliases: ["Strength", "MUSC", "STRENGTH"], label: "Musculation", icon: "fitness_center", textColor: "text-slate-600", bgColor: "bg-slate-400", bgLight: "bg-slate-200", border: "border-slate-400", hexColor: "#94a3b8" },
 ] as const;
 
-export const DEFAULT_SPORT_CONFIG = { icon: "exercise", textColor: "text-slate-600", bgColor: "bg-slate-400", bgLight: "bg-slate-200", border: "border-slate-400" } as const;
+export const DEFAULT_SPORT_CONFIG = { icon: "exercise", textColor: "text-slate-600", bgColor: "bg-slate-400", bgLight: "bg-slate-200", border: "border-slate-400", hexColor: "#94a3b8" } as const;
 
 export function getSportConfig(sport: string) {
   return SPORT_CONFIG.find(s => s.key === sport || s.dbKey === sport || (s.aliases as readonly string[]).includes(sport)) ?? { ...DEFAULT_SPORT_CONFIG, key: sport, label: sport };

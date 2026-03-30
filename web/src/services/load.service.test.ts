@@ -13,6 +13,9 @@ function makeRow(
     session_date: `${date}T12:00:00Z`,
     load_index: loadIndex,
     duration_sec: durationSec,
+    activity_name: null,
+    sport_type: null,
+    work_type: null,
   };
 }
 

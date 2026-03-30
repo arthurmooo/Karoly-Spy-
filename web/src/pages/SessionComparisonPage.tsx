@@ -5,7 +5,7 @@ import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SessionComparisonChart } from "@/components/charts/SessionComparisonChart";
 import { SessionDeltaTable } from "@/components/tables/SessionDeltaTable";
-import { DECISION_META, DECISION_BORDER_COLOR, deltaColor } from "@/components/activity/FormAnalysisPanel";
+import { DECISION_META, deltaColor, InfoTip, REASON_LABELS } from "@/components/activity/FormAnalysisPanel";
 import { useActivityDetail } from "@/hooks/useActivityDetail";
 import { useSessionComparison } from "@/hooks/useSessionComparison";
 import { buildFormAnalysisSummary } from "@/services/sessionComparison.service";
@@ -47,11 +47,29 @@ function formatCandidateLabel(activity: {
   return `${dateLabel} · ${distance} · ${duration} · ${title}`;
 }
 
+function translateReason(raw: string): string {
+  return REASON_LABELS[raw] ?? raw.replace(/_/g, " ");
+}
+
+const ICON_BG: Record<string, string> = {
+  emerald: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400",
+  amber:   "bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400",
+  red:     "bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400",
+  slate:   "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
+};
+
+const CALLOUT_STYLE: Record<string, string> = {
+  emerald: "border-emerald-400 bg-emerald-50/70 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-700 dark:text-emerald-300",
+  amber:   "border-amber-400 bg-amber-50/70 text-amber-800 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-300",
+  red:     "border-red-400 bg-red-50/70 text-red-800 dark:bg-red-950/30 dark:border-red-700 dark:text-red-300",
+  slate:   "border-slate-300 bg-slate-50/70 text-slate-600 dark:bg-slate-800/40 dark:border-slate-600 dark:text-slate-400",
+};
+
 function FormAnalysisSection({ activity }: { activity: Activity }) {
   const fa = activity.form_analysis;
   if (!fa) {
     return (
-      <div className="rounded-sm border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
         Pas d'analyse de forme disponible pour cette séance.
       </div>
     );
@@ -60,7 +78,7 @@ function FormAnalysisSection({ activity }: { activity: Activity }) {
   const comparableCount = fa.comparable_count ?? 0;
   if (comparableCount < 5) {
     return (
-      <div className="rounded-sm border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
         Historique insuffisant pour l'analyse de forme ({comparableCount}/5 séances comparables).
       </div>
     );
@@ -71,48 +89,93 @@ function FormAnalysisSection({ activity }: { activity: Activity }) {
 
   const decisionKey = summary.decision as keyof typeof DECISION_META;
   const meta = DECISION_META[decisionKey] ?? DECISION_META.unknown;
+  const reasons = fa.decision?.reasons?.filter((r) => r !== "historique_insuffisant") ?? [];
+
+  const compModeLabel =
+    summary.comparisonMode === "beta_regression"
+      ? "régression temp."
+      : summary.comparisonMode === "same_temp_bin"
+        ? "même plage temp."
+        : null;
 
   return (
     <Card>
       <CardContent className="space-y-4 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Analyse de forme</h3>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              {summary.comparableCount} séances comparables
-              {summary.comparisonMode ? ` · ${summary.comparisonMode === "beta_regression" ? "régression β" : "même bin temp"}` : ""}
-            </p>
+        {/* ── Header: icon + decision + metadata ── */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`flex items-center justify-center w-9 h-9 rounded-lg ${ICON_BG[meta.variant] ?? ICON_BG.slate}`}>
+              <Icon name={meta.icon} className="text-[20px]" />
+            </div>
+            <div>
+              <p className="text-base font-bold text-slate-900 dark:text-white leading-tight">{meta.label}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">{meta.description}</p>
+            </div>
           </div>
-          <Badge variant={meta.variant}>{meta.label}</Badge>
+          <div className="flex items-center gap-1.5 rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1">
+            <Icon name="compare" className="text-[14px] text-slate-400" />
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              {summary.comparableCount} séances{compModeLabel ? ` · ${compModeLabel}` : ""}
+            </span>
+          </div>
         </div>
 
-        {fa.decision?.reasons?.length ? (
-          <div className={`rounded-sm border-l-4 px-4 py-2.5 ${DECISION_BORDER_COLOR[meta.variant] ?? DECISION_BORDER_COLOR.slate}`}>
-            <ul className="space-y-0.5 text-sm text-slate-600 dark:text-slate-300">
-              {fa.decision.reasons.map((reason, i) => (
-                <li key={`${reason}-${i}`}>- {reason}</li>
+        {/* ── Reasons (translated) ── */}
+        {reasons.length > 0 && (
+          <div className={`rounded-lg border-l-[3px] px-4 py-2.5 ${CALLOUT_STYLE[meta.variant] ?? CALLOUT_STYLE.slate}`}>
+            <ul className="space-y-0.5">
+              {reasons.map((reason, i) => (
+                <li key={`${reason}-${i}`} className="flex items-start gap-2 text-[12px]">
+                  <span className="mt-0.5 shrink-0">›</span>
+                  <span>{translateReason(reason)}</span>
+                </li>
               ))}
             </ul>
           </div>
-        ) : null}
+        )}
 
-        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {summary.kpis.map((kpi) => (
-            <div key={kpi.label} className="rounded-sm border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{kpi.label}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{kpi.value}</p>
-              <p className={`text-[11px] ${deltaColor(parseFloat(kpi.delta) || null, kpi.invert)}`}>{kpi.delta}</p>
-            </div>
-          ))}
+        {/* ── KPI Cards with tooltips ── */}
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          {summary.kpis.map((kpi) => {
+            const parsedDelta = parseFloat(kpi.delta) || null;
+            const colorClass = deltaColor(parsedDelta, kpi.invert);
+            return (
+              <div
+                key={kpi.label}
+                className="relative flex flex-col gap-1 rounded-lg border border-slate-200 bg-white px-3.5 py-3 dark:border-slate-700/60 dark:bg-slate-900/50"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{kpi.label}</span>
+                  <InfoTip text={kpi.tooltip} />
+                </div>
+                <p className="text-lg font-semibold leading-tight text-slate-900 dark:text-white tabular-nums">{kpi.value}</p>
+                <p className={`text-[11px] font-medium leading-none tabular-nums ${colorClass || "text-slate-400"}`}>{kpi.delta}</p>
+              </div>
+            );
+          })}
         </div>
 
+        {/* ── Gabarit chips + temp info ── */}
         {(summary.templateKey || summary.tempInfo) && (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
             {summary.templateKey && (
-              <span>Gabarit: <span className="text-slate-500">{summary.templateKey}</span></span>
+              <>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Gabarit</span>
+                {summary.templateKey.split("|").filter(Boolean).map((part, i) => (
+                  <span
+                    key={i}
+                    className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400"
+                  >
+                    {part}
+                  </span>
+                ))}
+                <InfoTip text="Identifiant du type de séance utilisé pour filtrer les séances comparables." />
+              </>
             )}
             {summary.tempInfo && (
-              <span>{summary.tempInfo}</span>
+              <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                {summary.tempInfo}
+              </span>
             )}
           </div>
         )}
@@ -164,7 +227,7 @@ export function SessionComparisonPage() {
   if (!activity) {
     return (
       <div className="space-y-8">
-        <button onClick={() => navigate(backPath)} className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-primary">
+        <button onClick={() => navigate(backPath)} className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
           <Icon name="arrow_back" className="text-lg" />
           Retour à la fiche
         </button>
@@ -181,7 +244,7 @@ export function SessionComparisonPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(backPath)} className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-primary">
+          <button onClick={() => navigate(backPath)} className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
             <Icon name="arrow_back" className="text-lg" />
             Retour à la fiche
           </button>
@@ -224,14 +287,14 @@ export function SessionComparisonPage() {
               {candidates.length > 0 && <Badge variant="slate">{candidates.length} propositions</Badge>}
             </div>
             {isLoadingCandidates ? (
-              <div className="flex items-center gap-2 rounded-sm border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
                 Recherche des séances comparables...
               </div>
             ) : candidates.length > 0 ? (
               <select
                 id="comparison-reference"
-                className="w-full rounded-sm border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                 value={selectedId}
                 onChange={(event) => setSelectedId(event.target.value)}
               >
@@ -252,7 +315,7 @@ export function SessionComparisonPage() {
 
           {/* Loading reference */}
           {selectedId && isLoadingSelected && (
-            <div className="flex items-center gap-2 rounded-sm border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
               Chargement de la séance de référence...
             </div>
@@ -260,7 +323,7 @@ export function SessionComparisonPage() {
 
           {/* Alert */}
           {summary && summary.alert.kind !== "none" && (
-            <div className={`rounded-sm border px-4 py-3 ${getAlertStyles(summary.alert).wrapper}`}>
+            <div className={`rounded-xl border px-4 py-3 ${getAlertStyles(summary.alert).wrapper}`}>
               <div className="flex items-start gap-3">
                 <Icon name="insights" className={`mt-0.5 ${getAlertStyles(summary.alert).icon}`} />
                 <div>
@@ -315,7 +378,7 @@ export function SessionComparisonPage() {
                   <div>
                     <h3 className="text-base font-semibold text-slate-900 dark:text-white">Deltas de séance</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Volume, durée, métrique principale, FC moyenne et découplage.
+                      Volume, durée, métrique principale, FC moyenne, découplage, température et D+.
                     </p>
                   </div>
                   <SessionDeltaTable summary={summary} />

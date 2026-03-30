@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
+import { getDecouplingState } from "@/lib/karolyMetrics";
 import type { KpiCard } from "@/services/stats.service";
 
 interface KpiCardsProps {
@@ -23,16 +24,16 @@ function getCardMeta(key: KpiCard["key"], value: number | null): CardMeta {
     case "rpe":
       return { icon: "sentiment_neutral", iconBg: "bg-amber-500/10", iconText: "text-amber-500" };
     case "decoupling": {
-      const abs = value != null ? Math.abs(value) : null;
-      if (abs == null)
+      const state = getDecouplingState(value);
+      if (state === "none")
         return {
           icon: "monitor_heart",
           iconBg: "bg-slate-100 dark:bg-slate-800",
           iconText: "text-slate-400",
         };
-      if (abs < 5)
+      if (state === "good")
         return { icon: "monitor_heart", iconBg: "bg-emerald-500/10", iconText: "text-emerald-500" };
-      if (abs < 10)
+      if (state === "moderate")
         return { icon: "monitor_heart", iconBg: "bg-amber-500/10", iconText: "text-amber-500" };
       return { icon: "monitor_heart", iconBg: "bg-red-500/10", iconText: "text-red-500" };
     }
