@@ -57,7 +57,7 @@ describe("buildAthleteKpiReport", () => {
       "2026-03-18T12:00:00.000Z"
     );
 
-    expect(report.cards.find((card) => card.key === "hours")?.displayValue).toBe("1,5 h");
+    expect(report.cards.find((card) => card.key === "hours")?.displayValue).toBe("1h30");
   });
 
   it("groups minor sports into Autres and ignores missing distance", () => {

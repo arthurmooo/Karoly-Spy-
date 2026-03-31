@@ -112,7 +112,7 @@ const MAX_DISTRIBUTION_SPORTS = 3;
 
 function getCurrentPeriodWindow(period: KpiPeriod, now: Date): PeriodWindow {
   const start = period === "week" ? startOfWeek(now, { weekStartsOn: 1 }) : startOfMonth(now);
-  const today = new Date();
+  const today = now;
   const periodEnd = period === "week"
     ? endOfWeek(now, { weekStartsOn: 1 })
     : endOfMonth(now);
