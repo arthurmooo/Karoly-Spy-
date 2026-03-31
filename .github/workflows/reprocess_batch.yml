@@ -1,0 +1,41 @@
+name: Reprocess Batch (Profile Change)
+
+on:
+  repository_dispatch:
+    types: [reprocess-batch]
+
+jobs:
+  reprocess:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install & Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOLIO_CLIENT_ID: ${{ secrets.NOLIO_CLIENT_ID }}
+          NOLIO_CLIENT_SECRET: ${{ secrets.NOLIO_CLIENT_SECRET }}
+          NOLIO_REFRESH_TOKEN: ${{ secrets.NOLIO_REFRESH_TOKEN }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: |
+          echo "📦 Commit: $(git rev-parse --short HEAD) | $(git log -1 --format='%s')"
+          pip install --upgrade pip
+          pip install supabase==2.13.0 requests==2.31.0 python-dotenv==1.0.0 pandas==2.1.4 numpy==1.26.2 tqdm==4.66.1 pydantic==2.5.3 fitparse==1.2.0 fitdecode matplotlib==3.8.2 scipy==1.11.4 geopy==2.4.1 fastapi==0.108.0 uvicorn==0.25.0 rich
+
+          ATHLETE="${{ github.event.client_payload.athlete_name }}"
+          SPORT="${{ github.event.client_payload.sport }}"
+          DAYS="${{ github.event.client_payload.days }}"
+          echo "🔄 Batch reprocess: athlete=$ATHLETE sport=$SPORT days=$DAYS"
+          python run_k.py reprocess \
+            --athlete "$ATHLETE" \
+            --sport "$SPORT" \
+            --since-days "$DAYS" \
+            --offline \
+            --force

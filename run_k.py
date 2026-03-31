@@ -56,7 +56,12 @@ def cmd_reprocess(args):
         if args.activity_id:
             engine.reprocess_single(args.activity_id)
         else:
-            engine.run(athlete_name_filter=args.athlete, force=args.force)
+            engine.run(
+                athlete_name_filter=args.athlete,
+                force=args.force,
+                sport_filter=getattr(args, "sport", None),
+                since_days=getattr(args, "since_days", None),
+            )
         console.print(f"\n[bold green]✅ Reprocessing Complete.[/bold green]")
     except Exception as e:
         console.print(f"\n[bold red]❌ Reprocessing Failed:[/bold red] {e}")
@@ -123,6 +128,8 @@ Examples:
     parser_reprocess.add_argument("--activity-id", type=str, help="Reprocess a single activity by UUID")
     parser_reprocess.add_argument("--force", action="store_true", help="Force re-calculation even if metrics exist")
     parser_reprocess.add_argument("--offline", action="store_true", help="Skip Nolio API calls (use existing DB data only)")
+    parser_reprocess.add_argument("--sport", type=str, help="Filter by sport type (Run, Bike)")
+    parser_reprocess.add_argument("--since-days", type=int, help="Only reprocess activities from the last N days")
     parser_reprocess.set_defaults(func=cmd_reprocess)
     
     # --- Command: audit ---

@@ -18,13 +18,27 @@ export async function getProfiles(athleteId: string): Promise<PhysioProfile[]> {
 
 export async function insertProfile(profile: Omit<PhysioProfile, "id">) {
   const normalizedSport = normalizePhysioSport(profile.sport);
+  const sportVariants =
+    normalizedSport === "Bike"
+      ? ["Bike", "bike", "VELO"]
+      : ["Run", "run", "CAP"];
+
+  // Check if an active profile already exists BEFORE closing it
+  const { count } = await supabase
+    .from("physio_profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("athlete_id", profile.athlete_id)
+    .in("sport", sportVariants)
+    .is("valid_to", null);
+
+  const hadPreviousProfile = (count ?? 0) > 0;
 
   // Close previous active profile
   await supabase
     .from("physio_profiles")
     .update({ valid_to: new Date().toISOString() })
     .eq("athlete_id", profile.athlete_id)
-    .in("sport", normalizedSport === "Bike" ? ["Bike", "bike", "VELO"] : ["Run", "run", "CAP"])
+    .in("sport", sportVariants)
     .is("valid_to", null);
 
   const { data, error } = await supabase
@@ -35,7 +49,21 @@ export async function insertProfile(profile: Omit<PhysioProfile, "id">) {
 
   if (error) throw error;
   return {
-    ...(data as PhysioProfile),
-    sport: normalizePhysioSport((data as PhysioProfile).sport),
+    data: {
+      ...(data as PhysioProfile),
+      sport: normalizePhysioSport((data as PhysioProfile).sport),
+    },
+    hadPreviousProfile,
   };
+}
+
+export async function triggerBatchReprocess(
+  athleteId: string,
+  sport: string,
+  days = 28
+): Promise<void> {
+  const { error } = await supabase.functions.invoke("trigger-batch-reprocess", {
+    body: { athlete_id: athleteId, sport, days },
+  });
+  if (error) throw error;
 }
