@@ -16,6 +16,7 @@ export function CalendarPage() {
     currentDate,
     selectedAthleteId,
     selectedSport,
+    displayMode,
     days,
     athletes,
     isLoading,
@@ -23,6 +24,7 @@ export function CalendarPage() {
     setView,
     setAthlete,
     setSport,
+    setDisplayMode,
     navigateDate,
     goToToday,
   } = useCalendar({ skipAthleteList: isAthlete });
@@ -53,8 +55,10 @@ export function CalendarPage() {
         athletes={athletes}
         selectedAthleteId={selectedAthleteId}
         selectedSport={selectedSport}
+        displayMode={displayMode}
         onAthleteChange={setAthlete}
         onSportChange={setSport}
+        onDisplayModeChange={setDisplayMode}
         hideAthleteFilter={isAthlete}
       />
 

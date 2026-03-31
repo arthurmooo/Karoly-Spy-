@@ -752,15 +752,15 @@ export function DashboardPage() {
             <Icon name="close" className="text-lg" />
           </button>
         </DialogHeader>
-        <DialogBody className="p-0">
+        <DialogBody className="p-0 max-h-[60vh] overflow-y-auto">
           {acwrDialogRows.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
               Aucune alerte ou vigilance active.
             </p>
           ) : (
             <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
                   <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Athlete</th>
                   <th className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 text-center">Ext.</th>
                   <th className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 text-center">Int.</th>
@@ -771,10 +771,10 @@ export function DashboardPage() {
                 {acwrDialogRows.map((row) => (
                   <tr
                     key={row.athlete_id}
-                    className="cursor-pointer transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    className="cursor-pointer transition-all duration-150 hover:bg-primary/5 dark:hover:bg-primary/10"
                   >
                     <td className="whitespace-nowrap">
-                      <Link to={`/athletes/${row.athlete_id}/bilan`} onClick={() => setShowAcwrDialog(false)} className="flex items-center gap-2.5 px-5 py-3">
+                      <Link to={`/athletes/${row.athlete_id}/trends`} onClick={() => setShowAcwrDialog(false)} className="flex items-center gap-2.5 px-5 py-3">
                         <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
                           {row.athlete.charAt(0)}
                         </div>
@@ -785,7 +785,7 @@ export function DashboardPage() {
                     </td>
                     {(["external", "internal", "global"] as const).map((metric) => (
                       <td key={metric}>
-                        <Link to={`/athletes/${row.athlete_id}/bilan`} onClick={() => setShowAcwrDialog(false)} className="flex items-center justify-center gap-1.5 px-3 py-3">
+                        <Link to={`/athletes/${row.athlete_id}/trends`} onClick={() => setShowAcwrDialog(false)} className="flex items-center justify-center gap-1.5 px-3 py-3">
                           <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-200">
                             {row[metric].ratio !== null ? row[metric].ratio.toFixed(2) : "—"}
                           </span>

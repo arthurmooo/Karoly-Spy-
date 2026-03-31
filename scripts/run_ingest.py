@@ -382,7 +382,7 @@ class IngestionRobot:
 
     def _serialize_planned_workout(self, pw: dict, athlete_uuid: str) -> Optional[dict]:
         """Serialize a Nolio planned workout into a DB record."""
-        nolio_id = pw.get("id")
+        nolio_id = pw.get("nolio_id") or pw.get("id")
         if not nolio_id:
             return None
 

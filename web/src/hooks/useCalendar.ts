@@ -32,6 +32,7 @@ export function useCalendar(options?: { skipAthleteList?: boolean }) {
   const currentDate = useMemo(() => dateParam ? new Date(dateParam) : new Date(), [dateParam]);
   const selectedAthleteId = searchParams.get("athlete") || null;
   const selectedSport = searchParams.get("sport") || "Tous les sports";
+  const displayMode = (searchParams.get("display") as "all" | "planned" | "realized") || "all";
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [athletes, setAthletes] = useState<any[]>([]);
@@ -53,6 +54,7 @@ export function useCalendar(options?: { skipAthleteList?: boolean }) {
   const setView = (newView: "week" | "month" | "year") => updateParams({ view: newView });
   const setAthlete = (id: string | null) => updateParams({ athlete: id });
   const setSport = (sport: string | null) => updateParams({ sport });
+  const setDisplayMode = (mode: string) => updateParams({ display: mode === "all" ? null : mode });
 
   const goToToday = () => updateParams({ date: format(new Date(), "yyyy-MM-dd") });
 
@@ -83,15 +85,20 @@ export function useCalendar(options?: { skipAthleteList?: boolean }) {
     return { start, end };
   }, [view, currentDate]);
 
+  const filteredEvents = useMemo(() => {
+    if (displayMode === "all") return events;
+    return events.filter(e => e.type === displayMode);
+  }, [events, displayMode]);
+
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
-    events.forEach(e => {
+    filteredEvents.forEach(e => {
       const key = format(e.date, "yyyy-MM-dd");
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(e);
     });
     return map;
-  }, [events]);
+  }, [filteredEvents]);
 
   const days = useMemo(() => {
     return eachDayOfInterval({ start: dateRange.start, end: dateRange.end }).map((date) => ({
@@ -125,14 +132,15 @@ export function useCalendar(options?: { skipAthleteList?: boolean }) {
     fetchData();
   }, [authLoading, user?.id, dateRange, selectedAthleteId, selectedSport, options?.skipAthleteList]);
 
-  const stats = useMemo(() => calculateStats(events), [events]);
+  const stats = useMemo(() => calculateStats(filteredEvents), [filteredEvents]);
 
   return {
     view,
     currentDate,
     selectedAthleteId,
     selectedSport,
-    events,
+    displayMode,
+    events: filteredEvents,
     days,
     stats,
     athletes,
@@ -141,6 +149,7 @@ export function useCalendar(options?: { skipAthleteList?: boolean }) {
     setView,
     setAthlete,
     setSport,
+    setDisplayMode,
     navigateDate,
     goToToday,
   };

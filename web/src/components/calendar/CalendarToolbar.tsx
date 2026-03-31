@@ -12,6 +12,14 @@ const VIEWS: { key: View; label: string; short: string }[] = [
   { key: "year", label: "Année", short: "A" },
 ];
 
+type DisplayMode = "all" | "planned" | "realized";
+
+const DISPLAY_TABS: { key: DisplayMode; label: string; shortLabel: string }[] = [
+  { key: "all", label: "Tout", shortLabel: "T" },
+  { key: "planned", label: "Prévu", shortLabel: "P" },
+  { key: "realized", label: "Réalisé", shortLabel: "R" },
+];
+
 interface CalendarToolbarProps {
   view: View;
   currentDate: Date;
@@ -21,8 +29,10 @@ interface CalendarToolbarProps {
   athletes: any[];
   selectedAthleteId: string | null;
   selectedSport: string | null;
+  displayMode: DisplayMode;
   onAthleteChange: (id: string | null) => void;
   onSportChange: (sport: string | null) => void;
+  onDisplayModeChange: (mode: DisplayMode) => void;
   hideAthleteFilter?: boolean;
 }
 
@@ -45,8 +55,10 @@ export function CalendarToolbar({
   athletes,
   selectedAthleteId,
   selectedSport,
+  displayMode,
   onAthleteChange,
   onSportChange,
+  onDisplayModeChange,
   hideAthleteFilter,
 }: CalendarToolbarProps) {
   const getTitle = () => {
@@ -91,6 +103,8 @@ export function CalendarToolbar({
 
         {/* Center — Filters (desktop only) */}
         <div className="hidden lg:flex items-center gap-2">
+          <SlidingTabs items={DISPLAY_TABS} value={displayMode} onChange={onDisplayModeChange} size="sm" rounded="lg" />
+
           {!hideAthleteFilter && (
             <select
               value={selectedAthleteId || ""}
@@ -125,7 +139,9 @@ export function CalendarToolbar({
       </div>
 
       {/* Mobile/Tablet filters (below lg) */}
-      <div className="mt-2.5 flex flex-col gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800 sm:flex-row lg:hidden">
+      <div className="mt-2.5 flex flex-col gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800 sm:flex-row sm:flex-wrap lg:hidden">
+        <SlidingTabs items={DISPLAY_TABS} value={displayMode} onChange={onDisplayModeChange} size="sm" rounded="lg" />
+
         {!hideAthleteFilter && (
           <select
             value={selectedAthleteId || ""}
