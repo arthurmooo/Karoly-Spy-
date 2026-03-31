@@ -21,6 +21,19 @@ export function getDecouplingLabel(value: number | null | undefined): string {
   }
 }
 
+export function getDecouplingBadgeVariant(value: number | null): "emerald" | "amber" | "red" | "slate" {
+  switch (getDecouplingState(value)) {
+    case "good":
+      return "emerald";
+    case "moderate":
+      return "amber";
+    case "high":
+      return "red";
+    default:
+      return "slate";
+  }
+}
+
 export function isDecouplingAlert(value: number | null | undefined): boolean {
   return value != null && Number.isFinite(value) && value > 5;
 }

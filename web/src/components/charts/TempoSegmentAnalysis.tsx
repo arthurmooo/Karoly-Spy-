@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { Icon } from "@/components/ui/Icon";
 import type { SegmentPhaseMetrics } from "@/types/activity";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -41,33 +41,25 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
   const [activeSegment, setActiveSegment] = useState<{ point: SegmentChartPoint; cx: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const handleMouseMove = useCallback((state: any) => {
+    if (state.activePayload?.length) {
+      const point = state.activePayload[0].payload as SegmentChartPoint;
+      setActiveSegment({ point, cx: state.activeCoordinate?.x ?? 0 });
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setActiveSegment(null);
+  }, []);
+
   const isBike = BIKE_SPORTS.has(sportType);
   const labels = phaseLabels ?? DEFAULT_LABELS;
 
-  if (!splits4) {
-    return (
-      <FeatureNotice
-        title="Analyse par segments"
-        description="Données de segmentation (splits_4) non disponibles pour cette séance."
-        status="unavailable"
-      />
-    );
-  }
-
-  const phases = PHASE_KEYS.map((key) => splits4[key] ?? null);
+  const phases = splits4 ? PHASE_KEYS.map((key) => splits4[key] ?? null) : [];
   const validPhases = phases.filter(Boolean);
-  if (validPhases.length === 0) {
-    return (
-      <FeatureNotice
-        title="Analyse par segments"
-        description="Aucun segment exploitable dans les données."
-        status="unavailable"
-      />
-    );
-  }
 
   // Detect degradation
-  const q1 = phases[0];
+  const q1 = phases[0] ?? null;
   let degradationSegment: number | null = null;
   if (q1?.hr && q1?.speed) {
     for (let i = 1; i < phases.length; i++) {
@@ -82,7 +74,7 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
     }
   }
 
-  const ref1 = phases[0];
+  const ref1 = phases[0] ?? null;
   const chartData: SegmentChartPoint[] = phases
     .map((phase, i) => {
       if (!phase) return null;
@@ -108,6 +100,70 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
     })
     .filter(Boolean) as SegmentChartPoint[];
 
+  const chartElement = useMemo(() => {
+    if (chartData.length === 0) return null;
+    return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={chartData}
+        margin={{ top: 16, right: 10, left: -10, bottom: 5 }}
+        barGap={2}
+        barCategoryGap="25%"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:opacity-20" />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <YAxis
+          domain={[0, "auto"]}
+          tick={{ fontSize: 11, fill: "#64748b" }}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(v: number) => v.toFixed(2)}
+        />
+        <ReferenceLine y={1} stroke="#ef4444" strokeDasharray="4 2" strokeWidth={1.5} />
+        <Legend
+          wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+          formatter={(name: string) =>
+            name === "fc_norm" ? "FC"
+              : name === "allure_norm" ? (isBike ? "Puissance" : "Allure")
+              : "Ratio"
+          }
+        />
+        <Bar dataKey="fc_norm" name="fc_norm" fill="#3b82f6" radius={[3, 3, 0, 0]} isAnimationActive={false} maxBarSize={28}>
+          <LabelList dataKey="fc_norm" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: "#3b82f6" }} />
+        </Bar>
+        <Bar dataKey="allure_norm" name="allure_norm" fill="#f97316" radius={[3, 3, 0, 0]} isAnimationActive={false} maxBarSize={28}>
+          <LabelList dataKey="allure_norm" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: "#f97316" }} />
+        </Bar>
+        <Bar dataKey="ratio_norm" name="ratio_norm" fill="#22c55e" radius={[3, 3, 0, 0]} isAnimationActive={false} maxBarSize={28}>
+          <LabelList dataKey="ratio_norm" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: "#22c55e" }} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+    );
+  }, [chartData, isBike, handleMouseMove, handleMouseLeave]);
+
+  if (!splits4) {
+    return (
+      <FeatureNotice
+        title="Analyse par segments"
+        description="Données de segmentation (splits_4) non disponibles pour cette séance."
+        status="unavailable"
+      />
+    );
+  }
+
+  if (validPhases.length === 0) {
+    return (
+      <FeatureNotice
+        title="Analyse par segments"
+        description="Aucun segment exploitable dans les données."
+        status="unavailable"
+      />
+    );
+  }
+
   // Position tooltip: right of the group center; flip left if it overflows
   let tooltipX = 0;
   if (activeSegment) {
@@ -130,54 +186,12 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
       )}
 
       <div ref={containerRef} className="relative h-[220px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            margin={{ top: 16, right: 10, left: -10, bottom: 5 }}
-            barGap={2}
-            barCategoryGap="25%"
-            onMouseMove={(state: any) => {
-              if (state.activePayload?.length) {
-                const point = state.activePayload[0].payload as SegmentChartPoint;
-                setActiveSegment({ point, cx: state.activeCoordinate?.x ?? 0 });
-              }
-            }}
-            onMouseLeave={() => setActiveSegment(null)}
-          >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:opacity-20" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
-            <YAxis
-              domain={[0, "auto"]}
-              tick={{ fontSize: 11, fill: "#64748b" }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: number) => v.toFixed(2)}
-            />
-            <ReferenceLine y={1} stroke="#ef4444" strokeDasharray="4 2" strokeWidth={1.5} />
-            <Legend
-              wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
-              formatter={(name: string) =>
-                name === "fc_norm" ? "FC"
-                  : name === "allure_norm" ? (isBike ? "Puissance" : "Allure")
-                  : "Ratio"
-              }
-            />
-            <Bar dataKey="fc_norm" name="fc_norm" fill="#3b82f6" radius={[3, 3, 0, 0]} isAnimationActive={false} maxBarSize={28}>
-              <LabelList dataKey="fc_norm" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: "#3b82f6" }} />
-            </Bar>
-            <Bar dataKey="allure_norm" name="allure_norm" fill="#f97316" radius={[3, 3, 0, 0]} isAnimationActive={false} maxBarSize={28}>
-              <LabelList dataKey="allure_norm" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: "#f97316" }} />
-            </Bar>
-            <Bar dataKey="ratio_norm" name="ratio_norm" fill="#22c55e" radius={[3, 3, 0, 0]} isAnimationActive={false} maxBarSize={28}>
-              <LabelList dataKey="ratio_norm" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: "#22c55e" }} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {chartElement}
 
         {activeSegment && (
           <div
             className="pointer-events-none absolute top-1 z-10 w-44 rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900"
-            style={{ left: tooltipX }}
+            style={{ left: tooltipX, transition: "left 100ms ease-out" }}
           >
             <p className="mb-2 font-semibold text-slate-900 dark:text-white">{activeSegment.point.label}</p>
             <div className="space-y-1">

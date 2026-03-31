@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams, useOutletContext } from "react-router-dom";
 import { addMonths, addWeeks, endOfWeek, format, parseISO, subMonths, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
@@ -15,6 +15,7 @@ import {
   useDisclosureContext,
 } from "@/components/ui/Disclosure";
 import { KpiCards } from "@/components/kpis/KpiCards";
+import { KpiDetailDialog } from "@/components/kpis/KpiDetailDialog";
 import { VolumeDistribution } from "@/components/charts/VolumeDistribution";
 import { LoadEvolution } from "@/components/charts/LoadEvolution";
 import { AcwrMetricCard } from "@/components/load/AcwrMetricCard";
@@ -23,39 +24,27 @@ import { FocusCoach } from "@/components/analysis/FocusCoach";
 import { TextInsights } from "@/components/analysis/TextInsights";
 import { HrZonesBilan } from "@/components/analysis/HrZonesBilan";
 import { BilanPeriodToolbar } from "@/components/bilan/BilanPeriodToolbar";
-import { AthleteSubNav } from "@/components/layout/AthleteSubNav";
 import { useAuth } from "@/hooks/useAuth";
 import { useAthleteKpis } from "@/hooks/useAthleteKpis";
 import { useExportBilan } from "@/hooks/useExportBilan";
 import { useAcwr } from "@/hooks/useAcwr";
 import { getAthleteById } from "@/repositories/athlete.repository";
 import { getAthleteDailyLoadHistory } from "@/repositories/load.repository";
-import { getDecouplingState } from "@/lib/karolyMetrics";
+import { getDecouplingBadgeVariant } from "@/lib/karolyMetrics";
 import { buildWeeklyHeatmapData, type WeeklyHeatmapData } from "@/services/load.service";
 import { buildPeriodLabel, isCurrentPeriod as checkIsCurrentPeriod } from "@/services/stats.service";
 import { getSportConfig } from "@/lib/constants";
+import type { AthleteDetailOutletContext } from "@/components/layout/AthleteDetailLayout";
 import type { Athlete } from "@/types/athlete";
-import type { KpiPeriod } from "@/services/stats.service";
+import type { KpiPeriod, KpiCard } from "@/services/stats.service";
 
 interface AthleteBilanPageProps {
   athleteId?: string;
 }
 
-function getDecouplingBadgeVariant(value: number | null): "emerald" | "amber" | "red" | "slate" {
-  switch (getDecouplingState(value)) {
-    case "good":
-      return "emerald";
-    case "moderate":
-      return "amber";
-    case "high":
-      return "red";
-    default:
-      return "slate";
-  }
-}
-
 export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageProps = {}) {
   const { id: paramAthleteId } = useParams();
+  const outletContext = useOutletContext<AthleteDetailOutletContext | null>();
   const [searchParams, setSearchParams] = useSearchParams();
   const athleteId = propAthleteId ?? paramAthleteId ?? null;
   const isAthleteMode = !!propAthleteId;
@@ -108,44 +97,36 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
     });
   }, [setSearchParams]);
 
-  const [athlete, setAthlete] = useState<Athlete | null>(null);
-  const [athleteLoading, setAthleteLoading] = useState(true);
+  // Coach mode: athlete from layout outlet context; Athlete mode: fetch locally
+  const [localAthlete, setLocalAthlete] = useState<Athlete | null>(null);
+  const [localAthleteLoading, setLocalAthleteLoading] = useState(isAthleteMode);
+  const athlete = isAthleteMode ? localAthlete : (outletContext?.athlete ?? null);
+  const athleteLoading = isAthleteMode ? localAthleteLoading : false;
+
   const [weeklyHeatmapData, setWeeklyHeatmapData] = useState<WeeklyHeatmapData | null>(null);
   const [isWeeklyHeatmapLoading, setIsWeeklyHeatmapLoading] = useState(false);
 
   const [sportFilter, setSportFilter] = useState("TOUT");
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [activeKpiKey, setActiveKpiKey] = useState<KpiCard["key"] | null>(null);
   const [coachComment, setCoachComment] = useState("");
   const { report, isLoading } = useAthleteKpis(athleteId, period, anchorDate, sportFilter);
   const { detail: acwrDetail, isLoading: acwrLoading } = useAcwr({ athleteId, enabled: !!athleteId });
   const { exportPdf, isExporting } = useExportBilan();
 
   useEffect(() => {
-    if (!athleteId) {
-      setAthlete(null);
-      setAthleteLoading(false);
-      return;
-    }
+    if (!isAthleteMode || !athleteId) return;
 
     let cancelled = false;
-    setAthleteLoading(true);
+    setLocalAthleteLoading(true);
 
     getAthleteById(athleteId)
-      .then((data) => {
-        if (!cancelled) setAthlete(data);
-      })
-      .catch((error) => {
-        console.error(error);
-        if (!cancelled) setAthlete(null);
-      })
-      .finally(() => {
-        if (!cancelled) setAthleteLoading(false);
-      });
+      .then((data) => { if (!cancelled) setLocalAthlete(data); })
+      .catch((error) => { console.error(error); if (!cancelled) setLocalAthlete(null); })
+      .finally(() => { if (!cancelled) setLocalAthleteLoading(false); });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [athleteId]);
+    return () => { cancelled = true; };
+  }, [athleteId, isAthleteMode]);
 
   const anchorIso = format(anchorDate, "yyyy-MM-dd");
   const weekEndIso = format(endOfWeek(anchorDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -179,6 +160,17 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
     return () => { isCancelled = true; };
   }, [athleteId, anchorIso, weekEndIso]);
 
+  const handleKpiClick = useCallback((key: KpiCard["key"]) => {
+    setActiveKpiKey(key);
+  }, []);
+
+  const handleKpiSportSelect = useCallback((sportKey: string) => {
+    setSportFilter(sportKey);
+    setActiveKpiKey(null);
+  }, []);
+
+  const sessionsListPath = isAthleteMode ? "/mon-espace/seances" : undefined;
+
   // Full spinner only on very first load (no data yet)
   if (athleteLoading || (isLoading && !report)) {
     return (
@@ -208,10 +200,6 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
 
   return (
     <div className="space-y-8">
-      {!isAthleteMode && (
-        <AthleteSubNav athlete={athlete} active="bilan" />
-      )}
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">
           {isAthleteMode ? "Mon bilan" : `Bilan · ${athleteName}`}
@@ -313,7 +301,18 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
         </div>
       )}
 
-      <KpiCards cards={report.cards} />
+      <KpiCards cards={report.cards} onCardClick={handleKpiClick} />
+
+      <KpiDetailDialog
+        open={activeKpiKey !== null}
+        onClose={() => setActiveKpiKey(null)}
+        cardKey={activeKpiKey}
+        cards={report.cards}
+        distribution={report.distribution}
+        sportDecoupling={report.sportDecoupling}
+        onSportSelect={handleKpiSportSelect}
+        sessionsListPath={sessionsListPath}
+      />
 
       {/* ── Section Volume & Charge ── */}
       <BilanSection icon="bar_chart" title="Volume & Charge">

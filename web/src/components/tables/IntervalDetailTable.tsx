@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { Card, CardContent } from "@/components/ui/Card";
+import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import type { BlockGroupedIntervals, ActivityInterval, RepWindow } from "@/types/activity";
@@ -211,23 +212,13 @@ function computeWindowSummary(windowRows: WindowRow[]): WindowSummary | null {
 
 // ── Segmented control ──
 
+const VIEW_MODE_TABS = [
+  { key: "intervals" as const, label: "Intervalles" },
+  { key: "windows" as const, label: "Fenêtres stab." },
+];
+
 function SegmentedControl({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
-  return (
-    <div role="tablist" className="inline-flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
-      <button role="tab" type="button" aria-selected={value === "intervals"} onClick={() => onChange("intervals")}
-        className={cn("px-3 py-1 text-xs font-medium transition-all duration-200 rounded-[3px]",
-          value === "intervals" ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white"
-            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300")}>
-        Intervalles
-      </button>
-      <button role="tab" type="button" aria-selected={value === "windows"} onClick={() => onChange("windows")}
-        className={cn("px-3 py-1 text-xs font-medium transition-all duration-200 rounded-[3px]",
-          value === "windows" ? "bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white"
-            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300")}>
-        Fenêtres stab.
-      </button>
-    </div>
-  );
+  return <SlidingTabs items={VIEW_MODE_TABS} value={value} onChange={onChange} size="sm" rounded="lg" />;
 }
 
 // ── Main component ──

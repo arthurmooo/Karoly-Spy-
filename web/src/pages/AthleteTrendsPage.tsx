@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { format, parseISO, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -17,11 +17,9 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
-import { AthleteSubNav } from "@/components/layout/AthleteSubNav";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useReadiness } from "@/hooks/useReadiness";
-import { getAthleteById } from "@/repositories/athlete.repository";
 import {
   SWC_BASELINE_DAYS,
   buildHrvTimeline,
@@ -29,7 +27,6 @@ import {
   getLatestSignalPoint,
   type DerivedHrvPoint,
 } from "@/services/hrv.service";
-import type { Athlete } from "@/types/athlete";
 
 type JournalSortBy = "date" | "sleep" | "energy" | "fatigue" | "lifestyle" | "sickness" | "alcohol";
 type TrendsPeriod = "7d" | "1m" | "3m" | "1y";
@@ -313,7 +310,6 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
   const { id: paramId } = useParams();
   const id = propId || paramId;
   const isAthleteMode = !!propId;
-  const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [period, setPeriod] = useState<TrendsPeriod>("1m");
   const [journalSortBy, setJournalSortBy] = useState<JournalSortBy>("date");
   const [journalSortDir, setJournalSortDir] = useState<SortDirection>("desc");
@@ -325,11 +321,6 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
     id,
     MAX_SERIES_LOOKBACK_DAYS
   );
-  useEffect(() => {
-    if (!id) return;
-    getAthleteById(id).then(setAthlete).catch(console.error);
-  }, [id]);
-
   const timeline = useMemo(() => buildHrvTimeline(readinessSeries), [readinessSeries]);
   const latestSignalPoint = useMemo(() => getLatestSignalPoint(timeline), [timeline]);
   const latestContextPoint = useMemo(() => getLatestContextPoint(timeline), [timeline]);
@@ -601,15 +592,12 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            {!isAthleteMode && athlete && (
-              <AthleteSubNav athlete={athlete} active="trends" />
-            )}
             {isAthleteMode ? (
               <h2 className="text-3xl font-semibold text-slate-900 dark:text-white">
                 Mes tendances
               </h2>
             ) : (
-              <h2 className="text-3xl font-semibold text-slate-900 dark:text-white mt-4">
+              <h2 className="text-3xl font-semibold text-slate-900 dark:text-white">
                 Rapport de Santé Détaillé
               </h2>
             )}
@@ -626,15 +614,12 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
   return (
     <div className="space-y-8" data-testid="athlete-trends-page">
       <div>
-        {!isAthleteMode && athlete && (
-          <AthleteSubNav athlete={athlete} active="trends" />
-        )}
         {isAthleteMode ? (
           <h2 className="text-3xl font-semibold text-slate-900 dark:text-white mb-1">
             Mes tendances
           </h2>
         ) : (
-          <h2 className="text-3xl font-semibold text-slate-900 dark:text-white mt-4">
+          <h2 className="text-3xl font-semibold text-slate-900 dark:text-white">
             Rapport de Santé Détaillé
           </h2>
         )}

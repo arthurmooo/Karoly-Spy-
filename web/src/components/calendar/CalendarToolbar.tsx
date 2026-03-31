@@ -1,8 +1,7 @@
-import { useRef, useLayoutEffect, useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
+import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { SPORT_CONFIG } from "@/lib/constants";
 
 type View = "week" | "month" | "year";
@@ -27,52 +26,14 @@ interface CalendarToolbarProps {
   hideAthleteFilter?: boolean;
 }
 
+const VIEW_TABS = VIEWS.map((v) => ({
+  key: v.key,
+  label: v.label,
+  shortLabel: v.short,
+}));
+
 function ViewSwitcher({ view, onViewChange }: { view: View; onViewChange: (v: View) => void }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const btnRefs = useRef<Map<View, HTMLButtonElement>>(new Map());
-  const [pill, setPill] = useState({ left: 0, width: 0 });
-
-  useLayoutEffect(() => {
-    const btn = btnRefs.current.get(view);
-    const track = trackRef.current;
-    if (!btn || !track) return;
-    const trackRect = track.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    setPill({
-      left: btnRect.left - trackRect.left,
-      width: btnRect.width,
-    });
-  }, [view]);
-
-  return (
-    <div
-      ref={trackRef}
-      className="relative flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1"
-    >
-      {/* Sliding pill */}
-      <div
-        className="absolute top-1 bottom-1 bg-white dark:bg-slate-700 shadow-sm rounded-md transition-all duration-150 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
-        style={{ left: pill.left, width: pill.width }}
-      />
-
-      {VIEWS.map((v) => (
-        <button
-          key={v.key}
-          ref={(el) => { if (el) btnRefs.current.set(v.key, el); }}
-          onClick={() => onViewChange(v.key)}
-          className={cn(
-            "relative z-10 px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-200 cursor-pointer",
-            view === v.key
-              ? "text-slate-900 dark:text-white"
-              : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-          )}
-        >
-          <span className="hidden sm:inline">{v.label}</span>
-          <span className="sm:hidden">{v.short}</span>
-        </button>
-      ))}
-    </div>
-  );
+  return <SlidingTabs items={VIEW_TABS} value={view} onChange={onViewChange} rounded="lg" />;
 }
 
 export function CalendarToolbar({

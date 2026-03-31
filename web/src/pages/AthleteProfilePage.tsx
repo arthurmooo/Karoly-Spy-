@@ -1,26 +1,21 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { AthleteSubNav } from "@/components/layout/AthleteSubNav";
+import { useState } from "react";
+import { useOutletContext, useParams } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { usePhysio } from "@/hooks/usePhysio";
-import { getAthleteById } from "@/repositories/athlete.repository";
 import { speedToPace } from "@/services/format.service";
 import { isBikePhysioSport, isRunPhysioSport } from "@/services/physio.service";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import type { Athlete } from "@/types/athlete";
+import type { AthleteDetailOutletContext } from "@/components/layout/AthleteDetailLayout";
 import type { PhysioProfile } from "@/types/physio";
 
 export function AthleteProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-
-  const [athlete, setAthlete] = useState<Athlete | null>(null);
-  const [athleteLoading, setAthleteLoading] = useState(true);
+  const { athlete } = useOutletContext<AthleteDetailOutletContext>();
 
   const [bikeArchiveOpen, setBikeArchiveOpen] = useState(false);
   const [runArchiveOpen, setRunArchiveOpen] = useState(false);
@@ -40,15 +35,6 @@ export function AthleteProfilePage() {
   const [runLt2Pace, setRunLt2Pace] = useState("");
   const [runLt1Hr, setRunLt1Hr] = useState("");
   const [runLt2Hr, setRunLt2Hr] = useState("");
-
-  useEffect(() => {
-    if (!id) return;
-    setAthleteLoading(true);
-    getAthleteById(id)
-      .then((a) => setAthlete(a))
-      .catch(console.error)
-      .finally(() => setAthleteLoading(false));
-  }, [id]);
 
   const activeBike = activeProfiles.find((p) => isBikePhysioSport(p.sport));
   const activeRun = activeProfiles.find((p) => isRunPhysioSport(p.sport));
@@ -118,32 +104,10 @@ export function AthleteProfilePage() {
     setRunVma(""); setRunLt2Pace(""); setRunLt1Hr(""); setRunLt2Hr("");
   }
 
-  if (athleteLoading) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <Icon name="progress_activity" className="animate-spin text-primary text-3xl" />
-      </div>
-    );
-  }
-
-  if (!athlete) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 gap-4">
-        <p className="text-sm text-slate-500">Athlète introuvable.</p>
-        <Button variant="secondary" onClick={() => navigate("/athletes")}>
-          <Icon name="arrow_back" className="text-sm" />
-          Retour aux athlètes
-        </Button>
-      </div>
-    );
-  }
-
   const initials = `${athlete.first_name.charAt(0)}${athlete.last_name.charAt(0)}`;
 
   return (
     <div className="space-y-8">
-      <AthleteSubNav athlete={athlete} active="profile" />
-
       {/* Athlete header */}
       <div className="flex items-center gap-4">
         <div className="w-14 h-14 rounded-md bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-xl font-semibold text-primary shrink-0 border border-primary/20">

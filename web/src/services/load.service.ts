@@ -344,7 +344,7 @@ function buildMetricSnapshot(
   };
 }
 
-function getSnapshotPriority(row: AcwrSnapshotRow): AcwrStatus {
+export function getSnapshotPriority(row: AcwrSnapshotRow): AcwrStatus {
   const statuses = [row.external.status, row.internal.status, row.global.status];
   if (statuses.includes("alert")) return "alert";
   if (statuses.includes("warning")) return "warning";

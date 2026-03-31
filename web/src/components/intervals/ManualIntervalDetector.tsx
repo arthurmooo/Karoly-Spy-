@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import type { Activity } from "@/types/activity";
@@ -389,24 +390,16 @@ export function ManualIntervalDetector({
             <label className="block text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
               Mode
             </label>
-            <div className="inline-flex rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
-              {(["duration", "distance"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  disabled={m === "distance" && !hasDistanceStream}
-                  onClick={() => setMode(m)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors
-                    ${mode === m
-                      ? "bg-primary text-white"
-                      : "bg-transparent text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
-                    }
-                    disabled:opacity-40 disabled:cursor-not-allowed`}
-                >
-                  {m === "duration" ? "Durée" : "Distance"}
-                </button>
-              ))}
-            </div>
+            <SlidingTabs
+              items={[
+                { key: "duration" as const, label: "Durée" },
+                { key: "distance" as const, label: "Distance", disabled: !hasDistanceStream },
+              ]}
+              value={mode}
+              onChange={setMode}
+              size="sm"
+              rounded="lg"
+            />
           </div>
 
           {/* Métrique — chips */}

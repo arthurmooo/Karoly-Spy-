@@ -36,6 +36,7 @@ export interface SportDistributionItem {
   percent: number;
   distanceKm: number;
   avgRpe: number | null;
+  sessionCount: number;
 }
 
 export interface HrZonesAggregate {
@@ -270,6 +271,7 @@ function buildDistribution(rows: NormalizedStatsActivity[]): SportDistributionIt
     durationSec: number;
     distanceM: number;
     rpeValues: number[];
+    count: number;
   }>();
 
   for (const row of rows) {
@@ -277,6 +279,7 @@ function buildDistribution(rows: NormalizedStatsActivity[]): SportDistributionIt
     if (existing) {
       existing.durationSec += row.durationSec;
       existing.distanceM += row.distanceM;
+      existing.count += 1;
       if (row.rpe != null) existing.rpeValues.push(row.rpe);
     } else {
       totals.set(row.sportKey, {
@@ -284,6 +287,7 @@ function buildDistribution(rows: NormalizedStatsActivity[]): SportDistributionIt
         durationSec: row.durationSec,
         distanceM: row.distanceM,
         rpeValues: row.rpe != null ? [row.rpe] : [],
+        count: 1,
       });
     }
   }
@@ -298,6 +302,7 @@ function buildDistribution(rows: NormalizedStatsActivity[]): SportDistributionIt
       percent: totalDuration > 0 ? (value.durationSec / totalDuration) * 100 : 0,
       distanceKm: value.distanceM / 1000,
       avgRpe: mean(value.rpeValues),
+      sessionCount: value.count,
     }))
     .sort((left, right) => right.durationSec - left.durationSec);
 
@@ -318,6 +323,7 @@ function buildDistribution(rows: NormalizedStatsActivity[]): SportDistributionIt
   const otherRpeValues = tail.flatMap((item) =>
     item.avgRpe != null ? [item.avgRpe] : []
   );
+  const otherSessionCount = tail.reduce((sum, item) => sum + item.sessionCount, 0);
 
   return [
     ...head,
@@ -329,6 +335,7 @@ function buildDistribution(rows: NormalizedStatsActivity[]): SportDistributionIt
       percent: totalDuration > 0 ? (otherDuration / totalDuration) * 100 : 0,
       distanceKm: otherDistance / 1000,
       avgRpe: mean(otherRpeValues),
+      sessionCount: otherSessionCount,
     },
   ].map((item) => ({
     ...item,

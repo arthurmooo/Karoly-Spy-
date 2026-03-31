@@ -1,4 +1,4 @@
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useLocation, Link } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -186,7 +186,6 @@ function FormAnalysisSection({ activity }: { activity: Activity }) {
 
 export function SessionComparisonPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const location = useLocation();
 
   const { activity, isLoading } = useActivityDetail(id);
@@ -227,10 +226,10 @@ export function SessionComparisonPage() {
   if (!activity) {
     return (
       <div className="space-y-8">
-        <button onClick={() => navigate(backPath)} className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
+        <Link to={backPath} className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
           <Icon name="arrow_back" className="text-lg" />
           Retour à la fiche
-        </button>
+        </Link>
         <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
           <Icon name="search_off" className="text-4xl text-slate-400" />
           <p className="text-lg font-medium text-slate-600 dark:text-slate-400">Activité introuvable</p>
@@ -244,10 +243,10 @@ export function SessionComparisonPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(backPath)} className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
+          <Link to={backPath} className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
             <Icon name="arrow_back" className="text-lg" />
             Retour à la fiche
-          </button>
+          </Link>
           <span className="hidden text-slate-300 dark:text-slate-600 sm:inline">|</span>
           <h1 className="hidden text-lg font-semibold text-slate-900 dark:text-white sm:inline">{activityTitle}</h1>
         </div>

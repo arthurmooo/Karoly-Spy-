@@ -5,6 +5,7 @@ import { CoachRoute } from "@/components/layout/CoachRoute";
 import { AthleteRoute } from "@/components/layout/AthleteRoute";
 import { CoachLayout } from "@/components/layout/CoachLayout";
 import { AthleteLayout } from "@/components/layout/AthleteLayout";
+import { AthleteDetailLayout } from "@/components/layout/AthleteDetailLayout";
 import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ActivitiesPage } from "@/pages/ActivitiesPage";
@@ -45,9 +46,12 @@ function AppRoutes() {
               <Route path="/athletes" element={<AthletesPage />} />
               <Route path="/profiles" element={<ProfilesPage />} />
               <Route path="/health" element={<HealthPage />} />
-              <Route path="/athletes/:id/profile" element={<AthleteProfilePage />} />
-              <Route path="/athletes/:id/trends" element={<AthleteTrendsPage />} />
-              <Route path="/athletes/:id/bilan" element={<AthleteBilanPage />} />
+              <Route path="/athletes/:id" element={<AthleteDetailLayout />}>
+                <Route index element={<Navigate to="bilan" />} />
+                <Route path="bilan" element={<AthleteBilanPage />} />
+                <Route path="profile" element={<AthleteProfilePage />} />
+                <Route path="trends" element={<AthleteTrendsPage />} />
+              </Route>
             </Route>
           </Route>
 

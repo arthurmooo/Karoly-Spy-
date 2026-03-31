@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
@@ -20,7 +20,6 @@ type AthleteSortBy = "name" | "group" | "status" | "since";
 type StatusFilter = "all" | "active" | "inactive";
 
 export function AthletesPage() {
-  const navigate = useNavigate();
   const { athletes, isLoading, invite, updateGroup, toggleActive } =
     useAthleteManagement();
   const {
@@ -319,11 +318,10 @@ export function AthletesPage() {
                     <tr
                       key={athlete.id}
                       className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-150 cursor-pointer"
-                      onClick={() => navigate(`/athletes/${athlete.id}/profile`)}
                     >
                       {/* Name */}
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
+                        <Link to={`/athletes/${athlete.id}/profile`} className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
                             {athlete.first_name.charAt(0)}
                             {athlete.last_name.charAt(0)}
@@ -331,14 +329,16 @@ export function AthletesPage() {
                           <span className="text-sm font-semibold text-slate-900 dark:text-white">
                             {athlete.first_name} {athlete.last_name}
                           </span>
-                        </div>
+                        </Link>
                       </td>
                       {/* Email */}
-                      <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        {athlete.email ?? "--"}
+                      <td className="whitespace-nowrap">
+                        <Link to={`/athletes/${athlete.id}/profile`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
+                          {athlete.email ?? "--"}
+                        </Link>
                       </td>
                       {/* Group — inline select + badge */}
-                      <td className="px-6 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-6 py-3 whitespace-nowrap">
                         <select
                           value={athlete.athlete_group_id ?? ""}
                           onChange={(e) => {
@@ -362,19 +362,23 @@ export function AthletesPage() {
                         )}
                       </td>
                       {/* Status */}
-                      <td className="px-6 py-3 whitespace-nowrap">
-                        <Badge
-                          variant={athlete.is_active ? "emerald" : "red"}
-                        >
-                          {athlete.is_active ? "Actif" : "Inactif"}
-                        </Badge>
+                      <td className="whitespace-nowrap">
+                        <Link to={`/athletes/${athlete.id}/profile`} className="block px-6 py-3">
+                          <Badge
+                            variant={athlete.is_active ? "emerald" : "red"}
+                          >
+                            {athlete.is_active ? "Actif" : "Inactif"}
+                          </Badge>
+                        </Link>
                       </td>
                       {/* Since */}
-                      <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        {formatDate(athlete.start_date)}
+                      <td className="whitespace-nowrap">
+                        <Link to={`/athletes/${athlete.id}/profile`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
+                          {formatDate(athlete.start_date)}
+                        </Link>
                       </td>
                       {/* Actions */}
-                      <td className="px-6 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-6 py-3 whitespace-nowrap">
                         {athlete.is_active ? (
                           <Button
                             variant="ghost"

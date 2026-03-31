@@ -1,4 +1,5 @@
 import { Icon } from "@/components/ui/Icon";
+import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import type { KpiPeriod } from "@/services/stats.service";
 
 const PERIOD_OPTIONS: Array<{ key: KpiPeriod; label: string }> = [
@@ -75,28 +76,8 @@ export function BilanPeriodToolbar({
         </div>
 
         {/* Right — Segmented control */}
-        <div className="relative grid grid-cols-2 rounded-xl bg-slate-100/80 dark:bg-slate-800/50 p-1 shrink-0 self-start sm:self-auto min-w-[200px]">
-          {/* Sliding indicator */}
-          <div
-            className="absolute top-1 bottom-1 rounded-[10px] bg-white dark:bg-slate-700 shadow-sm transition-all duration-250 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
-            style={{
-              width: "calc(50% - 4px)",
-              left: period === "week" ? "4px" : "calc(50%)",
-            }}
-          />
-          {PERIOD_OPTIONS.map((option) => (
-            <button
-              key={option.key}
-              onClick={() => onPeriodChange(option.key)}
-              className={`relative z-10 rounded-[10px] py-1.5 text-[13px] font-medium text-center transition-colors duration-200 ${
-                period === option.key
-                  ? "text-slate-900 dark:text-white"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="shrink-0 self-start sm:self-auto min-w-[200px]">
+          <SlidingTabs items={PERIOD_OPTIONS} value={period} onChange={onPeriodChange} rounded="xl" />
         </div>
       </div>
     </div>

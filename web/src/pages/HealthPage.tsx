@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
@@ -104,6 +104,8 @@ function formatDateLabel(iso: string) {
 }
 
 export function HealthPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const swcFilterParam = searchParams.get("swc");
   const [selectedAthleteId, setSelectedAthleteId] = useState("all");
   const [importAthleteId, setImportAthleteId] = useState("");
   const [sortBy, setSortBy] = useState<HealthSortBy>(DEFAULT_SORT_BY);
@@ -147,10 +149,15 @@ export function HealthPage() {
       ? athletes.find((athlete) => athlete.id === importAthleteId) ?? null
       : null;
 
-  const filteredData =
-    selectedAthleteId === "all"
+  const filteredData = (() => {
+    let data = selectedAthleteId === "all"
       ? healthData
       : healthData.filter((row) => row.athlete_id === selectedAthleteId);
+    if (swcFilterParam === "alert") {
+      data = data.filter((row) => row.swc_status === "above_swc" || row.swc_status === "below_swc");
+    }
+    return data;
+  })();
 
   const sortedData = sortRows(
     filteredData,
@@ -724,18 +731,30 @@ export function HealthPage() {
             <Icon name="vital_signs" className="text-slate-400" />
             Mesures
           </div>
-          <select
-            value={selectedAthleteId}
-            onChange={(event) => setSelectedAthleteId(event.target.value)}
-            className="w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            <option value="all">Tous les athletes</option>
-            {athletes.map((athlete) => (
-              <option key={athlete.id} value={athlete.id}>
-                {athlete.first_name} {athlete.last_name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            {swcFilterParam === "alert" && (
+              <button
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-50 dark:bg-red-900/20 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40"
+                onClick={() => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("swc"); return next; })}
+              >
+                <Icon name="filter_alt" className="text-[14px]" />
+                Alertes SWC uniquement
+                <Icon name="close" className="text-[14px]" />
+              </button>
+            )}
+            <select
+              value={selectedAthleteId}
+              onChange={(event) => setSelectedAthleteId(event.target.value)}
+              className="w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              <option value="all">Tous les athletes</option>
+              {athletes.map((athlete) => (
+                <option key={athlete.id} value={athlete.id}>
+                  {athlete.first_name} {athlete.last_name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">

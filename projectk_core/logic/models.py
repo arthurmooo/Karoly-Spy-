@@ -154,6 +154,7 @@ class ActivityMetrics(BaseModel):
     segmented_metrics: Optional[SegmentationOutput] = None
     form_analysis: Optional[Dict[str, Any]] = None
     load_components: Optional[Dict[str, Any]] = None
+    hr_zones_sec: Optional[Dict[str, int]] = None
 
 class PlannedInterval(BaseModel):
     """

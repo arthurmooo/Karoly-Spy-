@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
+import { Dialog, DialogHeader, DialogBody } from "@/components/ui/Dialog";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { AcwrStatusBadge } from "@/components/load/AcwrStatusBadge";
 import { MLS_LEVEL, getSportConfig } from "@/lib/constants";
@@ -18,7 +19,7 @@ import { useReadiness } from "@/hooks/useReadiness";
 import { getActivitiesCountForDay, getRecentActivities } from "@/repositories/activity.repository";
 import { formatDuration } from "@/services/format.service";
 import { normalizeSportKey } from "@/services/activity.service";
-import { buildAcwrDashboardSummary } from "@/services/load.service";
+import { buildAcwrDashboardSummary, getSnapshotPriority } from "@/services/load.service";
 import type { AcwrMetricKind, AcwrSnapshotRow, AcwrStatus } from "@/types/acwr";
 import { StorageGauge } from "@/components/system/StorageGauge";
 
@@ -59,7 +60,6 @@ const TODAY_LABEL = new Date().toLocaleDateString("fr-FR", {
 
 export function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
   const { athletes, isLoading: athletesLoading } = useAthletes();
   const { groups } = useAthleteGroups();
   const { heatmapData, isLoading: loadLoading } = useLoad(12);
@@ -71,6 +71,7 @@ export function DashboardPage() {
   const groupDropdownRef = useRef<HTMLDivElement>(null);
   const [acwrSortBy, setAcwrSortBy] = useState<AcwrSortBy>("athlete");
   const [acwrSortDir, setAcwrSortDir] = useState<SortDirection>("asc");
+  const [showAcwrDialog, setShowAcwrDialog] = useState(false);
 
   // Close group dropdown on outside click
   useEffect(() => {
@@ -197,6 +198,16 @@ export function DashboardPage() {
     return buildAcwrDashboardSummary(acwrCohort);
   }, [acwrCohort]);
 
+  const acwrDialogRows = useMemo(() => {
+    return acwrCohort
+      .map((row) => ({ ...row, priority: getSnapshotPriority(row) }))
+      .filter((row) => row.priority === "alert" || row.priority === "warning")
+      .sort((a, b) => {
+        const w = (s: string) => (s === "alert" ? 2 : 1);
+        return w(b.priority) - w(a.priority) || a.athlete.localeCompare(b.athlete, "fr");
+      });
+  }, [acwrCohort]);
+
   const handleAcwrSort = (column: AcwrSortBy) => {
     if (acwrSortBy !== column) {
       setAcwrSortBy(column);
@@ -221,7 +232,10 @@ export function DashboardPage() {
 
       {/* ── Row 1 — 4 KPI cards ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <Card>
+        <Link to="/athletes" className="block">
+        <Card
+          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+        >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -234,8 +248,12 @@ export function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        </Link>
 
-        <Card>
+        <Link to={`/activities?from=${new Date().toISOString().slice(0, 10)}&to=${new Date().toISOString().slice(0, 10)}`} className="block">
+        <Card
+          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+        >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -248,8 +266,12 @@ export function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        </Link>
 
-        <Card>
+        <Link to="/health?swc=alert" className="block">
+        <Card
+          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+        >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -264,8 +286,15 @@ export function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        </Link>
 
-        <Card>
+        <Card
+          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+          role="button"
+          tabIndex={0}
+          onClick={() => setShowAcwrDialog(true)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowAcwrDialog(true); } }}
+        >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -364,18 +393,25 @@ export function DashboardPage() {
                       const thresholds = heatmapData.getAthleteThresholds(athlete);
                       const athleteMatch = athletes.find((a) => `${a.first_name} ${a.last_name}` === athlete || `${a.last_name} ${a.first_name}` === athlete);
                       return (
-                      <button
+                      <div
                         key={athlete}
-                        type="button"
-                        onClick={() => athleteMatch && navigate(`/athletes/${athleteMatch.id}/trends`)}
-                        className="flex items-center gap-4 w-full text-left rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
+                        className="flex items-center gap-4 w-full text-left rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
                       >
-                        <div className="w-28 flex items-center gap-2 shrink-0">
-                          <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[9px] font-medium border border-slate-200 dark:border-slate-700">
-                            {athlete.charAt(0)}
+                        {athleteMatch ? (
+                          <Link to={`/athletes/${athleteMatch.id}/trends`} className="w-28 flex items-center gap-2 shrink-0 cursor-pointer">
+                            <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[9px] font-medium border border-slate-200 dark:border-slate-700">
+                              {athlete.charAt(0)}
+                            </div>
+                            <span className="text-xs font-medium truncate">{athlete}</span>
+                          </Link>
+                        ) : (
+                          <div className="w-28 flex items-center gap-2 shrink-0">
+                            <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[9px] font-medium border border-slate-200 dark:border-slate-700">
+                              {athlete.charAt(0)}
+                            </div>
+                            <span className="text-xs font-medium truncate">{athlete}</span>
                           </div>
-                          <span className="text-xs font-medium truncate">{athlete}</span>
-                        </div>
+                        )}
                         <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${heatmapData.weeks.length}, minmax(0, 1fr))` }}>
                           {heatmapData.weeks.map((week) => {
                             const cell = heatmapData.getCell(athlete, week);
@@ -383,24 +419,13 @@ export function DashboardPage() {
                             const level = MLS_LEVEL(mls, thresholds);
                             const weekLabel = new Date(week + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
                             const cellKey = `${athlete}-${week}`;
-                            return (
-                              <div
+                            const cellHref = athleteMatch
+                              ? `/athletes/${athleteMatch.id}/bilan?period=week&date=${week}`
+                              : undefined;
+                            return cellHref ? (
+                              <Link
                                 key={week}
-                                role="button"
-                                tabIndex={0}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (athleteMatch) {
-                                    navigate(`/athletes/${athleteMatch.id}/bilan?period=week&date=${week}`);
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if ((e.key === "Enter" || e.key === " ") && athleteMatch) {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    navigate(`/athletes/${athleteMatch.id}/bilan?period=week&date=${week}`);
-                                  }
-                                }}
+                                to={cellHref}
                                 onMouseEnter={(e) => {
                                   if (cell && mls > 0) {
                                     openTip(cellKey, e.currentTarget, {
@@ -415,13 +440,33 @@ export function DashboardPage() {
                                   }
                                 }}
                                 onMouseLeave={scheduleTipClose}
-                                className="relative h-5 rounded-[3px] cursor-pointer hover:scale-y-[1.3] hover:z-10 hover:shadow-sm transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+                                className="relative block h-5 rounded-[3px] cursor-pointer hover:scale-y-[1.3] hover:z-10 hover:shadow-sm transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1"
+                                style={{ backgroundColor: level.bg }}
+                              />
+                            ) : (
+                              <div
+                                key={week}
+                                onMouseEnter={(e) => {
+                                  if (cell && mls > 0) {
+                                    openTip(cellKey, e.currentTarget, {
+                                      mls,
+                                      heures: cell.heures ?? null,
+                                      nb_seances: cell.nb_seances ?? null,
+                                      mls_intv: cell.mls_moyen_intervalles ?? null,
+                                      weekLabel,
+                                      levelBg: level.bg,
+                                      levelLabel: level.label,
+                                    });
+                                  }
+                                }}
+                                onMouseLeave={scheduleTipClose}
+                                className="relative h-5 rounded-[3px] transition-all duration-150 ease-out"
                                 style={{ backgroundColor: level.bg }}
                               />
                             );
                           })}
                         </div>
-                      </button>
+                      </div>
                     );
                     })}
                   </div>
@@ -505,32 +550,31 @@ export function DashboardPage() {
                     <tr
                       key={row.athlete_id}
                       className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-150 cursor-pointer"
-                      onClick={() => navigate(`/athletes/${row.athlete_id}/bilan`)}
                     >
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                      <td className="whitespace-nowrap">
+                        <Link to={`/athletes/${row.athlete_id}/bilan`} className="flex items-center gap-2 px-2 py-2">
                           <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
                             {row.athlete.charAt(0)}
                           </div>
                           <span className="text-xs font-semibold text-slate-900 dark:text-white truncate max-w-[100px]">
                             {row.athlete}
                           </span>
-                        </div>
+                        </Link>
                       </td>
                       {(["external", "internal", "global"] as const).map((metric) => (
                         <td
                           key={metric}
-                          className="px-2 py-2 whitespace-nowrap"
+                          className="whitespace-nowrap"
                           title={formatAcwrTooltip(row, metric)}
                         >
-                          <div className="flex items-center gap-1.5">
+                          <Link to={`/athletes/${row.athlete_id}/bilan`} className="flex items-center gap-1.5 px-2 py-2">
                             <span className="text-xs font-mono font-semibold text-slate-900 dark:text-white min-w-[2rem]">
                               {row[metric].ratio !== null
                                 ? row[metric].ratio.toFixed(2)
                                 : "—"}
                             </span>
                             <AcwrStatusBadge status={row[metric].status} />
-                          </div>
+                          </Link>
                         </td>
                       ))}
                     </tr>
@@ -605,10 +649,9 @@ export function DashboardPage() {
                     : act.duration_sec ? formatDuration(act.duration_sec) : "—";
 
                   return (
-                    <button
+                    <Link
                       key={act.id}
-                      type="button"
-                      onClick={() => navigate(`/activities/${act.id}`)}
+                      to={`/activities/${act.id}`}
                       className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 text-left"
                       data-testid={`recent-activity-${act.id}`}
                     >
@@ -624,7 +667,7 @@ export function DashboardPage() {
                       ) : (
                         <span className="text-sm text-slate-400 font-mono">--</span>
                       )}
-                    </button>
+                    </Link>
                   );
                 })
               )}
@@ -656,11 +699,10 @@ export function DashboardPage() {
                 alerts.map((alert) => {
                   const isCritical = alert.swc_status === "below_swc";
                   return (
-                    <button
+                    <Link
                       key={alert.athlete_id}
-                      type="button"
-                      onClick={() => navigate(`/athletes/${alert.athlete_id}/trends`)}
-                      className="w-full text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset rounded-lg transition-all duration-150 hover:bg-primary/5 dark:hover:bg-primary/10"
+                      to={`/athletes/${alert.athlete_id}/trends`}
+                      className="w-full block text-left focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset rounded-lg transition-all duration-150 hover:bg-primary/5 dark:hover:bg-primary/10"
                       aria-label={`Ouvrir le rapport détaillé de ${alert.athlete}`}
                       data-testid={`health-alert-${alert.athlete_id}`}
                     >
@@ -680,7 +722,7 @@ export function DashboardPage() {
                           {isCritical ? "LOW" : "SWC"}
                         </Badge>
                       </div>
-                    </button>
+                    </Link>
                   );
                 })
               )}
@@ -688,6 +730,76 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── ACWR recap dialog ── */}
+      <Dialog open={showAcwrDialog} onClose={() => setShowAcwrDialog(false)}>
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 rounded-full">
+              <Icon name="warning_amber" className="text-base" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white">ACWR Alertes</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {acwrSummary.alertCount} alerte{acwrSummary.alertCount > 1 ? "s" : ""} · {acwrSummary.warningCount} vigilance
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAcwrDialog(false)}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 transition-colors"
+          >
+            <Icon name="close" className="text-lg" />
+          </button>
+        </DialogHeader>
+        <DialogBody className="p-0">
+          {acwrDialogRows.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+              Aucune alerte ou vigilance active.
+            </p>
+          ) : (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                  <th className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Athlete</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 text-center">Ext.</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 text-center">Int.</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 text-center">Glob.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {acwrDialogRows.map((row) => (
+                  <tr
+                    key={row.athlete_id}
+                    className="cursor-pointer transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  >
+                    <td className="whitespace-nowrap">
+                      <Link to={`/athletes/${row.athlete_id}/bilan`} onClick={() => setShowAcwrDialog(false)} className="flex items-center gap-2.5 px-5 py-3">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
+                          {row.athlete.charAt(0)}
+                        </div>
+                        <span className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[160px]">
+                          {row.athlete}
+                        </span>
+                      </Link>
+                    </td>
+                    {(["external", "internal", "global"] as const).map((metric) => (
+                      <td key={metric}>
+                        <Link to={`/athletes/${row.athlete_id}/bilan`} onClick={() => setShowAcwrDialog(false)} className="flex items-center justify-center gap-1.5 px-3 py-3">
+                          <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-200">
+                            {row[metric].ratio !== null ? row[metric].ratio.toFixed(2) : "—"}
+                          </span>
+                          <AcwrStatusBadge status={row[metric].status} />
+                        </Link>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </DialogBody>
+      </Dialog>
 
       {/* Portal tooltip for MLS heatmap — rendered outside overflow:hidden */}
       {heatmapTip &&

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import type { HrZonesAggregate } from "@/services/stats.service";
@@ -15,7 +15,10 @@ function formatZoneDuration(sec: number): string {
 }
 
 export function HrZonesBilan({ hrZones }: HrZonesBilanProps) {
-  const [hovered, setHovered] = useState<string | null>(null);
+  const maxPercent = useMemo(() => {
+    if (!hrZones) return 0;
+    return Math.max(...hrZones.zones.map((z) => z.percent));
+  }, [hrZones]);
 
   return (
     <Card>
@@ -32,51 +35,27 @@ export function HrZonesBilan({ hrZones }: HrZonesBilanProps) {
             status="backend"
           />
         ) : (
-          <div className="space-y-4">
-            {/* Segmented bar */}
-            <div className="flex h-6 rounded-full overflow-hidden gap-px">
-              {hrZones.zones.map((z) => (
-                <div
-                  key={z.zone}
-                  className="relative cursor-default transition-opacity duration-100"
-                  style={{
-                    flex: z.seconds,
-                    minWidth: z.percent > 1 ? 4 : 0,
-                    opacity: hovered && hovered !== z.zone ? 0.5 : 1,
-                  }}
-                  onMouseEnter={() => setHovered(z.zone)}
-                  onMouseLeave={() => setHovered(null)}
-                >
-                  <div className="h-full" style={{ backgroundColor: z.color }} />
-                  {hovered === z.zone && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-slate-900 dark:bg-slate-100 px-2 py-1 text-xs text-white dark:text-slate-900 shadow z-10 pointer-events-none">
-                      {z.zone} · {z.percent.toFixed(1)}% · {formatZoneDuration(z.seconds)}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Legend */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
-              {hrZones.zones.map((z) => (
-                <div
-                  key={z.zone}
-                  className="flex items-center gap-2"
-                  onMouseEnter={() => setHovered(z.zone)}
-                  onMouseLeave={() => setHovered(null)}
-                >
+          <div className="space-y-1.5">
+            {hrZones.zones.map((z) => (
+              <div key={z.zone} className="flex items-center gap-2">
+                <span className="w-8 shrink-0 text-xs font-medium text-slate-600 dark:text-slate-400">
+                  {z.zone}
+                </span>
+                <div className="relative flex-1 h-5">
                   <div
-                    className="w-3 h-3 rounded-lg shrink-0"
-                    style={{ backgroundColor: z.color }}
+                    className="h-full rounded-r-md"
+                    style={{
+                      width: maxPercent > 0 ? `${(z.percent / maxPercent) * 100}%` : "0%",
+                      minWidth: z.percent > 0 ? 4 : 0,
+                      backgroundColor: z.color,
+                    }}
                   />
-                  <span className="text-xs text-slate-600 dark:text-slate-400">
-                    <span className="font-medium text-slate-900 dark:text-white">{z.zone}</span>
-                    {" "}· {z.percent.toFixed(0)}% · {formatZoneDuration(z.seconds)}
-                  </span>
                 </div>
-              ))}
-            </div>
+                <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">
+                  {formatZoneDuration(z.seconds)}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>

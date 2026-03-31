@@ -5,6 +5,7 @@ import type { KpiCard } from "@/services/stats.service";
 
 interface KpiCardsProps {
   cards: KpiCard[];
+  onCardClick?: (key: KpiCard["key"]) => void;
 }
 
 interface CardMeta {
@@ -13,7 +14,7 @@ interface CardMeta {
   iconText: string;
 }
 
-function getCardMeta(key: KpiCard["key"], value: number | null): CardMeta {
+export function getCardMeta(key: KpiCard["key"], value: number | null): CardMeta {
   switch (key) {
     case "distance":
       return { icon: "straighten", iconBg: "bg-orange-500/10", iconText: "text-orange-500" };
@@ -40,15 +41,23 @@ function getCardMeta(key: KpiCard["key"], value: number | null): CardMeta {
   }
 }
 
-export function KpiCards({ cards }: KpiCardsProps) {
+export function KpiCards({ cards, onCardClick }: KpiCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       {cards.map((card) => {
         const meta = getCardMeta(card.key, card.value);
         const deltaPositive = card.deltaPct != null && card.deltaPct > 0;
         const deltaZero = card.deltaPct == null || card.deltaPct === 0;
+        const clickable = !!onCardClick;
         return (
-          <Card key={card.key}>
+          <Card
+            key={card.key}
+            className={clickable ? "cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]" : undefined}
+            onClick={clickable ? () => onCardClick(card.key) : undefined}
+            role={clickable ? "button" : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onCardClick(card.key); } } : undefined}
+          >
             <CardContent className="p-5">
               <div
                 className={`w-8 h-8 rounded-full ${meta.iconBg} flex items-center justify-center mb-3`}

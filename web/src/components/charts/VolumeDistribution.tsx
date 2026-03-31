@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useRef, useCallback } from "react";
+import { Bar, BarChart, Cell, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { getSportConfig } from "@/lib/constants";
@@ -18,41 +18,28 @@ interface ChartRow {
   avgRpe: number | null;
 }
 
-
-interface TooltipPayloadItem {
-  payload: ChartRow;
-}
-
-function CustomTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: TooltipPayloadItem[];
-}) {
-  if (!active || !payload?.length) return null;
-  const row = payload[0]!.payload;
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-md p-3 text-sm">
-      <p className="font-medium text-slate-900 dark:text-white mb-1">{row.name}</p>
-      <p className="text-slate-600 dark:text-slate-300">
-        {row.value.toFixed(1).replace(".", ",")} %
-        {" · "}
-        {row.hours.toFixed(1).replace(".", ",")} h
-        {row.distanceKm > 0
-          ? ` · ${row.distanceKm.toFixed(0)} km`
-          : ""}
-      </p>
-      {row.avgRpe != null && (
-        <p className="text-slate-500 dark:text-slate-400 mt-0.5">
-          RPE moyen : {row.avgRpe.toFixed(1).replace(".", ",")}
-        </p>
-      )}
-    </div>
-  );
-}
+const TOOLTIP_W = 200;
+const TOOLTIP_H = 40;
 
 export function VolumeDistribution({ items }: VolumeDistributionProps) {
+  const [activeBar, setActiveBar] = useState<{ row: ChartRow; cx: number; cy: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = useCallback((state: any) => {
+    if (state.activePayload?.length) {
+      const row = state.activePayload[0].payload as ChartRow;
+      setActiveBar({
+        row,
+        cx: state.activeCoordinate?.x ?? 0,
+        cy: state.activeCoordinate?.y ?? 0,
+      });
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setActiveBar(null);
+  }, []);
+
   const chartData = useMemo<ChartRow[]>(
     () =>
       items.map((item) => {
@@ -69,6 +56,36 @@ export function VolumeDistribution({ items }: VolumeDistributionProps) {
     [items]
   );
 
+  const chartElement = useMemo(() => (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={chartData}
+        layout="vertical"
+        margin={{ top: 0, right: 16, left: 12, bottom: 0 }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        <XAxis
+          type="number"
+          domain={[0, 100]}
+          tick={{ fontSize: 11 }}
+          tickFormatter={(value: number) => `${value}%`}
+        />
+        <YAxis
+          type="category"
+          dataKey="name"
+          tick={{ fontSize: 12, fill: "#64748b" }}
+          width={70}
+        />
+        <Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+          {chartData.map((item) => (
+            <Cell key={item.name} fill={item.fill} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  ), [chartData, handleMouseMove, handleMouseLeave]);
+
   if (items.length === 0) {
     return (
       <FeatureNotice
@@ -77,6 +94,22 @@ export function VolumeDistribution({ items }: VolumeDistributionProps) {
         status="unavailable"
       />
     );
+  }
+
+  // Position tooltip near cursor: right of cx, flipped left if overflow; vertically centered on bar
+  let tooltipX = 0;
+  let tooltipY = 0;
+  if (activeBar) {
+    const containerW = containerRef.current?.offsetWidth ?? 600;
+    const containerH = containerRef.current?.offsetHeight ?? 220;
+    const GAP = 16;
+    tooltipX = activeBar.cx + GAP;
+    if (tooltipX + TOOLTIP_W > containerW) {
+      tooltipX = activeBar.cx - TOOLTIP_W - GAP;
+    }
+    tooltipX = Math.max(0, tooltipX);
+    tooltipY = activeBar.cy - TOOLTIP_H / 2;
+    tooltipY = Math.max(0, Math.min(tooltipY, containerH - TOOLTIP_H));
   }
 
   return (
@@ -88,32 +121,30 @@ export function VolumeDistribution({ items }: VolumeDistributionProps) {
         <p className="text-sm text-slate-500">Volume calculé sur le temps d'entraînement cumulé.</p>
       </CardHeader>
       <CardContent>
-        <div className="h-[220px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 12, bottom: 0 }}>
-              <XAxis
-                type="number"
-                domain={[0, 100]}
-                tick={{ fontSize: 11 }}
-                tickFormatter={(value: number) => `${value}%`}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 12, fill: "#64748b" }}
-                width={70}
-              />
-              <Tooltip
-                cursor={{ fill: "rgba(148, 163, 184, 0.1)" }}
-                content={<CustomTooltip />}
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {chartData.map((item) => (
-                  <Cell key={item.name} fill={item.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div ref={containerRef} className="relative h-[220px]">
+          {chartElement}
+
+          {activeBar && (
+            <div
+              className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white p-3 text-sm shadow-md dark:border-slate-800 dark:bg-slate-900"
+              style={{ left: tooltipX, top: tooltipY, transition: "left 100ms ease-out, top 100ms ease-out" }}
+            >
+              <p className="mb-1 font-medium text-slate-900 dark:text-white">{activeBar.row.name}</p>
+              <p className="text-slate-600 dark:text-slate-300">
+                {activeBar.row.value.toFixed(1).replace(".", ",")} %
+                {" · "}
+                {activeBar.row.hours.toFixed(1).replace(".", ",")} h
+                {activeBar.row.distanceKm > 0
+                  ? ` · ${activeBar.row.distanceKm.toFixed(0)} km`
+                  : ""}
+              </p>
+              {activeBar.row.avgRpe != null && (
+                <p className="mt-0.5 text-slate-500 dark:text-slate-400">
+                  RPE moyen : {activeBar.row.avgRpe.toFixed(1).replace(".", ",")}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
