@@ -40,8 +40,27 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { data: callerProfile, error: profileErr } = await supabaseAdmin
+      .from("user_profiles")
+      .select("role, structure_id, is_active")
+      .eq("id", user.id)
+      .single();
+
+    if (profileErr || !callerProfile) {
+      return new Response(JSON.stringify({ error: "User profile not found" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!["admin", "coach"].includes(callerProfile.role) || callerProfile.is_active === false) {
+      return new Response(JSON.stringify({ error: "Coach access required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // 2. Parse body
-    const { email, first_name, last_name, athlete_group_id } = await req.json();
+    const { email, first_name, last_name, athlete_group_id, coach_id } = await req.json();
     if (!email || !first_name || !last_name) {
       return new Response(JSON.stringify({ error: "email, first_name, and last_name required" }), {
         status: 400,
@@ -49,16 +68,72 @@ Deno.serve(async (req) => {
       });
     }
 
+    let targetCoachId: string | null = user.id;
+    let targetStructureId: string | null = callerProfile.structure_id ?? null;
+
+    if (callerProfile.role === "admin") {
+      targetCoachId = coach_id ?? null;
+      if (!targetStructureId) {
+        return new Response(JSON.stringify({ error: "Admin has no structure" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (coach_id && coach_id !== user.id) {
+      return new Response(JSON.stringify({ error: "Coaches can only invite athletes for themselves" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (targetCoachId) {
+      const { data: targetCoach, error: coachErr } = await supabaseAdmin
+        .from("user_profiles")
+        .select("id, role, structure_id, is_active")
+        .eq("id", targetCoachId)
+        .single();
+
+      if (coachErr || !targetCoach) {
+        return new Response(JSON.stringify({ error: "Target coach not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!["admin", "coach"].includes(targetCoach.role) || targetCoach.is_active === false) {
+        return new Response(JSON.stringify({ error: "Invalid target coach" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (callerProfile.role === "admin" && targetCoach.structure_id !== targetStructureId) {
+        return new Response(JSON.stringify({ error: "Coach belongs to another structure" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      targetStructureId = targetCoach.structure_id ?? targetStructureId;
+    }
+
     // 3. Check if athlete with this email already exists
     const { data: existingAthlete } = await supabaseAdmin
       .from("athletes")
-      .select("id, email, coach_id")
+      .select("id, email, coach_id, structure_id")
       .eq("email", email.toLowerCase().trim())
       .maybeSingle();
 
     if (existingAthlete) {
-      // If athlete exists for a different coach, reject
-      if (existingAthlete.coach_id && existingAthlete.coach_id !== user.id) {
+      const sameStructure =
+        !existingAthlete.structure_id ||
+        !targetStructureId ||
+        existingAthlete.structure_id === targetStructureId;
+
+      if (!sameStructure) {
+        return new Response(JSON.stringify({ error: "This email belongs to another coach's athlete" }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (callerProfile.role !== "admin" && existingAthlete.coach_id && existingAthlete.coach_id !== user.id) {
         return new Response(JSON.stringify({ error: "This email belongs to another coach's athlete" }), {
           status: 409,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -88,8 +163,29 @@ Deno.serve(async (req) => {
           id: inviteData.user.id,
           role: "athlete",
           display_name: `${first_name} ${last_name}`,
+          email: email.toLowerCase().trim(),
         });
       }
+
+      let validatedGroupId: string | null = null;
+      if (athlete_group_id && targetCoachId) {
+        const { data: grp } = await supabaseAdmin
+          .from("athlete_groups")
+          .select("id")
+          .eq("id", athlete_group_id)
+          .eq("coach_id", targetCoachId)
+          .maybeSingle();
+        validatedGroupId = grp?.id ?? null;
+      }
+
+      await supabaseAdmin
+        .from("athletes")
+        .update({
+          coach_id: targetCoachId,
+          structure_id: targetStructureId,
+          athlete_group_id: validatedGroupId,
+        })
+        .eq("id", existingAthlete.id);
 
       return new Response(
         JSON.stringify({ success: true, athlete_id: existingAthlete.id, linked: true }),
@@ -111,6 +207,7 @@ Deno.serve(async (req) => {
         id: inviteData.user.id,
         role: "athlete",
         display_name: `${first_name} ${last_name}`,
+        email: email.toLowerCase().trim(),
       });
     }
 
@@ -119,7 +216,8 @@ Deno.serve(async (req) => {
       first_name: first_name.trim(),
       last_name: last_name.trim(),
       email: email.toLowerCase().trim(),
-      coach_id: user.id,
+      coach_id: targetCoachId,
+      structure_id: targetStructureId,
       is_active: true,
     };
     if (athlete_group_id) {
@@ -128,7 +226,7 @@ Deno.serve(async (req) => {
         .from("athlete_groups")
         .select("id")
         .eq("id", athlete_group_id)
-        .eq("coach_id", user.id)
+        .eq("coach_id", targetCoachId)
         .maybeSingle();
       if (grp) {
         athleteInsert.athlete_group_id = athlete_group_id;

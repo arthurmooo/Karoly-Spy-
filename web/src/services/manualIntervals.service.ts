@@ -1,4 +1,10 @@
-import type { Activity, IntervalBlock, StreamPoint } from "@/types/activity";
+import type {
+  Activity,
+  IntervalBlock,
+  ManualIntervalSegment,
+  ManualIntervalSegmentsBlock,
+  StreamPoint,
+} from "@/types/activity";
 
 export type ManualDetectionMode = "duration" | "distance";
 export type ManualDetectionMetric = "speed" | "power" | "heart_rate";
@@ -38,6 +44,12 @@ export interface ManualBlockOverridePayload {
   manual_interval_block_2_pace_last: number | null;
   manual_interval_block_2_count: number | null;
   manual_interval_block_2_duration_sec: number | null;
+}
+
+export interface ManualIntervalsUpdatePayload {
+  overrides: ManualBlockOverridePayload;
+  manual_interval_segments: ManualIntervalSegmentsBlock[];
+  reset_to_auto: boolean;
 }
 
 interface DetectionOptions {
@@ -81,6 +93,50 @@ interface ResolvedBlockMetrics {
   powerLast: number | null;
   hrMean: number | null;
   hrLast: number | null;
+}
+
+function serializeManualSegment(segment: DetectedSegment): ManualIntervalSegment {
+  return {
+    start_sec: Math.round(segment.startSec * 10) / 10,
+    end_sec: Math.round(segment.endSec * 10) / 10,
+    duration_sec: Math.round(segment.durationSec * 10) / 10,
+    distance_m: Math.round(segment.distanceM * 10) / 10,
+    avg_speed: round2(segment.avgSpeed ?? null),
+    avg_power: round1(segment.avgPower ?? null),
+    avg_hr: round1(segment.avgHr ?? null),
+  };
+}
+
+function readManualSegmentBlocks(activity: Activity): ManualIntervalSegmentsBlock[] {
+  return [...(activity.manual_interval_segments ?? [])]
+    .map((block) => ({
+      block_index: block.block_index,
+      segments: [...(block.segments ?? [])],
+    }))
+    .sort((left, right) => left.block_index - right.block_index);
+}
+
+function mergeManualSegmentBlocks(
+  activity: Activity,
+  blockIndex: 1 | 2,
+  segments: DetectedSegment[] | null
+): ManualIntervalSegmentsBlock[] {
+  const next = new Map<number, ManualIntervalSegmentsBlock>(
+    readManualSegmentBlocks(activity).map((block) => [block.block_index, block])
+  );
+
+  if (segments && segments.length > 0) {
+    next.set(blockIndex, {
+      block_index: blockIndex,
+      segments: segments.map(serializeManualSegment),
+    });
+  } else {
+    next.delete(blockIndex);
+  }
+
+  return [...next.values()]
+    .filter((block) => block.segments.length > 0)
+    .sort((left, right) => left.block_index - right.block_index);
 }
 
 const DEFAULT_SAMPLE_DT = 5;
@@ -329,6 +385,9 @@ export function resolveBlockMetrics(
 export function hasManualBlockOverride(activity: Activity, blockIndex: 1 | 2): boolean {
   const prefix = `manual_interval_block_${blockIndex}_` as const;
   return (
+    activity.manual_interval_segments?.some(
+      (block) => block.block_index === blockIndex && block.segments.length > 0
+    ) ||
     activity[`${prefix}pace_mean`] != null ||
     activity[`${prefix}pace_last`] != null ||
     activity[`${prefix}power_mean`] != null ||
@@ -508,80 +567,86 @@ export function buildManualBlockPayload(
   activity: Activity,
   blockIndex: 1 | 2,
   segments: DetectedSegment[] | null
-): ManualBlockOverridePayload {
+): ManualIntervalsUpdatePayload {
   const blockUpdate = buildBlockMetricUpdate(activity, blockIndex, segments);
   const legacy = resolveLegacyFromBlocks(activity, [blockUpdate]);
+  const manualIntervalSegments = mergeManualSegmentBlocks(activity, blockIndex, segments);
+
   return {
-    manual_interval_power_mean: legacy.manual_interval_power_mean,
-    manual_interval_power_last: legacy.manual_interval_power_last,
-    manual_interval_hr_mean: legacy.manual_interval_hr_mean,
-    manual_interval_hr_last: legacy.manual_interval_hr_last,
-    manual_interval_pace_mean: legacy.manual_interval_pace_mean,
-    manual_interval_pace_last: legacy.manual_interval_pace_last,
-    manual_interval_block_1_power_mean:
-      blockIndex === 1
-        ? blockUpdate.manual_interval_block_1_power_mean ?? null
-        : activity.manual_interval_block_1_power_mean ?? null,
-    manual_interval_block_1_power_last:
-      blockIndex === 1
-        ? blockUpdate.manual_interval_block_1_power_last ?? null
-        : activity.manual_interval_block_1_power_last ?? null,
-    manual_interval_block_1_hr_mean:
-      blockIndex === 1
-        ? blockUpdate.manual_interval_block_1_hr_mean ?? null
-        : activity.manual_interval_block_1_hr_mean ?? null,
-    manual_interval_block_1_hr_last:
-      blockIndex === 1
-        ? blockUpdate.manual_interval_block_1_hr_last ?? null
-        : activity.manual_interval_block_1_hr_last ?? null,
-    manual_interval_block_1_pace_mean:
-      blockIndex === 1
-        ? blockUpdate.manual_interval_block_1_pace_mean ?? null
-        : activity.manual_interval_block_1_pace_mean ?? null,
-    manual_interval_block_1_pace_last:
-      blockIndex === 1
-        ? blockUpdate.manual_interval_block_1_pace_last ?? null
-        : activity.manual_interval_block_1_pace_last ?? null,
-    manual_interval_block_1_count:
-      blockIndex === 1
-        ? (blockUpdate as Record<string, unknown>).manual_interval_block_1_count as number | null ?? null
-        : activity.manual_interval_block_1_count ?? null,
-    manual_interval_block_1_duration_sec:
-      blockIndex === 1
-        ? (blockUpdate as Record<string, unknown>).manual_interval_block_1_duration_sec as number | null ?? null
-        : activity.manual_interval_block_1_duration_sec ?? null,
-    manual_interval_block_2_power_mean:
-      blockIndex === 2
-        ? blockUpdate.manual_interval_block_2_power_mean ?? null
-        : activity.manual_interval_block_2_power_mean ?? null,
-    manual_interval_block_2_power_last:
-      blockIndex === 2
-        ? blockUpdate.manual_interval_block_2_power_last ?? null
-        : activity.manual_interval_block_2_power_last ?? null,
-    manual_interval_block_2_hr_mean:
-      blockIndex === 2
-        ? blockUpdate.manual_interval_block_2_hr_mean ?? null
-        : activity.manual_interval_block_2_hr_mean ?? null,
-    manual_interval_block_2_hr_last:
-      blockIndex === 2
-        ? blockUpdate.manual_interval_block_2_hr_last ?? null
-        : activity.manual_interval_block_2_hr_last ?? null,
-    manual_interval_block_2_pace_mean:
-      blockIndex === 2
-        ? blockUpdate.manual_interval_block_2_pace_mean ?? null
-        : activity.manual_interval_block_2_pace_mean ?? null,
-    manual_interval_block_2_pace_last:
-      blockIndex === 2
-        ? blockUpdate.manual_interval_block_2_pace_last ?? null
-        : activity.manual_interval_block_2_pace_last ?? null,
-    manual_interval_block_2_count:
-      blockIndex === 2
-        ? (blockUpdate as Record<string, unknown>).manual_interval_block_2_count as number | null ?? null
-        : activity.manual_interval_block_2_count ?? null,
-    manual_interval_block_2_duration_sec:
-      blockIndex === 2
-        ? (blockUpdate as Record<string, unknown>).manual_interval_block_2_duration_sec as number | null ?? null
-        : activity.manual_interval_block_2_duration_sec ?? null,
+    overrides: {
+      manual_interval_power_mean: legacy.manual_interval_power_mean,
+      manual_interval_power_last: legacy.manual_interval_power_last,
+      manual_interval_hr_mean: legacy.manual_interval_hr_mean,
+      manual_interval_hr_last: legacy.manual_interval_hr_last,
+      manual_interval_pace_mean: legacy.manual_interval_pace_mean,
+      manual_interval_pace_last: legacy.manual_interval_pace_last,
+      manual_interval_block_1_power_mean:
+        blockIndex === 1
+          ? blockUpdate.manual_interval_block_1_power_mean ?? null
+          : activity.manual_interval_block_1_power_mean ?? null,
+      manual_interval_block_1_power_last:
+        blockIndex === 1
+          ? blockUpdate.manual_interval_block_1_power_last ?? null
+          : activity.manual_interval_block_1_power_last ?? null,
+      manual_interval_block_1_hr_mean:
+        blockIndex === 1
+          ? blockUpdate.manual_interval_block_1_hr_mean ?? null
+          : activity.manual_interval_block_1_hr_mean ?? null,
+      manual_interval_block_1_hr_last:
+        blockIndex === 1
+          ? blockUpdate.manual_interval_block_1_hr_last ?? null
+          : activity.manual_interval_block_1_hr_last ?? null,
+      manual_interval_block_1_pace_mean:
+        blockIndex === 1
+          ? blockUpdate.manual_interval_block_1_pace_mean ?? null
+          : activity.manual_interval_block_1_pace_mean ?? null,
+      manual_interval_block_1_pace_last:
+        blockIndex === 1
+          ? blockUpdate.manual_interval_block_1_pace_last ?? null
+          : activity.manual_interval_block_1_pace_last ?? null,
+      manual_interval_block_1_count:
+        blockIndex === 1
+          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_1_count as number | null) ?? null
+          : activity.manual_interval_block_1_count ?? null,
+      manual_interval_block_1_duration_sec:
+        blockIndex === 1
+          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_1_duration_sec as number | null) ?? null
+          : activity.manual_interval_block_1_duration_sec ?? null,
+      manual_interval_block_2_power_mean:
+        blockIndex === 2
+          ? blockUpdate.manual_interval_block_2_power_mean ?? null
+          : activity.manual_interval_block_2_power_mean ?? null,
+      manual_interval_block_2_power_last:
+        blockIndex === 2
+          ? blockUpdate.manual_interval_block_2_power_last ?? null
+          : activity.manual_interval_block_2_power_last ?? null,
+      manual_interval_block_2_hr_mean:
+        blockIndex === 2
+          ? blockUpdate.manual_interval_block_2_hr_mean ?? null
+          : activity.manual_interval_block_2_hr_mean ?? null,
+      manual_interval_block_2_hr_last:
+        blockIndex === 2
+          ? blockUpdate.manual_interval_block_2_hr_last ?? null
+          : activity.manual_interval_block_2_hr_last ?? null,
+      manual_interval_block_2_pace_mean:
+        blockIndex === 2
+          ? blockUpdate.manual_interval_block_2_pace_mean ?? null
+          : activity.manual_interval_block_2_pace_mean ?? null,
+      manual_interval_block_2_pace_last:
+        blockIndex === 2
+          ? blockUpdate.manual_interval_block_2_pace_last ?? null
+          : activity.manual_interval_block_2_pace_last ?? null,
+      manual_interval_block_2_count:
+        blockIndex === 2
+          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_2_count as number | null) ?? null
+          : activity.manual_interval_block_2_count ?? null,
+      manual_interval_block_2_duration_sec:
+        blockIndex === 2
+          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_2_duration_sec as number | null) ?? null
+          : activity.manual_interval_block_2_duration_sec ?? null,
+    },
+    manual_interval_segments: manualIntervalSegments,
+    reset_to_auto: manualIntervalSegments.length === 0,
   };
 }
 

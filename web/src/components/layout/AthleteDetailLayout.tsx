@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useParams } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
 import { AthleteSubNav } from "@/components/layout/AthleteSubNav";
 import { getAthleteById } from "@/repositories/athlete.repository";
 import type { Athlete } from "@/types/athlete";
@@ -52,8 +53,6 @@ export function AthleteDetailLayout() {
     );
   }
 
-  const initials = `${athlete.first_name.charAt(0)}${athlete.last_name.charAt(0)}`;
-
   return (
     <div className="space-y-4">
       {/* Breadcrumb */}
@@ -64,9 +63,7 @@ export function AthleteDetailLayout() {
         </Link>
         <Icon name="chevron_right" className="text-sm text-slate-400" />
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary border border-primary/20 shrink-0">
-            {initials}
-          </div>
+          <AthleteAvatar firstName={athlete.first_name} lastName={athlete.last_name} avatarUrl={athlete.avatar_url} size="sm" shape="circle" className="bg-primary/10 text-primary border-primary/20" />
           <span className="font-medium text-slate-900 dark:text-white">
             {athlete.first_name} {athlete.last_name}
           </span>

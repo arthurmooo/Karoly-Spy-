@@ -24,6 +24,15 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
+// heures décimales → "1h45" ou "55 min"
+export function formatHoursHuman(hours: number): string {
+  const totalMin = Math.round(hours * 60);
+  if (totalMin < 60) return `${totalMin} min`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m === 0 ? `${h}h` : `${h}h${m.toString().padStart(2, "0")}`;
+}
+
 // m/s → decimal min/km (PAS d'arrondi — l'arrondi est fait au formatage)
 export function speedToPaceDecimal(ms: number): number | null {
   if (!ms || ms <= 0) return null;

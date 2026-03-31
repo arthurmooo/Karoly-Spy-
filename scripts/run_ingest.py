@@ -662,6 +662,24 @@ class IngestionRobot:
                         print(f"      🎯 Plan parsed: {len(target_grid)} interval steps found.")
             except Exception as e:
                 print(f"      ⚠️ Plan parsing error: {e}")
+        # 2b. Tier 3 — planned_workouts table fallback
+        if not target_grid:
+            try:
+                pw_res = self.db.client.table("planned_workouts").select(
+                    "structured_workout"
+                ).eq("athlete_id", str(athlete_uuid)).eq(
+                    "planned_date", start_date.strftime("%Y-%m-%d")
+                ).eq("sport", internal_sport).not_.is_(
+                    "structured_workout", "null"
+                ).limit(1).execute()
+                if pw_res.data and pw_res.data[0].get("structured_workout"):
+                    struct = pw_res.data[0]["structured_workout"]
+                    target_grid = self.plan_parser.parse(struct, sport_type=internal_sport, merge_adjacent_work=True)
+                    if target_grid:
+                        planned_source = "nolio_structured_workout"
+                        print(f"      🎯 Plan from planned_workouts table: {len(target_grid)} interval steps.")
+            except Exception as e:
+                print(f"      ⚠️ planned_workouts fallback error: {e}")
         # ---------------------------------------------------
 
         # 3. Try to process FIT data if available

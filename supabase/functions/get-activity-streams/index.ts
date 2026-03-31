@@ -392,8 +392,8 @@ Deno.serve(async (req) => {
       if (!profile.athlete_id || activity.athlete_id !== profile.athlete_id) {
         return jsonResponse({ error: "Unauthorized: this activity does not belong to you" }, 403);
       }
-    } else if (profile.role === "coach") {
-      if (athlete.coach_id && athlete.coach_id !== user.id) {
+    } else if (profile.role === "coach" || profile.role === "admin") {
+      if (athlete.coach_id !== user.id) {
         return jsonResponse({ error: "Unauthorized: not your athlete" }, 403);
       }
     } else {

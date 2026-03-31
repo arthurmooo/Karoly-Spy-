@@ -13,6 +13,8 @@ import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { WORK_TYPE_OPTIONS } from "@/services/filter.service";
 import { useLoad } from "@/hooks/useLoad";
 import { useAcwr } from "@/hooks/useAcwr";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
+import { useAvatarMap } from "@/hooks/useAvatarMap";
 import { useAthletes } from "@/hooks/useAthletes";
 import { useAthleteGroups } from "@/hooks/useAthleteGroups";
 import { useReadiness } from "@/hooks/useReadiness";
@@ -62,6 +64,7 @@ export function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { athletes, isLoading: athletesLoading } = useAthletes();
   const { groups } = useAthleteGroups();
+  const { getAvatarUrl } = useAvatarMap();
   const { heatmapData, isLoading: loadLoading } = useLoad(12);
   const { cohort: acwrCohort, isLoading: acwrLoading } = useAcwr();
   const { healthData, isLoading: readinessLoading } = useReadiness();
@@ -232,9 +235,9 @@ export function DashboardPage() {
 
       {/* ── Row 1 — 4 KPI cards ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <Link to="/athletes" className="block">
+        <Link to="/athletes" className="block h-full">
         <Card
-          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+          className="h-full cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
         >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
@@ -250,9 +253,9 @@ export function DashboardPage() {
         </Card>
         </Link>
 
-        <Link to={`/activities?from=${new Date().toISOString().slice(0, 10)}&to=${new Date().toISOString().slice(0, 10)}`} className="block">
+        <Link to={`/activities?from=${new Date().toISOString().slice(0, 10)}&to=${new Date().toISOString().slice(0, 10)}`} className="block h-full">
         <Card
-          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+          className="h-full cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
         >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
@@ -268,9 +271,9 @@ export function DashboardPage() {
         </Card>
         </Link>
 
-        <Link to="/health?swc=alert" className="block">
+        <Link to="/health?swc=alert" className="block h-full">
         <Card
-          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+          className="h-full cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
         >
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
@@ -289,7 +292,7 @@ export function DashboardPage() {
         </Link>
 
         <Card
-          className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+          className="h-full cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
           role="button"
           tabIndex={0}
           onClick={() => setShowAcwrDialog(true)}
@@ -399,16 +402,12 @@ export function DashboardPage() {
                       >
                         {athleteMatch ? (
                           <Link to={`/athletes/${athleteMatch.id}/trends`} className="w-28 flex items-center gap-2 shrink-0 cursor-pointer">
-                            <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[9px] font-medium border border-slate-200 dark:border-slate-700">
-                              {athlete.charAt(0)}
-                            </div>
+                            <AthleteAvatar name={athlete} avatarUrl={getAvatarUrl(athlete)} size="xs" />
                             <span className="text-xs font-medium truncate">{athlete}</span>
                           </Link>
                         ) : (
                           <div className="w-28 flex items-center gap-2 shrink-0">
-                            <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[9px] font-medium border border-slate-200 dark:border-slate-700">
-                              {athlete.charAt(0)}
-                            </div>
+                            <AthleteAvatar name={athlete} avatarUrl={getAvatarUrl(athlete)} size="xs" />
                             <span className="text-xs font-medium truncate">{athlete}</span>
                           </div>
                         )}
@@ -553,9 +552,7 @@ export function DashboardPage() {
                     >
                       <td className="whitespace-nowrap">
                         <Link to={`/athletes/${row.athlete_id}/bilan`} className="flex items-center gap-2 px-2 py-2">
-                          <div className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
-                            {row.athlete.charAt(0)}
-                          </div>
+                          <AthleteAvatar name={row.athlete} avatarUrl={getAvatarUrl(row.athlete)} size="xs" />
                           <span className="text-xs font-semibold text-slate-900 dark:text-white truncate max-w-[100px]">
                             {row.athlete}
                           </span>
@@ -707,9 +704,7 @@ export function DashboardPage() {
                       data-testid={`health-alert-${alert.athlete_id}`}
                     >
                       <div className="p-2.5 flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0">
-                          {alert.athlete.charAt(0)}
-                        </div>
+                        <AthleteAvatar name={alert.athlete} avatarUrl={getAvatarUrl(alert.athlete)} size="md" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{alert.athlete}</p>
                           <p className="text-xs text-slate-500 truncate">
@@ -775,9 +770,7 @@ export function DashboardPage() {
                   >
                     <td className="whitespace-nowrap">
                       <Link to={`/athletes/${row.athlete_id}/trends`} onClick={() => setShowAcwrDialog(false)} className="flex items-center gap-2.5 px-5 py-3">
-                        <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-semibold text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
-                          {row.athlete.charAt(0)}
-                        </div>
+                        <AthleteAvatar name={row.athlete} avatarUrl={getAvatarUrl(row.athlete)} size="md" />
                         <span className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[160px]">
                           {row.athlete}
                         </span>

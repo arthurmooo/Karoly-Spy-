@@ -1,8 +1,21 @@
 export const E2E_FIXTURES = {
+  structure: {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  },
+  admin: {
+    id: "22222222-2222-4222-8222-222222222222",
+    email: "coach.e2e@projectk.test",
+    password: "CoachE2E!2026",
+  },
   coach: {
     id: "22222222-2222-4222-8222-222222222222",
     email: "coach.e2e@projectk.test",
     password: "CoachE2E!2026",
+  },
+  collaboratorCoach: {
+    id: "66666666-6666-4666-8666-666666666666",
+    email: "collab.coach.e2e@projectk.test",
+    password: "CoachCollabE2E!2026",
   },
   athlete: {
     id: "11111111-1111-4111-8111-111111111111",

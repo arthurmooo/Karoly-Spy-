@@ -4,6 +4,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
 import { Dialog, DialogHeader, DialogBody, DialogFooter } from "@/components/ui/Dialog";
 import {
   Disclosure,
@@ -229,10 +230,7 @@ export function GroupManager({
                             to={`/athletes/${a.id}/bilan`}
                             className="flex items-center gap-2 py-1 pl-2 rounded cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all duration-150"
                           >
-                            <div className="w-5 h-5 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[9px] font-medium text-slate-600 dark:text-slate-400 shrink-0">
-                              {a.first_name.charAt(0)}
-                              {a.last_name.charAt(0)}
-                            </div>
+                            <AthleteAvatar firstName={a.first_name} lastName={a.last_name} avatarUrl={a.avatar_url} size="xs" shape="rounded" />
                             <span className="text-xs text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors">
                               {a.first_name} {a.last_name}
                             </span>

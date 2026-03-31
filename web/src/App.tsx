@@ -3,6 +3,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { CoachRoute } from "@/components/layout/CoachRoute";
 import { AthleteRoute } from "@/components/layout/AthleteRoute";
+import { AdminRoute } from "@/components/layout/AdminRoute";
 import { CoachLayout } from "@/components/layout/CoachLayout";
 import { AthleteLayout } from "@/components/layout/AthleteLayout";
 import { AthleteDetailLayout } from "@/components/layout/AthleteDetailLayout";
@@ -17,9 +18,13 @@ import { AthleteTrendsPage } from "@/pages/AthleteTrendsPage";
 import { AthleteProfilePage } from "@/pages/AthleteProfilePage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import { AthleteHomePage } from "@/pages/AthleteHomePage";
+import { MyDashboardPage } from "@/pages/MyDashboardPage";
+import { AdminCoachesPage } from "@/pages/AdminCoachesPage";
+import { AdminAssignmentsPage } from "@/pages/AdminAssignmentsPage";
 import { AthleteBilanPage } from "@/pages/AthleteBilanPage";
 import { MyBilanPage } from "@/pages/MyBilanPage";
 import { MyTrendsPage } from "@/pages/MyTrendsPage";
+import { MyProfilePage } from "@/pages/MyProfilePage";
 import { SessionComparisonPage } from "@/pages/SessionComparisonPage";
 import { useTheme } from "@/hooks/useTheme";
 import { Toaster } from "sonner";
@@ -46,6 +51,10 @@ function AppRoutes() {
               <Route path="/athletes" element={<AthletesPage />} />
               <Route path="/profiles" element={<ProfilesPage />} />
               <Route path="/health" element={<HealthPage />} />
+              <Route element={<AdminRoute />}>
+                <Route path="/admin/coaches" element={<AdminCoachesPage />} />
+                <Route path="/admin/assignments" element={<AdminAssignmentsPage />} />
+              </Route>
               <Route path="/athletes/:id" element={<AthleteDetailLayout />}>
                 <Route index element={<Navigate to="bilan" />} />
                 <Route path="bilan" element={<AthleteBilanPage />} />
@@ -58,11 +67,12 @@ function AppRoutes() {
           {/* Athlete routes */}
           <Route element={<AthleteRoute />}>
             <Route element={<AthleteLayout />}>
-              <Route path="/mon-espace" element={<AthleteHomePage />} />
+              <Route path="/mon-espace" element={<MyDashboardPage />} />
               <Route path="/mon-espace/bilan" element={<MyBilanPage />} />
               <Route path="/mon-espace/seances" element={<AthleteHomePage />} />
               <Route path="/mon-espace/calendrier" element={<CalendarPage />} />
               <Route path="/mon-espace/tendances" element={<MyTrendsPage />} />
+              <Route path="/mon-espace/profil" element={<MyProfilePage />} />
               <Route path="/mon-espace/activities/:id" element={<ActivityDetailPage />} />
               <Route path="/mon-espace/activities/:id/compare" element={<SessionComparisonPage />} />
             </Route>

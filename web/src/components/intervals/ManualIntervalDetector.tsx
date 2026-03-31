@@ -25,11 +25,6 @@ interface Props {
   isLoadingStreams: boolean;
   onSave: (payload: ReturnType<typeof buildManualBlockPayload>) => Promise<void>;
   onDetectedSegmentsChange?: (segments: DetectedSegment[]) => void;
-  onInjectedSegmentsChange?: (
-    blockIndex: 1 | 2,
-    segments: DetectedSegment[] | null,
-    payload: ReturnType<typeof buildManualBlockPayload>
-  ) => void;
 }
 
 interface MetricOption {
@@ -81,7 +76,6 @@ export function ManualIntervalDetector({
   isLoadingStreams,
   onSave,
   onDetectedSegmentsChange,
-  onInjectedSegmentsChange,
 }: Props) {
   const isBike = isBikeSport(activity.sport_type);
   const streams = activity.activity_streams ?? [];
@@ -305,7 +299,6 @@ export function ManualIntervalDetector({
       justInjectedRef.current = true;
       const payload = buildManualBlockPayload(activity, selectedBlock, selectedSegments);
       await onSave(payload);
-      onInjectedSegmentsChange?.(selectedBlock, selectedSegments, payload);
       setStatus(`Bloc ${selectedBlock} mis à jour.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Échec de l'injection.");
@@ -322,7 +315,6 @@ export function ManualIntervalDetector({
     try {
       const payload = buildManualBlockPayload(activity, selectedBlock, null);
       await onSave(payload);
-      onInjectedSegmentsChange?.(selectedBlock, null, payload);
       setSegments([]);
       setSelectedIds([]);
       onDetectedSegmentsChange?.([]);

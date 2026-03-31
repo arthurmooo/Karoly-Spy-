@@ -9,7 +9,7 @@ import type {
   StreamPoint,
   WorkTypeValue,
 } from "@/types/activity";
-import type { ManualBlockOverridePayload } from "@/services/manualIntervals.service";
+import type { ManualIntervalsUpdatePayload } from "@/services/manualIntervals.service";
 
 const PER_PAGE = 25;
 
@@ -130,7 +130,7 @@ const DETAIL_COLUMNS_CORE = `id, athlete_id, session_date, sport_type, work_type
        manual_interval_block_2_hr_mean, manual_interval_block_2_hr_last,
        manual_interval_block_2_pace_mean, manual_interval_block_2_pace_last,
        manual_interval_block_1_count, manual_interval_block_1_duration_sec,
-       manual_interval_block_2_count, manual_interval_block_2_duration_sec,
+       manual_interval_block_2_count, manual_interval_block_2_duration_sec, manual_interval_segments,
        interval_detection_source, decoupling_index,
        durability_index, temp_avg, elevation_gain, source_json, segmented_metrics, coach_comment, athlete_comment`;
 const DETAIL_COLUMNS_WORK_TYPE_OVERRIDE = "manual_work_type, detected_work_type, analysis_dirty";
@@ -328,10 +328,15 @@ export async function getComparableActivities(baseActivity: Activity): Promise<A
 
 export async function updateManualIntervalOverrides(
   activityId: string,
-  payload: ManualBlockOverridePayload
+  payload: ManualIntervalsUpdatePayload
 ) {
   const { data, error } = await supabase.functions.invoke("update-manual-overrides", {
-    body: { activity_id: activityId, overrides: payload },
+    body: {
+      activity_id: activityId,
+      overrides: payload.overrides,
+      manual_interval_segments: payload.manual_interval_segments,
+      reset_to_auto: payload.reset_to_auto,
+    },
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);

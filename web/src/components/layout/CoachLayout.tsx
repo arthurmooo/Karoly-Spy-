@@ -3,16 +3,20 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useStorageHealth } from "@/hooks/useStorageHealth";
+import { useAvatarMapProvider, AvatarMapContext } from "@/hooks/useAvatarMap";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import { Sidebar, COACH_NAV_ITEMS } from "./Sidebar";
+import { Sidebar, getCoachNavItems, getAdminNavItems } from "./Sidebar";
 
 export function CoachLayout() {
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { pct, status: storageStatus } = useStorageHealth();
+  const avatarMap = useAvatarMapProvider();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navItems = getCoachNavItems(role);
+  const adminItems = getAdminNavItems(role);
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -54,7 +58,7 @@ export function CoachLayout() {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
-          {COACH_NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -72,6 +76,33 @@ export function CoachLayout() {
               {item.label}
             </NavLink>
           ))}
+
+          {adminItems.length > 0 && (
+            <>
+              <div className="my-3 mx-3 border-t border-slate-200/60 dark:border-slate-700/60" />
+              <div className="px-3 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Administration
+              </div>
+              {adminItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  data-testid={`${item.testId}-mobile`}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150",
+                      isActive
+                        ? "bg-slate-100 font-semibold text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                        : "font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                    )
+                  }
+                >
+                  <Icon name={item.icon} className="text-xl shrink-0" />
+                  {item.label}
+                </NavLink>
+              ))}
+            </>
+          )}
         </nav>
 
         <div className="space-y-1 border-t border-slate-200 p-2 dark:border-slate-800">
@@ -126,7 +157,9 @@ export function CoachLayout() {
         )}
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          <AvatarMapContext.Provider value={avatarMap}>
+            <Outlet />
+          </AvatarMapContext.Provider>
         </div>
       </main>
     </div>

@@ -18,6 +18,7 @@ import { LapsTable } from "@/components/tables/LapsTable";
 import { ActivityHeader } from "@/components/activity/ActivityHeader";
 import { ActivityKpiCards } from "@/components/activity/ActivityKpiCards";
 import { ActivityAnalysisSection } from "@/components/activity/ActivityAnalysisSection";
+import type { AnalysisHighlightRange } from "@/components/activity/ActivityAnalysisSection";
 import { AthleteFeedbackPanel } from "@/components/activity/AthleteFeedbackPanel";
 import { CoachFeedbackPanel } from "@/components/activity/CoachFeedbackPanel";
 import { IntervalBlocksCard } from "@/components/activity/IntervalBlocksCard";
@@ -25,17 +26,13 @@ import { useActivityDetail } from "@/hooks/useActivityDetail";
 import { useAuth } from "@/hooks/useAuth";
 import { isCoach as checkIsCoach } from "@/lib/auth/roles";
 import { useAthletePhysioProfile } from "@/hooks/useAthletePhysioProfile";
-import { hasManualBlockOverride } from "@/services/manualIntervals.service";
-import type { DetectedSegment, ManualBlockOverridePayload } from "@/services/manualIntervals.service";
+import type { DetectedSegment } from "@/services/manualIntervals.service";
 import { formatPaceDecimal } from "@/services/format.service";
 import {
   getChartMaxSec,
   buildResolvedBlocks,
   buildBlocksFromIntervals,
-  mergeActivityWithPayload,
-  getManualBlockFingerprint,
-  readStoredManualSegments,
-  writeStoredManualSegments,
+  mapPersistedManualSegments,
   computeEffectiveIntervals,
   computeBlockGroupedIntervals,
 } from "@/lib/activityBlocks";
@@ -66,35 +63,23 @@ export function ActivityDetailPage() {
   );
 
   const [highlightedSegments, setHighlightedSegments] = useState<DetectedSegment[]>([]);
-  const [manualBlockSegmentsByBlock, setManualBlockSegmentsByBlock] = useState<Partial<Record<1 | 2, DetectedSegment[]>>>({});
   const [reprocessLaunched, setReprocessLaunched] = useState(false);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set());
+  const [analysisHighlights, setAnalysisHighlights] = useState<AnalysisHighlightRange[]>([]);
 
-  useEffect(() => { setHighlightedSegments([]); setExpandedBlocks(new Set()); }, [activity?.id]);
-
-  // Restore manual segments from localStorage
   useEffect(() => {
-    if (!activity?.id) { setManualBlockSegmentsByBlock({}); return; }
-    const allStored = readStoredManualSegments();
-    const stored = allStored[activity.id] ?? {};
-    const next: Partial<Record<1 | 2, DetectedSegment[]>> = {};
-    let changed = false;
-    for (const bi of [1, 2] as const) {
-      const entry = stored[String(bi) as "1" | "2"];
-      if (!entry) continue;
-      const fp = getManualBlockFingerprint(activity, bi);
-      if (fp && hasManualBlockOverride(activity, bi) && entry.fingerprint === fp) { next[bi] = entry.segments; continue; }
-      delete stored[String(bi) as "1" | "2"];
-      changed = true;
-    }
-    if (Object.keys(stored).length === 0 && allStored[activity.id]) { delete allStored[activity.id]; changed = true; }
-    if (changed) writeStoredManualSegments(allStored);
-    setManualBlockSegmentsByBlock(next);
-  }, [activity]);
+    setHighlightedSegments([]);
+    setExpandedBlocks(new Set());
+    setAnalysisHighlights([]);
+  }, [activity?.id]);
 
   // ── Derived state ───────────────────────────────────────
 
   const segmentedMetrics = activity?.segmented_metrics ?? null;
+  const manualBlockSegmentsByBlock = useMemo(
+    () => mapPersistedManualSegments(activity?.manual_interval_segments),
+    [activity?.manual_interval_segments]
+  );
   const chartMaxSec = activity ? getChartMaxSec(activity) : 0;
   const resolvedBlocks = activity
     ? buildResolvedBlocks(activity, segmentedMetrics?.interval_blocks, intervals, manualBlockSegmentsByBlock, chartMaxSec)
@@ -155,36 +140,12 @@ export function ActivityDetailPage() {
     });
   };
 
-  const blockHighlights = blockGroupedIntervals
-    .filter((g) => expandedBlocks.has(g.blockIndex))
-    .flatMap((g) => g.intervals
-      .filter((i) => (i.type === "work" || i.type === "active") && i.start_time != null && i.end_time != null)
-      .map((i) => ({ startSec: i.start_time, endSec: i.end_time }))
-    );
-
   const chartData = displayBlocks.map((block, i) => ({
     index: i + 1, label: block.label,
     hr: block.hrMean != null ? Math.round(block.hrMean) : null,
     pace: block.paceMean,
     power: block.powerMean != null ? Math.round(block.powerMean) : null,
   }));
-
-  const handleInjectedSegmentsChange = (blockIndex: 1 | 2, segments: DetectedSegment[] | null, payload: ManualBlockOverridePayload) => {
-    if (!activity?.id) return;
-    const merged = mergeActivityWithPayload(activity, payload);
-    const fp = getManualBlockFingerprint(merged, blockIndex);
-    setManualBlockSegmentsByBlock((prev) => {
-      const next = { ...prev };
-      if (segments?.length && fp) next[blockIndex] = segments; else delete next[blockIndex];
-      return next;
-    });
-    const allStored = readStoredManualSegments();
-    const stored = { ...(allStored[activity.id] ?? {}) };
-    const key = String(blockIndex) as "1" | "2";
-    if (segments?.length && fp) { stored[key] = { fingerprint: fp, segments }; allStored[activity.id] = stored; }
-    else { delete stored[key]; if (!Object.keys(stored).length) delete allStored[activity.id]; else allStored[activity.id] = stored; }
-    writeStoredManualSegments(allStored);
-  };
 
   // ── Loading / Not Found ─────────────────────────────────
 
@@ -306,7 +267,7 @@ export function ActivityDetailPage() {
               laps={activity.garmin_laps}
               sportType={activity.sport_type}
               highlightedSegments={highlightedSegments}
-              blockHighlights={blockHighlights}
+              analysisHighlights={analysisHighlights}
               renderHeader={(toggles) => (
                 <div className="flex items-center justify-between gap-4 mb-4">
                   <div className="flex items-center gap-3">
@@ -400,6 +361,7 @@ export function ActivityDetailPage() {
           physioProfile={physioProfile}
           expandedBlocks={expandedBlocks}
           onToggleBlock={handleToggleBlock}
+          onAnalysisHighlightsChange={setAnalysisHighlights}
         />
       )}
 
@@ -454,7 +416,6 @@ export function ActivityDetailPage() {
                   isLoadingStreams={isLoadingStreams}
                   onSave={saveManualDetectorOverride}
                   onDetectedSegmentsChange={setHighlightedSegments}
-                  onInjectedSegmentsChange={handleInjectedSegmentsChange}
                 />
               )}
             </div>

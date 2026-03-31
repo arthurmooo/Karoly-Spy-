@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, List, Optional
 try:
     from tqdm import tqdm
 except Exception:
@@ -9,7 +9,7 @@ import pandas as pd
 import tempfile
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Setup logging
 log = logging.getLogger(__name__)
@@ -36,6 +36,42 @@ def _normalize_manual_work_type(value):
     if raw in {"endurance", "intervals", "competition"}:
         return raw
     return None
+
+
+def _manual_segments_to_interval_details(raw_blocks: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_blocks, list):
+        return []
+
+    details: List[Dict[str, Any]] = []
+    for block in raw_blocks:
+        if not isinstance(block, dict):
+            continue
+        segments = block.get("segments")
+        if not isinstance(segments, list):
+            continue
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            start_sec = segment.get("start_sec")
+            end_sec = segment.get("end_sec")
+            duration_sec = segment.get("duration_sec")
+            if start_sec is None or end_sec is None or duration_sec is None:
+                continue
+            details.append(
+                {
+                    "status": "matched",
+                    "start_index": float(start_sec),
+                    "end_index": float(end_sec),
+                    "duration_sec": float(duration_sec),
+                    "distance_m": float(segment.get("distance_m") or 0.0),
+                    "avg_speed": float(segment["avg_speed"]) if segment.get("avg_speed") is not None else None,
+                    "avg_power": float(segment["avg_power"]) if segment.get("avg_power") is not None else None,
+                    "avg_hr": float(segment["avg_hr"]) if segment.get("avg_hr") is not None else None,
+                    "source": "manual",
+                }
+            )
+    details.sort(key=lambda item: item["start_index"])
+    return details
 
 
 class ReprocessingEngine:
@@ -65,7 +101,7 @@ class ReprocessingEngine:
         print(f"Reprocessing single activity: {activity_id}")
 
         act = self.db.client.table("activities") \
-            .select("id, athlete_id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index, manual_work_type") \
+            .select("id, athlete_id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index, manual_work_type, manual_interval_segments") \
             .eq("id", activity_id) \
             .execute().data
 
@@ -97,18 +133,21 @@ class ReprocessingEngine:
                 .execute()
             print(f"   ✅ analysis_dirty reset for {activity_id}")
 
-    def run(self, athlete_name_filter: Optional[str] = None, force: bool = False):
+    def run(self, athlete_name_filter: Optional[str] = None, force: bool = False,
+            sport_filter: Optional[str] = None, since_days: Optional[int] = None):
         print(f"Starting Reprocessing Engine...")
-        
+
         # 1. Select Athletes
         query = self.db.client.table("athletes").select("id, first_name, last_name, nolio_id")
         if athlete_name_filter:
             query = query.ilike("first_name", f"%{athlete_name_filter}%")
-        
+
         athletes = query.execute().data
         print(f"Found {len(athletes)} athletes to process.")
 
         self._force = force
+        self._sport_filter = sport_filter
+        self._since_days = since_days
         for athlete in athletes:
             self.process_athlete(athlete, force)
 
@@ -123,12 +162,17 @@ class ReprocessingEngine:
         # Include activity_name to preserve it if API fails
         # Skip activities that already have form_analysis unless force=True
         query = self.db.client.table("activities")\
-            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index, manual_work_type")\
+            .select("id, nolio_id, fit_file_path, sport_type, session_date, rpe, activity_name, source_sport, source_json, distance_m, elevation_gain, load_index, durability_index, decoupling_index, manual_work_type, manual_interval_segments")\
             .eq("athlete_id", athlete_id)\
             .not_.is_("fit_file_path", "null")\
             .order("session_date")
         if not getattr(self, '_force', False):
             query = query.is_("form_analysis", "null")
+        if getattr(self, '_sport_filter', None):
+            query = query.ilike("sport_type", self._sport_filter)
+        if getattr(self, '_since_days', None):
+            cutoff = (datetime.utcnow() - timedelta(days=self._since_days)).isoformat()
+            query = query.gte("session_date", cutoff)
         acts = query.execute().data
             
         if not acts:
@@ -167,6 +211,9 @@ class ReprocessingEngine:
             # 4. Get Correct Physio Profile for THAT date
             start_time = datetime.fromisoformat(act_record['session_date'])
             sport = act_record['sport_type']
+            manual_interval_details = _manual_segments_to_interval_details(
+                act_record.get("manual_interval_segments")
+            )
             
             # Get Plan from Nolio
             nolio_id = act_record.get('nolio_id')
@@ -449,12 +496,15 @@ class ReprocessingEngine:
                     for k in interval_keys:
                         metrics_dict.pop(k, None)
 
+                if manual_interval_details:
+                    metrics_dict["interval_detection_source"] = "manual"
+
                 metrics_dict["form_analysis"] = self.form_analyzer.analyze(
                     activity_id=act_record["id"],
                     athlete_id=athlete_id,
                     activity=activity,
                     metrics_dict=metrics_dict,
-                    interval_details=interval_metrics.get("detailed_matches") if interval_metrics else None,
+                    interval_details=manual_interval_details if manual_interval_details else (interval_metrics.get("detailed_matches") if interval_metrics else None),
                 )
 
                 activity.metrics = ActivityMetrics(**metrics_dict)
@@ -471,7 +521,7 @@ class ReprocessingEngine:
             )
 
             # 6b. Refresh activity_intervals (delete stale + insert fresh)
-            detailed = interval_metrics.get('detailed_matches') if interval_metrics else None
+            detailed = manual_interval_details if manual_interval_details else (interval_metrics.get('detailed_matches') if interval_metrics else None)
             ActivityWriter.save_interval_dicts(detailed, act_record['id'], self.db)
 
             self.session_grouper.group_bricks_for_athlete_date(athlete_id, start_time)

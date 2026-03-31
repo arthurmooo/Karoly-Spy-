@@ -9,12 +9,15 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
-import type { BlockGroupedIntervals } from "@/types/activity";
+import type { BlockGroupedIntervals, RepWindow } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
 import { formatPaceDecimal, speedToPaceDecimal } from "@/services/format.service";
+import type { ViewMode } from "@/components/tables/IntervalDetailTable";
 
 interface Props {
   intervalsByBlock: BlockGroupedIntervals[];
+  repWindowsByBlock: Record<number, RepWindow[]>;
+  viewMode: ViewMode;
   physioProfile: PhysioProfile | null;
   sportType: string;
   hideTitle?: boolean;
@@ -22,25 +25,65 @@ interface Props {
 
 const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
-export function IntervalChart({ intervalsByBlock, physioProfile, sportType, hideTitle }: Props) {
-  const isBike = BIKE_SPORTS.has(sportType);
+interface IntervalChartPoint {
+  index: number;
+  hr: number | null;
+  hrRaw?: number | null;
+  hrCorr?: number | null;
+  pace: number | null;
+  power: number | null;
+  output?: number | null;
+  ea?: number | null;
+}
 
-  // Flatten all active intervals across blocks, tracking block boundaries
-  const { data, blockBoundaries } = useMemo(() => {
-    const flat: { index: number; hr: number | null; pace: number | null; power: number | null }[] = [];
-    const boundaries: { index: number; label: string }[] = [];
-    let seqIdx = 0;
+interface IntervalChartModel {
+  data: IntervalChartPoint[];
+  blockBoundaries: { index: number; label: string }[];
+  title: string;
+  xAxisLabel: string;
+  labelPrefix: string;
+}
 
-    for (let bIdx = 0; bIdx < intervalsByBlock.length; bIdx++) {
-      const group = intervalsByBlock[bIdx]!;
-      const active = group.intervals.filter((i) => i.type === "work" || i.type === "active");
+export function buildIntervalChartModel(
+  intervalsByBlock: BlockGroupedIntervals[],
+  repWindowsByBlock: Record<number, RepWindow[]>,
+  isBike: boolean,
+  viewMode: ViewMode,
+): IntervalChartModel {
+  const flat: IntervalChartPoint[] = [];
+  const boundaries: { index: number; label: string }[] = [];
+  let seqIdx = 0;
 
-      // Mark boundary between blocks (before this block's first interval)
-      if (bIdx > 0 && active.length > 0) {
-        boundaries.push({ index: seqIdx + 0.5, label: group.label });
+  for (let bIdx = 0; bIdx < intervalsByBlock.length; bIdx++) {
+    const group = intervalsByBlock[bIdx]!;
+    const windowRows = repWindowsByBlock[group.blockIndex] ?? [];
+    const intervalRows = group.intervals.filter((i) => i.type === "work" || i.type === "active");
+    const sourceRows = viewMode === "windows" ? windowRows : intervalRows;
+
+    if (bIdx > 0 && sourceRows.length > 0) {
+      boundaries.push({ index: seqIdx + 0.5, label: group.label });
+    }
+
+    if (viewMode === "windows") {
+      for (const window of windowRows) {
+        seqIdx++;
+        flat.push({
+          index: seqIdx,
+          hr: window.hr_corr != null
+            ? Math.round(window.hr_corr)
+            : window.hr_raw != null
+              ? Math.round(window.hr_raw)
+              : null,
+          hrRaw: window.hr_raw != null ? Math.round(window.hr_raw) : null,
+          hrCorr: window.hr_corr != null ? Math.round(window.hr_corr) : null,
+          pace: !isBike && window.output && window.output > 0 ? 60 / window.output : null,
+          power: isBike && window.output != null ? Math.round(window.output) : null,
+          output: window.output ?? null,
+          ea: window.ea ?? null,
+        });
       }
-
-      for (const intv of active) {
+    } else {
+      for (const intv of intervalRows) {
         seqIdx++;
         flat.push({
           index: seqIdx,
@@ -52,9 +95,32 @@ export function IntervalChart({ intervalsByBlock, physioProfile, sportType, hide
         });
       }
     }
+  }
 
-    return { data: flat, blockBoundaries: boundaries };
-  }, [intervalsByBlock, isBike]);
+  return {
+    data: flat,
+    blockBoundaries: boundaries,
+    title: viewMode === "windows" ? "Évolution par fenêtre stabilisée" : "Évolution par intervalle",
+    xAxisLabel: viewMode === "windows" ? "N° fenêtre" : "N° intervalle",
+    labelPrefix: viewMode === "windows" ? "Fenêtre" : "Intervalle",
+  };
+}
+
+export function IntervalChart({
+  intervalsByBlock,
+  repWindowsByBlock,
+  viewMode,
+  physioProfile,
+  sportType,
+  hideTitle,
+}: Props) {
+  const isBike = BIKE_SPORTS.has(sportType);
+
+  // Flatten all active intervals across blocks, tracking block boundaries
+  const { data, blockBoundaries, title, xAxisLabel, labelPrefix } = useMemo(
+    () => buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, isBike, viewMode),
+    [intervalsByBlock, repWindowsByBlock, isBike, viewMode]
+  );
 
   if (data.length === 0) return null;
 
@@ -72,7 +138,7 @@ export function IntervalChart({ intervalsByBlock, physioProfile, sportType, hide
     <div className="space-y-3">
       {!hideTitle && (
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-          Évolution par intervalle
+          {title}
         </h3>
       )}
       <div className="h-[250px] w-full">
@@ -84,7 +150,7 @@ export function IntervalChart({ intervalsByBlock, physioProfile, sportType, hide
               tick={{ fontSize: 11, fill: "#64748b" }}
               tickLine={false}
               axisLine={false}
-              label={{ value: "N° intervalle", position: "insideBottom", offset: -2, fontSize: 10, fill: "#94a3b8" }}
+              label={{ value: xAxisLabel, position: "insideBottom", offset: -2, fontSize: 10, fill: "#94a3b8" }}
             />
             <YAxis
               yAxisId="left"
@@ -109,11 +175,15 @@ export function IntervalChart({ intervalsByBlock, physioProfile, sportType, hide
               contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "12px" }}
               formatter={(value: number, name: string) => {
                 if (name === "hr") return [`${value} bpm`, "FC"];
+                if (name === "hrRaw") return [`${value} bpm`, "FC brute"];
+                if (name === "hrCorr") return [`${value} bpm`, "FC corrigée"];
                 if (name === "pace") return [formatPaceDecimal(value), "Allure"];
                 if (name === "power") return [`${value} W`, "Puissance"];
+                if (name === "output") return [isBike ? `${Math.round(value)} W` : formatPaceDecimal(60 / value), "Output"];
+                if (name === "ea") return [value.toFixed(3), "EA"];
                 return [value, name];
               }}
-              labelFormatter={(l) => `Intervalle ${l}`}
+              labelFormatter={(l) => `${labelPrefix} ${l}`}
             />
 
             {/* Reference lines from physio profile */}

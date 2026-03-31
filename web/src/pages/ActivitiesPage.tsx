@@ -10,6 +10,8 @@ import { SessionFilters } from "@/components/filters/SessionFilters";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { getSportConfig } from "@/lib/constants";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
+import { useAvatarMap } from "@/hooks/useAvatarMap";
 import { useActivities } from "@/hooks/useActivities";
 import { useAthletes } from "@/hooks/useAthletes";
 
@@ -46,6 +48,7 @@ export function ActivitiesPage() {
     setSort,
   } = useActivities();
   const { athletes } = useAthletes();
+  const { getAvatarUrl } = useAvatarMap();
 
   // Refetch when navigating back to this page (e.g. after editing work_type)
   useEffect(() => { refresh(); }, [refresh]);
@@ -177,9 +180,7 @@ export function ActivitiesPage() {
                       <td className="px-4 py-3.5 text-sm text-slate-600 dark:text-slate-300">
                         <Link to={detailHref} className={rowLinkClassName}>
                           <div className="flex items-start gap-2">
-                            <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
-                              {act.athlete.charAt(0)}
-                            </div>
+                            <AthleteAvatar name={act.athlete} avatarUrl={getAvatarUrl(act.athlete)} size="sm" />
                             <div className="min-w-0">
                               <div className="whitespace-nowrap">{act.athlete}</div>
                               <div className="max-w-[130px] truncate text-xs text-slate-500 dark:text-slate-400">

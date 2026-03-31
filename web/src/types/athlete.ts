@@ -14,4 +14,5 @@ export interface Athlete {
   is_active: boolean;
   start_date: string | null;
   athlete_group_id: string | null;
+  avatar_url: string | null;
 }

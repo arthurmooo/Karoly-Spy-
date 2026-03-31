@@ -4,8 +4,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
+import { isAdmin } from "@/lib/auth/roles";
 
-export const COACH_NAV_ITEMS = [
+export interface CoachNavItem {
+  path: string;
+  label: string;
+  icon: string;
+  testId: string;
+}
+
+export const COACH_NAV_ITEMS: CoachNavItem[] = [
   { path: "/dashboard", label: "Tableau de bord", icon: "dashboard", testId: "coach-nav-dashboard" },
   { path: "/athletes", label: "Athlètes", icon: "groups", testId: "coach-nav-athletes" },
   { path: "/profiles", label: "Profils physio", icon: "cardiology", testId: "coach-nav-profiles" },
@@ -14,10 +22,46 @@ export const COACH_NAV_ITEMS = [
   { path: "/health", label: "Analytique", icon: "monitoring", testId: "coach-nav-health" },
 ];
 
+export const ADMIN_NAV_ITEMS: CoachNavItem[] = [
+  { path: "/admin/coaches", label: "Coachs", icon: "admin_panel_settings", testId: "admin-nav-coaches" },
+  { path: "/admin/assignments", label: "Repartition", icon: "swap_horiz", testId: "admin-nav-assignments" },
+];
+
+export function getCoachNavItems(_role: string | null): CoachNavItem[] {
+  return COACH_NAV_ITEMS;
+}
+
+export function getAdminNavItems(role: string | null): CoachNavItem[] {
+  return isAdmin(role) ? ADMIN_NAV_ITEMS : [];
+}
+
 export function Sidebar() {
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const coachItems = getCoachNavItems(role);
+  const adminItems = getAdminNavItems(role);
+
+  const renderNavItem = (item: CoachNavItem) => (
+    <NavLink
+      key={item.path}
+      to={item.path}
+      title={collapsed ? item.label : undefined}
+      data-testid={item.testId}
+      className={({ isActive }) =>
+        cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150",
+          collapsed && "justify-center px-2",
+          isActive
+            ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shadow-sm"
+            : "font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+        )
+      }
+    >
+      <Icon name={item.icon} className="text-xl shrink-0" />
+      {!collapsed && item.label}
+    </NavLink>
+  );
 
   return (
     <aside
@@ -37,26 +81,25 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-        {COACH_NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            title={collapsed ? item.label : undefined}
-            data-testid={item.testId}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150",
-                collapsed && "justify-center px-2",
-                isActive
-                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shadow-sm"
-                  : "font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-              )
-            }
-          >
-            <Icon name={item.icon} className="text-xl shrink-0" />
-            {!collapsed && item.label}
-          </NavLink>
-        ))}
+        {coachItems.map(renderNavItem)}
+
+        {adminItems.length > 0 && (
+          <>
+            <div
+              className={cn(
+                "my-3 border-t border-slate-200/60 dark:border-slate-700/60",
+                collapsed ? "mx-1" : "mx-3"
+              )}
+              title={collapsed ? "Administration" : undefined}
+            />
+            {!collapsed && (
+              <div className="px-3 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Administration
+              </div>
+            )}
+            {adminItems.map(renderNavItem)}
+          </>
+        )}
       </nav>
 
       {/* Footer */}

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { usePhysio } from "@/hooks/usePhysio";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
 import { speedToPace } from "@/services/format.service";
 import { isBikePhysioSport, isRunPhysioSport } from "@/services/physio.service";
 import { format } from "date-fns";
@@ -104,15 +105,11 @@ export function AthleteProfilePage() {
     setRunVma(""); setRunLt2Pace(""); setRunLt1Hr(""); setRunLt2Hr("");
   }
 
-  const initials = `${athlete.first_name.charAt(0)}${athlete.last_name.charAt(0)}`;
-
   return (
     <div className="space-y-8">
       {/* Athlete header */}
       <div className="flex items-center gap-4">
-        <div className="w-14 h-14 rounded-md bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-xl font-semibold text-primary shrink-0 border border-primary/20">
-          {initials}
-        </div>
+        <AthleteAvatar firstName={athlete.first_name} lastName={athlete.last_name} avatarUrl={athlete.avatar_url} size="xl" shape="rounded" className="bg-primary/10 dark:bg-primary/20 text-primary border-primary/20" />
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
             {athlete.first_name} {athlete.last_name}

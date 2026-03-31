@@ -15,11 +15,23 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
   },
 });
 
-const coachUser = {
+const structure = {
+  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  name: "Structure Karoly",
+};
+
+const adminUser = {
   id: "22222222-2222-4222-8222-222222222222",
   email: "coach.e2e@projectk.test",
   password: "CoachE2E!2026",
-  displayName: "Coach E2E",
+  displayName: "Admin E2E",
+};
+
+const collaboratorCoachUser = {
+  id: "66666666-6666-4666-8666-666666666666",
+  email: "collab.coach.e2e@projectk.test",
+  password: "CoachCollabE2E!2026",
+  displayName: "Coach Collab E2E",
 };
 
 const athleteUser = {
@@ -42,25 +54,43 @@ async function createAuthUser({ id, email, password, displayName }) {
   });
 
   if (error) {
+    if (error.message?.includes("already been registered")) {
+      return;
+    }
     throw error;
   }
 }
 
 async function main() {
-  await createAuthUser(coachUser);
+  await admin.from("structures").upsert([structure], { onConflict: "id" });
+
+  await createAuthUser(adminUser);
+  await createAuthUser(collaboratorCoachUser);
   await createAuthUser(athleteUser);
 
   const { error: profileError } = await admin.from("user_profiles").upsert(
     [
       {
-        id: coachUser.id,
+        id: adminUser.id,
+        role: "admin",
+        display_name: adminUser.displayName,
+        email: adminUser.email,
+        structure_id: structure.id,
+        is_active: true,
+      },
+      {
+        id: collaboratorCoachUser.id,
         role: "coach",
-        display_name: coachUser.displayName,
+        display_name: collaboratorCoachUser.displayName,
+        email: collaboratorCoachUser.email,
+        structure_id: structure.id,
+        is_active: true,
       },
       {
         id: athleteUser.id,
         role: "athlete",
         display_name: athleteUser.displayName,
+        email: athleteUser.email,
         athlete_id: athleteUser.athleteId,
       },
     ],
@@ -74,7 +104,8 @@ async function main() {
   const { error: athleteError } = await admin
     .from("athletes")
     .update({
-      coach_id: coachUser.id,
+      coach_id: adminUser.id,
+      structure_id: structure.id,
       email: athleteUser.email,
     })
     .eq("id", athleteUser.athleteId);

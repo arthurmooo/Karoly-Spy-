@@ -8,7 +8,8 @@ INSERT INTO public.athletes (
   nolio_id,
   start_date,
   is_active,
-  email
+  email,
+  structure_id
 )
 VALUES (
   '33333333-3333-4333-8333-333333333333',
@@ -17,7 +18,8 @@ VALUES (
   'nolio-e2e-athlete',
   CURRENT_DATE - INTERVAL '90 days',
   true,
-  'athlete.e2e@projectk.test'
+  'athlete.e2e@projectk.test',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 )
 ON CONFLICT (id) DO UPDATE
 SET
@@ -26,7 +28,8 @@ SET
   nolio_id = EXCLUDED.nolio_id,
   start_date = EXCLUDED.start_date,
   is_active = EXCLUDED.is_active,
-  email = EXCLUDED.email;
+  email = EXCLUDED.email,
+  structure_id = EXCLUDED.structure_id;
 
 INSERT INTO public.physio_profiles (
   id,

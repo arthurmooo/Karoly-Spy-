@@ -10,7 +10,7 @@ import {
   updateManualIntervalOverrides,
 } from "@/repositories/activity.repository";
 import type { Activity, ActivityInterval, WorkTypeValue } from "@/types/activity";
-import type { ManualBlockOverridePayload } from "@/services/manualIntervals.service";
+import type { ManualIntervalsUpdatePayload } from "@/services/manualIntervals.service";
 
 function hasElapsedStreamMapping(activity: Activity | null | undefined) {
   return (
@@ -231,10 +231,20 @@ export function useActivityDetail(id: string | undefined) {
   }, [id]);
 
   const saveManualDetectorOverride = useCallback(
-    async (payload: ManualBlockOverridePayload) => {
+    async (payload: ManualIntervalsUpdatePayload) => {
       if (!id) return;
       // Optimistic update — show manual values immediately
-      setActivity((prev) => (prev ? { ...prev, ...payload } : prev));
+      setActivity((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...payload.overrides,
+              manual_interval_segments: payload.manual_interval_segments,
+              interval_detection_source:
+                payload.manual_interval_segments.length > 0 ? "manual" : prev.interval_detection_source,
+            }
+          : prev
+      );
       try {
         await updateManualIntervalOverrides(id, payload);
         await refresh();

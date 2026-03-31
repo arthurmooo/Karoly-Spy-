@@ -8,6 +8,7 @@ import { Dialog, DialogHeader, DialogBody, DialogFooter } from "@/components/ui/
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { SportChip } from "@/components/ui/SportChip";
 import {
   Disclosure,
   DisclosureTrigger,
@@ -25,6 +26,7 @@ import { TextInsights } from "@/components/analysis/TextInsights";
 import { HrZonesBilan } from "@/components/analysis/HrZonesBilan";
 import { BilanPeriodToolbar } from "@/components/bilan/BilanPeriodToolbar";
 import { useAuth } from "@/hooks/useAuth";
+import { isCoach } from "@/lib/auth/roles";
 import { useAthleteKpis } from "@/hooks/useAthleteKpis";
 import { useExportBilan } from "@/hooks/useExportBilan";
 import { useAcwr } from "@/hooks/useAcwr";
@@ -49,7 +51,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
   const athleteId = propAthleteId ?? paramAthleteId ?? null;
   const isAthleteMode = !!propAthleteId;
   const { role } = useAuth();
-  const showCoachAcwr = role === "coach" && !isAthleteMode && !!athleteId;
+  const showCoachAcwr = isCoach(role) && !isAthleteMode && !!athleteId;
 
   // URL-driven period & anchor date
   const period: KpiPeriod = (searchParams.get("period") as KpiPeriod) || "week";
@@ -431,7 +433,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
           </CardContent>
         </Card>
 
-        <HrZonesBilan hrZones={report.hrZones} />
+        <HrZonesBilan hrZones={report.hrZones} hrZonesBySport={report.hrZonesBySport} />
       </BilanSection>
 
       {/* ── Section Synthèse ── */}
@@ -451,32 +453,6 @@ function SectionChevron() {
       name="expand_more"
       className={`text-slate-400 text-[18px] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
     />
-  );
-}
-
-function SportChip({
-  label,
-  icon,
-  isActive,
-  onClick,
-}: {
-  label: string;
-  icon?: string;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
-        isActive
-          ? "bg-blue-600 text-white shadow-sm"
-          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-      }`}
-    >
-      {icon && <Icon name={icon} className="text-[14px]" />}
-      {label}
-    </button>
   );
 }
 

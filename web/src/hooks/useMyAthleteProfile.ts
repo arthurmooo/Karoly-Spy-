@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { Athlete } from "@/types/athlete";
 
-const ATHLETE_COLUMNS = "id, first_name, last_name, nolio_id, email, is_active, start_date, athlete_group_id";
+const ATHLETE_COLUMNS = "id, first_name, last_name, nolio_id, email, is_active, start_date, athlete_group_id, avatar_url";
 
 export function useMyAthleteProfile() {
   const { user, loading: authLoading } = useAuth();

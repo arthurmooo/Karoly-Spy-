@@ -6,6 +6,16 @@ export async function loginAsCoach(page: Page) {
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
+export async function loginAsAdmin(page: Page) {
+  await login(page, E2E_FIXTURES.admin.email, E2E_FIXTURES.admin.password);
+  await expect(page).toHaveURL(/\/dashboard$/);
+}
+
+export async function loginAsCollaboratorCoach(page: Page) {
+  await login(page, E2E_FIXTURES.collaboratorCoach.email, E2E_FIXTURES.collaboratorCoach.password);
+  await expect(page).toHaveURL(/\/dashboard$/);
+}
+
 export async function loginAsAthlete(page: Page) {
   await login(page, E2E_FIXTURES.athlete.email, E2E_FIXTURES.athlete.password);
   await expect(page).toHaveURL(/\/mon-espace$/);

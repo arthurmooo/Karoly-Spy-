@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
 import { SlidingTabs } from "@/components/ui/SlidingTabs";
-import { SPORT_CONFIG } from "@/lib/constants";
+import { SPORT_CONFIG, getSportConfig } from "@/lib/constants";
 
 type View = "week" | "month" | "year";
 
@@ -70,46 +70,100 @@ export function CalendarToolbar({
     return format(currentDate, "yyyy", { locale: fr });
   };
 
+  const sportIcon = selectedSport
+    ? getSportConfig(selectedSport)?.icon ?? "exercise"
+    : "exercise";
+
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm px-3 py-2.5 sm:px-4">
-      {/* Main row */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {/* Left — Navigation + Title + Today */}
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
+      {/* ── Line 1: Header + Navigation ── */}
+      <div className="flex flex-col gap-2.5 px-3 py-2.5 sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
+        {/* Left: Title + Divider + Nav + Period + Today */}
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <Icon name="calendar_month" className="text-xl text-accent-blue dark:text-blue-400 shrink-0" />
+          <span className="hidden sm:inline text-base font-bold text-slate-900 dark:text-white">
+            Calendrier
+          </span>
+
+          {/* Divider */}
+          <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0" />
+
+          {/* Nav arrows */}
           <button
             onClick={() => onNavigate("prev")}
-            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all shrink-0"
+            aria-label="Période précédente"
           >
-            <Icon name="chevron_left" className="text-lg" />
+            <Icon name="chevron_left" className="text-xl" />
           </button>
           <button
             onClick={() => onNavigate("next")}
-            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all shrink-0"
+            aria-label="Période suivante"
           >
-            <Icon name="chevron_right" className="text-lg" />
+            <Icon name="chevron_right" className="text-xl" />
           </button>
 
-          <span className="text-base font-semibold text-slate-900 dark:text-white capitalize truncate">
+          {/* Period title */}
+          <span className="text-lg font-bold text-slate-900 dark:text-white capitalize truncate">
             {getTitle()}
           </span>
 
+          {/* Today button */}
           <button
             onClick={onTodayClick}
-            className="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors whitespace-nowrap shrink-0"
+            className="px-3 py-1.5 text-xs font-semibold bg-accent-blue text-white rounded-full hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 active:scale-95 transition-all shadow-sm whitespace-nowrap shrink-0"
           >
             Aujourd'hui
           </button>
         </div>
 
-        {/* Center — Filters (desktop only) */}
-        <div className="hidden lg:flex items-center gap-2">
-          <SlidingTabs items={DISPLAY_TABS} value={displayMode} onChange={onDisplayModeChange} size="sm" rounded="lg" />
+        {/* Right: View switcher */}
+        <div className="shrink-0">
+          <ViewSwitcher view={view} onViewChange={onViewChange} />
+        </div>
+      </div>
 
-          {!hideAthleteFilter && (
+      {/* ── Line 2: Filters ── */}
+      <div className="flex flex-col gap-2 px-3 py-2 sm:px-4 border-t border-slate-100 dark:border-slate-800 sm:flex-row sm:items-center sm:flex-wrap">
+        <SlidingTabs items={DISPLAY_TABS} value={displayMode} onChange={onDisplayModeChange} size="sm" rounded="lg" />
+
+        {/* Divider */}
+        <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0 mx-1" />
+
+        {/* Sport select */}
+        <div className="relative">
+          <Icon
+            name={sportIcon}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
+          />
+          <select
+            value={selectedSport || "Tous les sports"}
+            onChange={(e) => onSportChange(e.target.value)}
+            className="appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-blue/30 focus:border-accent-blue transition-colors cursor-pointer"
+          >
+            <option value="Tous les sports">Tous les sports</option>
+            {SPORT_CONFIG.map((s) => (
+              <option key={s.key} value={s.dbKey}>{s.label}</option>
+            ))}
+          </select>
+          <Icon
+            name="expand_more"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
+          />
+        </div>
+
+        {/* Athlete select */}
+        {!hideAthleteFilter && (
+          <div className="relative">
+            <Icon
+              name="person"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
+            />
             <select
               value={selectedAthleteId || ""}
               onChange={(e) => onAthleteChange(e.target.value || null)}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors"
+              className="appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-blue/30 focus:border-accent-blue transition-colors cursor-pointer"
             >
               <option value="">Tous les athlètes</option>
               {athletes.map((ath) => (
@@ -118,55 +172,12 @@ export function CalendarToolbar({
                 </option>
               ))}
             </select>
-          )}
-
-          <select
-            value={selectedSport || "Tous les sports"}
-            onChange={(e) => onSportChange(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors"
-          >
-            <option value="Tous les sports">Tous les sports</option>
-            {SPORT_CONFIG.map((s) => (
-              <option key={s.key} value={s.dbKey}>{s.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Right — View Switcher */}
-        <div className="shrink-0 self-start lg:self-auto">
-          <ViewSwitcher view={view} onViewChange={onViewChange} />
-        </div>
-      </div>
-
-      {/* Mobile/Tablet filters (below lg) */}
-      <div className="mt-2.5 flex flex-col gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800 sm:flex-row sm:flex-wrap lg:hidden">
-        <SlidingTabs items={DISPLAY_TABS} value={displayMode} onChange={onDisplayModeChange} size="sm" rounded="lg" />
-
-        {!hideAthleteFilter && (
-          <select
-            value={selectedAthleteId || ""}
-            onChange={(e) => onAthleteChange(e.target.value || null)}
-            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors"
-          >
-            <option value="">Tous les athlètes</option>
-            {athletes.map((ath) => (
-              <option key={ath.id} value={ath.id}>
-                {ath.first_name} {ath.last_name}
-              </option>
-            ))}
-          </select>
+            <Icon
+              name="expand_more"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
+            />
+          </div>
         )}
-
-        <select
-          value={selectedSport || "Tous les sports"}
-          onChange={(e) => onSportChange(e.target.value)}
-          className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors"
-        >
-          <option value="Tous les sports">Tous les sports</option>
-          {SPORT_CONFIG.map((s) => (
-            <option key={s.key} value={s.dbKey}>{s.label}</option>
-          ))}
-        </select>
       </div>
     </div>
   );

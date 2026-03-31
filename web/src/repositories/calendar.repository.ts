@@ -58,6 +58,30 @@ export async function getPlannedWorkouts(startDate: string, endDate: string, ath
   return { data: allData, isAvailable: true };
 }
 
+export interface PlannedWorkout {
+  id: string;
+  sport: string | null;
+  name: string | null;
+  planned_date: string;
+  athlete_id: string;
+}
+
+export async function getNextPlannedWorkout(athleteId: string): Promise<PlannedWorkout | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from("planned_workouts")
+    .select("id, sport, name, planned_date, athlete_id")
+    .eq("athlete_id", athleteId)
+    .gte("planned_date", today)
+    .order("planned_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error && error.code === "42P01") return null;
+  if (error) throw error;
+  return data as PlannedWorkout | null;
+}
+
 export async function getAthletes() {
   const { data, error } = await supabase
     .from("athletes")

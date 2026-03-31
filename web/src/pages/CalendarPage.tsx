@@ -39,12 +39,6 @@ export function CalendarPage() {
 
   return (
     <div className="space-y-4 flex flex-col h-full">
-      {/* Titre allégé */}
-      <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-        <Icon name="calendar_month" className="text-xl text-blue-600 dark:text-blue-400" />
-        Calendrier
-      </h1>
-
       {/* Toolbar unifié */}
       <CalendarToolbar
         view={view}

@@ -41,6 +41,16 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Invalid token" }, 401);
     }
 
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from("user_profiles")
+      .select("role, is_active")
+      .eq("id", user.id)
+      .single();
+
+    if (profileErr || !profile || !["admin", "coach"].includes(profile.role) || profile.is_active === false) {
+      return jsonResponse({ error: "Coach access required" }, 403);
+    }
+
     // 2. Parse body
     const body = await req.json();
     const { action } = body;

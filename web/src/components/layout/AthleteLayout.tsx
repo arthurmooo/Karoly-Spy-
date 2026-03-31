@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { useMyAthleteProfile } from "@/hooks/useMyAthleteProfile";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 
@@ -16,6 +18,7 @@ const ATHLETE_NAV = [
 export function AthleteLayout() {
   const { signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { profile } = useMyAthleteProfile();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -35,6 +38,7 @@ export function AthleteLayout() {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === "/mon-espace"}
               data-testid={item.testId}
               className={({ isActive }) =>
                 cn(
@@ -52,6 +56,29 @@ export function AthleteLayout() {
         </nav>
 
         <div className="space-y-1 border-t border-slate-200 p-2 dark:border-slate-800">
+          {profile && (
+            <NavLink
+              to="/mon-espace/profil"
+              data-testid="athlete-nav-profile"
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150",
+                  isActive
+                    ? "bg-slate-100 font-semibold text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                    : "font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                )
+              }
+            >
+              <AthleteAvatar
+                firstName={profile.first_name}
+                lastName={profile.last_name}
+                avatarUrl={profile.avatar_url}
+                size="sm"
+                shape="circle"
+              />
+              <span className="truncate">{profile.first_name} {profile.last_name.charAt(0)}.</span>
+            </NavLink>
+          )}
           <button
             onClick={toggleTheme}
             aria-label={theme === "light" ? "Activer le mode sombre" : "Activer le mode clair"}
@@ -107,6 +134,7 @@ export function AthleteLayout() {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === "/mon-espace"}
               data-testid={`${item.testId}-mobile`}
               className={({ isActive }) =>
                 cn(
@@ -124,6 +152,29 @@ export function AthleteLayout() {
         </nav>
 
         <div className="space-y-1 border-t border-slate-200 p-2 dark:border-slate-800">
+          {profile && (
+            <NavLink
+              to="/mon-espace/profil"
+              data-testid="athlete-nav-profile-mobile"
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150",
+                  isActive
+                    ? "bg-slate-100 font-semibold text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                    : "font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
+                )
+              }
+            >
+              <AthleteAvatar
+                firstName={profile.first_name}
+                lastName={profile.last_name}
+                avatarUrl={profile.avatar_url}
+                size="sm"
+                shape="circle"
+              />
+              <span className="truncate">{profile.first_name} {profile.last_name.charAt(0)}.</span>
+            </NavLink>
+          )}
           <button
             onClick={toggleTheme}
             aria-label={theme === "light" ? "Activer le mode sombre" : "Activer le mode clair"}

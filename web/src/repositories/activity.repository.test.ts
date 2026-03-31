@@ -94,6 +94,7 @@ function makeActivityRow(overrides: Record<string, unknown> = {}) {
     manual_interval_block_1_duration_sec: null,
     manual_interval_block_2_count: null,
     manual_interval_block_2_duration_sec: null,
+    manual_interval_segments: null,
     interval_detection_source: "auto",
     decoupling_index: 3,
     durability_index: 0.92,

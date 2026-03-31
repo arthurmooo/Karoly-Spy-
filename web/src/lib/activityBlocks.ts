@@ -1,7 +1,14 @@
-import type { Activity, ActivityInterval, BlockGroupedIntervals, IntervalBlock, StreamPoint } from "@/types/activity";
+import type {
+  Activity,
+  ActivityInterval,
+  BlockGroupedIntervals,
+  IntervalBlock,
+  ManualIntervalSegmentsBlock,
+  StreamPoint,
+} from "@/types/activity";
 import { hasManualBlockOverride } from "@/services/manualIntervals.service";
 import { speedToPaceDecimal } from "@/services/format.service";
-import type { DetectedSegment, ManualBlockOverridePayload } from "@/services/manualIntervals.service";
+import type { DetectedSegment } from "@/services/manualIntervals.service";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -41,13 +48,6 @@ export const INTERVAL_TYPE_LABELS: Record<string, string> = {
   warmup: "Échauffement",
   cooldown: "Retour calme",
 };
-
-export const MANUAL_BLOCK_SEGMENTS_STORAGE_KEY = "activity-detail:manual-block-segments:v1";
-
-export type StoredManualSegments = Record<
-  string,
-  Partial<Record<"1" | "2", { fingerprint: string; segments: DetectedSegment[] }>>
->;
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -186,10 +186,19 @@ function getDisplayDuration(manualDuration: number | null | undefined, block: In
   return manualDuration ?? block?.total_duration_sec ?? block?.representative_duration_sec ?? null;
 }
 
-function buildBlockSpecs(activity: Activity, blocks: IntervalBlock[] | undefined): BlockSpec[] {
+function buildBlockSpecs(
+  activity: Activity,
+  blocks: IntervalBlock[] | undefined,
+  manualSegs: Partial<Record<1 | 2, DetectedSegment[]>>
+): BlockSpec[] {
   const blockByIndex = new Map<number, IntervalBlock>((blocks ?? []).map((b) => [b.block_index, b]));
-  const indexes = new Set<number>(blockByIndex.keys());
-  for (const bi of [1, 2] as const) if (hasManualBlockOverride(activity, bi)) indexes.add(bi);
+  const manualIndexes = ([1, 2] as const).filter((bi) => (manualSegs[bi]?.length ?? 0) > 0);
+  const indexes = manualIndexes.length > 0
+    ? new Set<number>(manualIndexes)
+    : new Set<number>(blockByIndex.keys());
+  if (manualIndexes.length === 0) {
+    for (const bi of [1, 2] as const) if (hasManualBlockOverride(activity, bi)) indexes.add(bi);
+  }
 
   const specs: BlockSpec[] = [];
   for (const bi of [...indexes].sort((a, b) => a - b)) {
@@ -246,7 +255,7 @@ export function buildResolvedBlocks(
   activity: Activity, blocks: IntervalBlock[] | undefined, intervals: ActivityInterval[],
   manualSegs: Partial<Record<1 | 2, DetectedSegment[]>>, chartMaxSec: number | null
 ): DisplayBlock[] {
-  const specs = buildBlockSpecs(activity, blocks);
+  const specs = buildBlockSpecs(activity, blocks, manualSegs);
   const detected = [...intervals].sort((a, b) => a.start_time - b.start_time);
   const timeMap = getStreamTimeMap(activity.activity_streams);
   const intSourceMax = getIntervalSourceMaxSec(activity, timeMap);
@@ -265,35 +274,25 @@ export function buildResolvedBlocks(
   });
 }
 
-export function mergeActivityWithPayload(activity: Activity, payload: ManualBlockOverridePayload): Activity {
-  return { ...activity, ...payload };
-}
-
-export function getManualBlockFingerprint(activity: Activity, blockIndex: 1 | 2): string | null {
-  const prefix = `manual_interval_block_${blockIndex}_` as const;
-  const fp = {
-    count: activity[`${prefix}count`] ?? null, durationSec: activity[`${prefix}duration_sec`] ?? null,
-    paceMean: activity[`${prefix}pace_mean`] ?? null, paceLast: activity[`${prefix}pace_last`] ?? null,
-    powerMean: activity[`${prefix}power_mean`] ?? null, powerLast: activity[`${prefix}power_last`] ?? null,
-    hrMean: activity[`${prefix}hr_mean`] ?? null, hrLast: activity[`${prefix}hr_last`] ?? null,
-  };
-  if (Object.values(fp).every((v) => v == null)) return null;
-  return JSON.stringify(fp);
-}
-
-export function readStoredManualSegments(): StoredManualSegments {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(MANUAL_BLOCK_SEGMENTS_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as StoredManualSegments;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch { return {}; }
-}
-
-export function writeStoredManualSegments(value: StoredManualSegments) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(MANUAL_BLOCK_SEGMENTS_STORAGE_KEY, JSON.stringify(value));
+export function mapPersistedManualSegments(
+  manualBlocks: ManualIntervalSegmentsBlock[] | null | undefined
+): Partial<Record<1 | 2, DetectedSegment[]>> {
+  const result: Partial<Record<1 | 2, DetectedSegment[]>> = {};
+  for (const block of manualBlocks ?? []) {
+    if (block.block_index !== 1 && block.block_index !== 2) continue;
+    result[block.block_index] = (block.segments ?? []).map((segment, index) => ({
+      id: `${block.block_index}-${index}-${segment.start_sec}-${segment.end_sec}`,
+      startSec: segment.start_sec,
+      endSec: segment.end_sec,
+      durationSec: segment.duration_sec,
+      distanceM: segment.distance_m,
+      avgValue: segment.avg_power ?? segment.avg_speed ?? segment.avg_hr ?? 0,
+      avgHr: segment.avg_hr ?? null,
+      avgSpeed: segment.avg_speed ?? null,
+      avgPower: segment.avg_power ?? null,
+    }));
+  }
+  return result;
 }
 
 export function computeEffectiveIntervals(
@@ -348,6 +347,21 @@ export function computeBlockGroupedIntervals(
   activityId: string,
   activity?: Activity,
 ): BlockGroupedIntervals[] {
+  const manualEntries = ([1, 2] as const)
+    .map((blockIndex) => ({
+      blockIndex,
+      segments: manualSegs[blockIndex] ?? [],
+    }))
+    .filter((entry) => entry.segments.length > 0);
+
+  if (manualEntries.length > 0) {
+    return manualEntries.map((entry) => ({
+      blockIndex: entry.blockIndex,
+      label: `Bloc ${entry.blockIndex}`,
+      intervals: entry.segments.map((segment) => segToInterval(segment, activityId)),
+    }));
+  }
+
   const sorted = [...dbIntervals].sort((a, b) => a.start_time - b.start_time);
 
   // Build merged set of block indexes from DB blocks + manual overrides

@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogHeader, DialogBody, DialogFooter } from "@/components/ui/Dialog";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
+import { useAvatarMap } from "@/hooks/useAvatarMap";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useReadiness } from "@/hooks/useReadiness";
@@ -117,6 +119,7 @@ export function HealthPage() {
 
   const { healthData, isLoading, refresh } = useReadiness();
   const { athletes } = useAthletes();
+  const { getAvatarUrl } = useAvatarMap();
   const hasSelectedAthlete = selectedAthleteId !== "all";
   const { report: kpiReport } = useAthleteKpis(hasSelectedAthlete ? selectedAthleteId : null, "week");
   const { detail: acwrDetail } = useAcwr({ athleteId: hasSelectedAthlete ? selectedAthleteId : null, enabled: hasSelectedAthlete });
@@ -834,9 +837,7 @@ export function HealthPage() {
                           to={`/athletes/${row.athlete_id}/trends`}
                           className="flex items-center gap-2 hover:text-primary transition-all duration-150"
                         >
-                          <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
-                            {row.athlete.charAt(0)}
-                          </div>
+                          <AthleteAvatar name={row.athlete} avatarUrl={getAvatarUrl(row.athlete)} size="md" shape="rounded" />
                           <span className="text-sm font-semibold text-slate-900 dark:text-white">
                             {row.athlete}
                           </span>

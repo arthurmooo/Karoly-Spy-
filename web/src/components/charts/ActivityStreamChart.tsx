@@ -20,8 +20,8 @@ interface Props {
   laps?: GarminLap[] | null;
   sportType: string;
   highlightedSegments?: DetectedSegment[];
-  /** Interval block highlights (from expanded accordion rows) */
-  blockHighlights?: { startSec: number; endSec: number }[];
+  /** Time-range highlights for the active analysis view (intervals or windows). */
+  analysisHighlights?: { startSec: number; endSec: number }[];
   /** Render prop: receives toggle buttons to place in parent layout */
   renderHeader?: (toggles: ReactNode) => ReactNode;
 }
@@ -69,7 +69,7 @@ export function ActivityStreamChart({
   laps,
   sportType,
   highlightedSegments = [],
-  blockHighlights = [],
+  analysisHighlights = [],
   renderHeader,
 }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
@@ -370,7 +370,7 @@ export function ActivityStreamChart({
               />
             ))}
 
-            {blockHighlights.map((bh, i) => (
+            {analysisHighlights.map((bh, i) => (
               <ReferenceArea
                 key={`block-hl-${i}`}
                 x1={bh.startSec}

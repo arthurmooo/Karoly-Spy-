@@ -16,6 +16,8 @@ interface Props {
   hasManualWindows?: boolean;
   expandedBlocks?: Set<number>;
   onToggleBlock?: (blockIndex: number) => void;
+  view: ViewMode;
+  onViewChange: (view: ViewMode) => void;
 }
 
 const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
@@ -94,7 +96,7 @@ interface WindowSummary {
   costBadge: CostLevel;
 }
 
-type ViewMode = "intervals" | "windows";
+export type ViewMode = "intervals" | "windows";
 
 // ── Computation helpers ──
 
@@ -223,13 +225,21 @@ function SegmentedControl({ value, onChange }: { value: ViewMode; onChange: (v: 
 
 // ── Main component ──
 
-export function IntervalDetailTable({ intervalsByBlock, sportType, repWindowsByBlock, hasManualWindows, expandedBlocks: externalExpanded, onToggleBlock }: Props) {
+export function IntervalDetailTable({
+  intervalsByBlock,
+  sportType,
+  repWindowsByBlock,
+  hasManualWindows,
+  expandedBlocks: externalExpanded,
+  onToggleBlock,
+  view,
+  onViewChange,
+}: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
   const [sortBy, setSortBy] = useState<SortCol>("index");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [internalExpanded, setInternalExpanded] = useState<Set<number>>(new Set());
   const expandedBlocks = externalExpanded ?? internalExpanded;
-  const [view, setView] = useState<ViewMode>("intervals");
   const multiBlock = intervalsByBlock.length > 1;
 
   // ── Per-block interval data ──
@@ -282,7 +292,7 @@ export function IntervalDetailTable({ intervalsByBlock, sportType, repWindowsByB
   }
 
   const handleViewChange = (v: ViewMode) => {
-    setView(v);
+    onViewChange(v);
     setSortBy("index");
     setSortDir("asc");
   };

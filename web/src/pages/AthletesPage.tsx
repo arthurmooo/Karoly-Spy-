@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Dialog, DialogHeader, DialogBody, DialogFooter } from "@/components/ui/Dialog";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { GroupManager } from "@/components/groups/GroupManager";
+import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useAthleteManagement } from "@/hooks/useAthleteManagement";
 import { useAthleteGroups } from "@/hooks/useAthleteGroups";
@@ -322,10 +323,7 @@ export function AthletesPage() {
                       {/* Name */}
                       <td className="px-6 py-3 whitespace-nowrap">
                         <Link to={`/athletes/${athlete.id}/profile`} className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">
-                            {athlete.first_name.charAt(0)}
-                            {athlete.last_name.charAt(0)}
-                          </div>
+                          <AthleteAvatar firstName={athlete.first_name} lastName={athlete.last_name} avatarUrl={athlete.avatar_url} size="md" shape="rounded" />
                           <span className="text-sm font-semibold text-slate-900 dark:text-white">
                             {athlete.first_name} {athlete.last_name}
                           </span>

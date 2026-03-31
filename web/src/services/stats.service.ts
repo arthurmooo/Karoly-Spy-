@@ -14,6 +14,7 @@ import {
 import { fr } from "date-fns/locale";
 import type { StatsActivityRow } from "@/repositories/stats.repository";
 import { mapSportLabel, normalizeSportKey } from "@/services/activity.service";
+import { formatHoursHuman } from "@/services/format.service";
 import { generateInsights, type TextInsight, type FocusAlert } from "@/services/analysis.service";
 import { HR_ZONE_COLORS } from "@/lib/constants";
 
@@ -70,6 +71,7 @@ export interface AthleteKpiReport {
   insights: TextInsight[];
   focusAlert: FocusAlert | null;
   hrZones: HrZonesAggregate | null;
+  hrZonesBySport: Record<string, HrZonesAggregate>;
   availableSports: string[];
 }
 
@@ -238,7 +240,7 @@ function buildKpiCards(currentRows: NormalizedStatsActivity[], previousRows: Nor
       key: "hours",
       label: "Heures",
       value: round1(currentHours),
-      displayValue: `${ONE_DECIMAL.format(currentHours)} h`,
+      displayValue: formatHoursHuman(currentHours),
       ...buildDeltaDisplay(currentHours, previousHours),
     },
     {
@@ -485,6 +487,19 @@ export function buildAthleteKpiReport(
   const { insights, focusAlert } = generateInsights(currentRows, previousRows);
   const availableSports = [...new Set(currentRows.map((row) => row.sportKey))];
 
+  // Per-sport HR zone aggregates
+  const hrZonesBySport: Record<string, HrZonesAggregate> = {};
+  const sportGroups = new Map<string, NormalizedStatsActivity[]>();
+  for (const row of currentRows) {
+    const group = sportGroups.get(row.sportKey);
+    if (group) group.push(row);
+    else sportGroups.set(row.sportKey, [row]);
+  }
+  for (const [sportKey, sportRows] of sportGroups) {
+    const agg = aggregateHrZones(sportRows);
+    if (agg) hrZonesBySport[sportKey] = agg;
+  }
+
   return {
     period,
     periodLabel: buildPeriodLabel(period, now),
@@ -497,6 +512,7 @@ export function buildAthleteKpiReport(
     insights,
     focusAlert,
     hrZones: aggregateHrZones(currentRows),
+    hrZonesBySport,
     availableSports,
   };
 }

@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     }
 
     const athlete = activity.athletes as unknown as { coach_id: string };
-    if (athlete.coach_id && athlete.coach_id !== user.id) {
+    if (athlete.coach_id !== user.id) {
       return new Response(JSON.stringify({ error: "Unauthorized: not your athlete" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

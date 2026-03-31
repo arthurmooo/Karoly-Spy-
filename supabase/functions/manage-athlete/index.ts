@@ -40,19 +40,67 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { data: callerProfile, error: profileErr } = await supabaseAdmin
+      .from("user_profiles")
+      .select("role, structure_id, is_active")
+      .eq("id", user.id)
+      .single();
+
+    if (profileErr || !callerProfile) {
+      return new Response(JSON.stringify({ error: "User profile not found" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!["admin", "coach"].includes(callerProfile.role) || callerProfile.is_active === false) {
+      return new Response(JSON.stringify({ error: "Coach access required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // 2. Parse body
-    const { athlete_id, action, group_id } = await req.json();
-    if (!athlete_id || !action) {
-      return new Response(JSON.stringify({ error: "athlete_id and action required" }), {
+    const { athlete_id, action, group_id, coach_id } = await req.json();
+    if (!action) {
+      return new Response(JSON.stringify({ error: "action required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 3. Verify coach owns this athlete
+    if (action === "list_assignments") {
+      if (callerProfile.role !== "admin" || !callerProfile.structure_id) {
+        return new Response(JSON.stringify({ error: "Admin access required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: athletes, error: athletesErr } = await supabaseAdmin
+        .from("athletes")
+        .select("id, first_name, last_name, email, is_active, start_date, coach_id")
+        .eq("structure_id", callerProfile.structure_id)
+        .order("last_name", { ascending: true });
+
+      if (athletesErr) throw athletesErr;
+
+      return new Response(
+        JSON.stringify({ success: true, athletes: athletes ?? [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!athlete_id) {
+      return new Response(JSON.stringify({ error: "athlete_id required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3. Verify caller can manage this athlete
     const { data: athlete, error: athleteErr } = await supabaseAdmin
       .from("athletes")
-      .select("id, coach_id")
+      .select("id, coach_id, structure_id")
       .eq("id", athlete_id)
       .single();
 
@@ -63,7 +111,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (athlete.coach_id && athlete.coach_id !== user.id) {
+    const isAdmin = callerProfile.role === "admin";
+    if (isAdmin) {
+      if (!callerProfile.structure_id || athlete.structure_id !== callerProfile.structure_id) {
+        return new Response(JSON.stringify({ error: "Unauthorized athlete" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (athlete.coach_id !== user.id) {
       return new Response(JSON.stringify({ error: "Unauthorized: not your athlete" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -76,12 +132,13 @@ Deno.serve(async (req) => {
     switch (action) {
       case "update_group": {
         if (group_id) {
+          const expectedCoachId = athlete.coach_id ?? user.id;
           // Verify group exists and belongs to this coach
           const { data: grp, error: grpErr } = await supabaseAdmin
             .from("athlete_groups")
             .select("id")
             .eq("id", group_id)
-            .eq("coach_id", user.id)
+            .eq("coach_id", expectedCoachId)
             .maybeSingle();
           if (grpErr || !grp) {
             return new Response(JSON.stringify({ error: "Invalid or unauthorized group" }), {
@@ -91,6 +148,48 @@ Deno.serve(async (req) => {
           }
         }
         updatePayload = { athlete_group_id: group_id ?? null };
+        break;
+      }
+      case "assign_coach": {
+        if (!isAdmin || !callerProfile.structure_id) {
+          return new Response(JSON.stringify({ error: "Admin access required" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if (coach_id) {
+          const { data: targetCoach, error: coachErr } = await supabaseAdmin
+            .from("user_profiles")
+            .select("id, role, structure_id, is_active")
+            .eq("id", coach_id)
+            .single();
+
+          if (coachErr || !targetCoach) {
+            return new Response(JSON.stringify({ error: "Coach not found" }), {
+              status: 404,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          if (!["admin", "coach"].includes(targetCoach.role) || targetCoach.structure_id !== callerProfile.structure_id) {
+            return new Response(JSON.stringify({ error: "Invalid target coach" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          if (targetCoach.is_active === false) {
+            return new Response(JSON.stringify({ error: "Cannot assign to an inactive coach" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+
+        updatePayload = {
+          coach_id: coach_id ?? null,
+          athlete_group_id: null,
+          structure_id: callerProfile.structure_id,
+        };
         break;
       }
       case "deactivate":

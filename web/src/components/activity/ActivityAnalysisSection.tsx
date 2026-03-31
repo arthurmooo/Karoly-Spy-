@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -6,7 +6,7 @@ import { Disclosure, DisclosureTrigger, DisclosureContent, useDisclosureContext 
 import { ZoneDistributionChart } from "@/components/charts/ZoneDistributionChart";
 import { DecouplingVisual } from "@/components/charts/DecouplingVisual";
 import { IntervalChart } from "@/components/charts/IntervalChart";
-import { IntervalDetailTable } from "@/components/tables/IntervalDetailTable";
+import { IntervalDetailTable, type ViewMode } from "@/components/tables/IntervalDetailTable";
 import { TargetVsActualChart } from "@/components/charts/TargetVsActualChart";
 import { TempoSegmentAnalysis } from "@/components/charts/TempoSegmentAnalysis";
 import { TempoPhaseComparison } from "@/components/charts/TempoPhaseComparison";
@@ -24,16 +24,60 @@ interface Props {
   physioProfile: PhysioProfile | null;
   expandedBlocks?: Set<number>;
   onToggleBlock?: (blockIndex: number) => void;
+  onAnalysisHighlightsChange?: (highlights: AnalysisHighlightRange[]) => void;
 }
 
 const COMPETITION_LABELS = ["Q1 (Départ)", "Q2 (Mise en place)", "Q3 (Gestion)", "Q4 (Finish)"];
 
-export function ActivityAnalysisSection({ activity, intervals, intervalsByBlock, repWindowsByBlock, hasManualWindows, physioProfile, expandedBlocks, onToggleBlock }: Props) {
+export interface AnalysisHighlightRange {
+  startSec: number;
+  endSec: number;
+}
+
+export function buildAnalysisHighlights(
+  intervalsByBlock: BlockGroupedIntervals[],
+  repWindowsByBlock: Record<number, RepWindow[]>,
+  expandedBlocks: Set<number>,
+  viewMode: ViewMode,
+): AnalysisHighlightRange[] {
+  return intervalsByBlock
+    .filter((group) => expandedBlocks.has(group.blockIndex))
+    .flatMap((group) => {
+      if (viewMode === "windows") {
+        return (repWindowsByBlock[group.blockIndex] ?? [])
+          .flatMap((window) => (
+            window.start_sec != null && window.end_sec != null
+              ? [{ startSec: window.start_sec, endSec: window.end_sec }]
+              : []
+          ));
+      }
+
+      return group.intervals
+        .filter((interval) => (interval.type === "work" || interval.type === "active") && interval.start_time != null && interval.end_time != null)
+        .map((interval) => ({ startSec: interval.start_time, endSec: interval.end_time }));
+    });
+}
+
+export function ActivityAnalysisSection({
+  activity,
+  intervals,
+  intervalsByBlock,
+  repWindowsByBlock,
+  hasManualWindows,
+  physioProfile,
+  expandedBlocks,
+  onToggleBlock,
+  onAnalysisHighlightsChange,
+}: Props) {
   const segmented = activity.segmented_metrics;
   const formAnalysis = activity.form_analysis ?? null;
   const hasStreams = Boolean(activity.activity_streams?.length);
   const workType = activity.work_type;
   const isTempoActivity = isTempo(activity.manual_activity_name || activity.activity_name);
+
+  useEffect(() => {
+    if (workType !== "intervals") onAnalysisHighlightsChange?.([]);
+  }, [workType, onAnalysisHighlightsChange]);
 
   // Competition: check for positive/negative split alert
   const competitionSplitAlert = (() => {
@@ -96,6 +140,7 @@ export function ActivityAnalysisSection({ activity, intervals, intervalsByBlock,
                 segmented={segmented}
                 expandedBlocks={expandedBlocks}
                 onToggleBlock={onToggleBlock}
+                onAnalysisHighlightsChange={onAnalysisHighlightsChange}
               />
             )}
 
@@ -212,6 +257,7 @@ function IntervalsSection({
   segmented,
   expandedBlocks,
   onToggleBlock,
+  onAnalysisHighlightsChange,
 }: {
   intervals: ActivityInterval[];
   intervalsByBlock: BlockGroupedIntervals[];
@@ -222,8 +268,10 @@ function IntervalsSection({
   segmented: Activity["segmented_metrics"];
   expandedBlocks?: Set<number>;
   onToggleBlock?: (blockIndex: number) => void;
+  onAnalysisHighlightsChange?: (highlights: AnalysisHighlightRange[]) => void;
 }) {
   const [selectedBlock, setSelectedBlock] = useState<number | "all">("all");
+  const [detailViewMode, setDetailViewMode] = useState<ViewMode>("intervals");
   const showSelector = intervalsByBlock.length > 1;
 
   const filteredByBlock = selectedBlock === "all"
@@ -241,6 +289,20 @@ function IntervalsSection({
   const filteredPlannedBlocks = selectedBlock === "all"
     ? segmented?.planned_interval_blocks
     : segmented?.planned_interval_blocks?.filter((b) => b.block_index === selectedBlock);
+
+  const activeExpandedBlocks = expandedBlocks ?? new Set<number>();
+  const analysisHighlights = useMemo(
+    () => buildAnalysisHighlights(filteredByBlock, filteredRepWindows, activeExpandedBlocks, detailViewMode),
+    [filteredByBlock, filteredRepWindows, activeExpandedBlocks, detailViewMode]
+  );
+
+  useEffect(() => {
+    onAnalysisHighlightsChange?.(analysisHighlights);
+  }, [analysisHighlights, onAnalysisHighlightsChange]);
+
+  useEffect(() => {
+    return () => onAnalysisHighlightsChange?.([]);
+  }, [onAnalysisHighlightsChange]);
 
   return (
     <div className="space-y-4">
@@ -292,9 +354,11 @@ function IntervalsSection({
         </div>
       )}
 
-      <CollapsibleSection title="Évolution par intervalle">
+      <CollapsibleSection title={detailViewMode === "windows" ? "Évolution par fenêtre stabilisée" : "Évolution par intervalle"}>
         <IntervalChart
           intervalsByBlock={filteredByBlock}
+          repWindowsByBlock={filteredRepWindows}
+          viewMode={detailViewMode}
           physioProfile={physioProfile}
           sportType={activity.sport_type}
           hideTitle
@@ -307,6 +371,8 @@ function IntervalsSection({
         hasManualWindows={hasManualWindows}
         expandedBlocks={expandedBlocks}
         onToggleBlock={onToggleBlock}
+        view={detailViewMode}
+        onViewChange={setDetailViewMode}
       />
       <CollapsibleSection title="Prévu vs Réalisé">
         <TargetVsActualChart

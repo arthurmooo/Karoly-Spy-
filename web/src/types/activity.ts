@@ -74,6 +74,7 @@ export interface Activity {
   manual_interval_block_1_duration_sec?: number | null;
   manual_interval_block_2_count?: number | null;
   manual_interval_block_2_duration_sec?: number | null;
+  manual_interval_segments?: ManualIntervalSegmentsBlock[] | null;
   interval_detection_source: string | null;
   decoupling_index: number | null;
   durability_index: number | null;
@@ -111,6 +112,21 @@ export interface ActivityInterval {
   avg_cadence: number | null;
   detection_source: string | null;
   respect_score: number | null;
+}
+
+export interface ManualIntervalSegment {
+  start_sec: number;
+  end_sec: number;
+  duration_sec: number;
+  distance_m: number;
+  avg_speed: number | null;
+  avg_power: number | null;
+  avg_hr: number | null;
+}
+
+export interface ManualIntervalSegmentsBlock {
+  block_index: number;
+  segments: ManualIntervalSegment[];
 }
 
 export interface ActivityComparisonCandidate {
