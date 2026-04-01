@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildTargetVsActualChartModel } from "./TargetVsActualChart";
+import { formatPaceDecimal } from "@/services/format.service";
 import type { BlockGroupedIntervals, PlannedIntervalBlock } from "@/types/activity";
 
 describe("buildTargetVsActualChartModel", () => {
@@ -39,7 +40,7 @@ describe("buildTargetVsActualChartModel", () => {
       },
     ];
 
-    const model = buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, false);
+    const model = buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, false, false, formatPaceDecimal);
 
     expect(model.hasPlannedTargets).toBe(true);
     expect(model.chartData).toHaveLength(1);
@@ -48,7 +49,7 @@ describe("buildTargetVsActualChartModel", () => {
   });
 
   it("returns unavailable when no planned blocks are present", () => {
-    const model = buildTargetVsActualChartModel([], undefined, false);
+    const model = buildTargetVsActualChartModel([], undefined, false, false, formatPaceDecimal);
     expect(model.hasPlannedTargets).toBe(false);
     expect(model.chartData).toEqual([]);
   });
@@ -89,7 +90,7 @@ describe("buildTargetVsActualChartModel", () => {
       },
     ];
 
-    const model = buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, true);
+    const model = buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, true, false, formatPaceDecimal);
 
     expect(model.chartData[0]?.plannedRangeLabel).toBe("310-330 W");
     expect(model.chartData[0]?.actualLabel).toBe("325 W");

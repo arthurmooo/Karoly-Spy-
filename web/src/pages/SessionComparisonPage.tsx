@@ -8,6 +8,7 @@ import { SessionDeltaTable } from "@/components/tables/SessionDeltaTable";
 import { DECISION_META, deltaColor, InfoTip, REASON_LABELS } from "@/components/activity/FormAnalysisPanel";
 import { useActivityDetail } from "@/hooks/useActivityDetail";
 import { useSessionComparison } from "@/hooks/useSessionComparison";
+import { extractActivityNavigationState } from "@/lib/activityNavigation";
 import { buildFormAnalysisSummary } from "@/services/sessionComparison.service";
 import { formatDistance, formatDuration } from "@/services/format.service";
 import type { Activity, ComparisonAlert } from "@/types/activity";
@@ -208,6 +209,7 @@ export function SessionComparisonPage() {
   const showChartUnavailableNotice = Boolean(selectedActivity) && !chartModel;
 
   const backPath = location.pathname.replace(/\/compare$/, "");
+  const navigationState = extractActivityNavigationState(location.state);
   const activityTitle = activity?.manual_activity_name || activity?.activity_name || "Séance";
 
   // Loading
@@ -226,7 +228,7 @@ export function SessionComparisonPage() {
   if (!activity) {
     return (
       <div className="space-y-8">
-        <Link to={backPath} className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
+        <Link to={backPath} state={navigationState} className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
           <Icon name="arrow_back" className="text-lg" />
           Retour à la fiche
         </Link>
@@ -243,7 +245,7 @@ export function SessionComparisonPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Link to={backPath} className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
+          <Link to={backPath} state={navigationState} className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-all duration-150 hover:text-primary">
             <Icon name="arrow_back" className="text-lg" />
             Retour à la fiche
           </Link>

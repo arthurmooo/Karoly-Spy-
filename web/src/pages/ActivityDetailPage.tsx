@@ -26,6 +26,8 @@ import { useActivityDetail } from "@/hooks/useActivityDetail";
 import { useAuth } from "@/hooks/useAuth";
 import { isCoach as checkIsCoach } from "@/lib/auth/roles";
 import { useAthletePhysioProfile } from "@/hooks/useAthletePhysioProfile";
+import { useChartTheme } from "@/hooks/useChartTheme";
+import { extractActivityNavigationState, resolveActivityBackPath } from "@/lib/activityNavigation";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
 import { formatPaceDecimal } from "@/services/format.service";
 import {
@@ -49,6 +51,9 @@ export function ActivityDetailPage() {
   const location = useLocation();
   const { role } = useAuth();
   const isCoach = checkIsCoach(role);
+  const backPath = resolveActivityBackPath(role, location.state);
+  const navigationState = extractActivityNavigationState(location.state);
+  const ct = useChartTheme();
 
   const {
     activity, intervals, isLoading, isLoadingStreams,
@@ -163,7 +168,7 @@ export function ActivityDetailPage() {
   if (!activity) {
     return (
       <div className="space-y-8">
-        <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-primary">
+        <button onClick={() => navigate(backPath)} className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-primary">
           <Icon name="arrow_back" className="text-lg" />
           Retour aux activités
         </button>
@@ -201,8 +206,8 @@ export function ActivityDetailPage() {
     <div className="space-y-6 lg:space-y-8">
       <ActivityHeader
         activity={activity}
-        onBack={() => navigate(-1)}
-        onOpenComparison={() => navigate(`${location.pathname}/compare`)}
+        onBack={() => navigate(backPath)}
+        onOpenComparison={() => navigate(`${location.pathname}/compare`, { state: navigationState })}
         onReprocess={handleReprocess}
         onSaveWorkType={async (manualWorkType) => {
           const result = await saveWorkType(manualWorkType);
@@ -295,12 +300,12 @@ export function ActivityDetailPage() {
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                    <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="index" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="right" orientation="right" reversed={!isBike} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
+                    <CartesianGrid stroke={ct.grid} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="index" tick={{ fontSize: 12, fill: ct.tick }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 12, fill: ct.tick }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="right" orientation="right" reversed={!isBike} tick={{ fontSize: 12, fill: ct.tick }} tickLine={false} axisLine={false} />
                     <Tooltip
-                      contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                      contentStyle={ct.tooltipStyle}
                       formatter={(value: number, name: string) => {
                         if (name === "hr") return [`${value} bpm`, "FC"];
                         if (name === "pace") return [formatPaceDecimal(value), "Allure bloc"];
@@ -377,7 +382,7 @@ export function ActivityDetailPage() {
           ) : (
             <IntervalBlocksCard
               displayBlocks={displayBlocks}
-              isBike={isBike}
+              sportType={activity.sport_type ?? ""}
               hasResolvedBlocks={hasResolvedBlocks}
               detectionSource={activity.interval_detection_source}
             />

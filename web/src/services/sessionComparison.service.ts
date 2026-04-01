@@ -1,5 +1,5 @@
 import { normalizeSportKey } from "@/services/activity.service";
-import { formatDistance, formatDuration, formatPaceDecimal, speedToPace, speedToPaceDecimal } from "@/services/format.service";
+import { formatDistance, formatDuration, formatPaceDecimal, formatSwimPaceDecimal, speedToPace, speedToPaceDecimal, speedToSwimPace } from "@/services/format.service";
 import type {
   Activity,
   ComparisonAlert,
@@ -71,22 +71,6 @@ function getAverageSpeed(activity: Pick<Activity, "distance_m" | "moving_time_se
   const duration = getEffectiveDuration(activity);
   if (!duration || !activity.distance_m || activity.distance_m <= 0) return null;
   return activity.distance_m / duration;
-}
-
-function speedToSwimPace(ms: number): string {
-  if (!ms || ms <= 0) return "--";
-  const paceSec = 100 / ms;
-  let min = Math.floor(paceSec / 60);
-  let sec = Math.round(paceSec % 60);
-  if (sec === 60) { min += 1; sec = 0; }
-  return `${min}'${sec.toString().padStart(2, "0")} /100m`;
-}
-
-function formatSwimPaceDecimal(minPer100m: number): string {
-  let min = Math.floor(minPer100m);
-  let sec = Math.round((minPer100m - min) * 60);
-  if (sec === 60) { min += 1; sec = 0; }
-  return `${min}'${sec.toString().padStart(2, "0")} /100m`;
 }
 
 function formatSignedSeconds(deltaSeconds: number): string {

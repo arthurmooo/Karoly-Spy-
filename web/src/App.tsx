@@ -8,6 +8,8 @@ import { CoachLayout } from "@/components/layout/CoachLayout";
 import { AthleteLayout } from "@/components/layout/AthleteLayout";
 import { AthleteDetailLayout } from "@/components/layout/AthleteDetailLayout";
 import { LoginPage } from "@/pages/LoginPage";
+import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ActivitiesPage } from "@/pages/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/ActivityDetailPage";
@@ -37,6 +39,8 @@ function AppRoutes() {
       <Toaster position="bottom-right" theme={theme} richColors />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<ProtectedRoute />}>
           {/* Coach routes */}

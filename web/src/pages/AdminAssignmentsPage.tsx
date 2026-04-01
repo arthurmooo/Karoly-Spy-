@@ -110,19 +110,19 @@ export function AdminAssignmentsPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-6">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Athletes</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Athletes</p>
             <p className="mt-2 text-3xl font-semibold font-mono text-slate-900 dark:text-white">{athletes.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Assignes</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Assignes</p>
             <p className="mt-2 text-3xl font-semibold font-mono text-emerald-600 dark:text-emerald-400">{assignedCount}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Non assignes</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Non assignes</p>
             <p className="mt-2 text-3xl font-semibold font-mono text-amber-600 dark:text-amber-400">{unassignedCount}</p>
           </CardContent>
         </Card>
@@ -140,7 +140,7 @@ export function AdminAssignmentsPage() {
           <select
             value={filterCoachId}
             onChange={(event) => setFilterCoachId(event.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-800"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:text-slate-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-400 dark:border-slate-700 dark:bg-slate-800"
           >
             <option value={FILTER_ALL}>Tous les coachs</option>
             <option value={FILTER_UNASSIGNED}>Non assignes</option>
@@ -205,7 +205,7 @@ export function AdminAssignmentsPage() {
                           value={athlete.coach_id ?? ""}
                           onChange={(event) => void handleAssignmentChange(athlete.id, event.target.value)}
                           disabled={pendingAthleteId === athlete.id}
-                          className="min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900"
+                          className="min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:text-slate-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-400 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900"
                         >
                           <option value="">Non assigne</option>
                           {coachOptions.map((coachOption) => (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
@@ -24,6 +24,7 @@ import { normalizeSportKey } from "@/services/activity.service";
 import { buildAcwrDashboardSummary, getSnapshotPriority } from "@/services/load.service";
 import type { AcwrMetricKind, AcwrSnapshotRow, AcwrStatus } from "@/types/acwr";
 import { StorageGauge } from "@/components/system/StorageGauge";
+import { buildActivityLinkState } from "@/lib/activityNavigation";
 
 type RecentActivity = Awaited<ReturnType<typeof getRecentActivities>>[number];
 type RecentActivityTab = "TOUT" | "NAT" | "VELO" | "CAP";
@@ -61,6 +62,7 @@ const TODAY_LABEL = new Date().toLocaleDateString("fr-FR", {
 });
 
 export function DashboardPage() {
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { athletes, isLoading: athletesLoading } = useAthletes();
   const { groups } = useAthleteGroups();
@@ -69,12 +71,31 @@ export function DashboardPage() {
   const { cohort: acwrCohort, isLoading: acwrLoading } = useAcwr();
   const { healthData, isLoading: readinessLoading } = useReadiness();
 
-  const [heatmapGroup, setHeatmapGroup] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const groupDropdownRef = useRef<HTMLDivElement>(null);
   const [acwrSortBy, setAcwrSortBy] = useState<AcwrSortBy>("athlete");
   const [acwrSortDir, setAcwrSortDir] = useState<SortDirection>("asc");
   const [showAcwrDialog, setShowAcwrDialog] = useState(false);
+  const detailState = buildActivityLinkState(location);
+
+  // Shared group filter primitives
+  const groupAthleteIds = useMemo(() => {
+    if (!selectedGroup || athletesLoading) return null;
+    return new Set(athletes.filter((a) => a.athlete_group_id === selectedGroup).map((a) => a.id));
+  }, [selectedGroup, athletes, athletesLoading]);
+
+  const groupAthleteNames = useMemo(() => {
+    if (!selectedGroup || athletesLoading) return null;
+    const s = new Set<string>();
+    for (const a of athletes) {
+      if (a.athlete_group_id === selectedGroup) {
+        s.add(`${a.first_name} ${a.last_name}`);
+        s.add(`${a.last_name} ${a.first_name}`);
+      }
+    }
+    return s;
+  }, [selectedGroup, athletes, athletesLoading]);
 
   // Close group dropdown on outside click
   useEffect(() => {
@@ -149,22 +170,27 @@ export function DashboardPage() {
   }, [authLoading, user?.id]);
 
   const alerts = useMemo(() => {
-    return healthData
-      .filter((row) => row.swc_status === "above_swc" || row.swc_status === "below_swc")
-      .sort((left, right) => left.athlete.localeCompare(right.athlete, "fr"));
-  }, [healthData]);
-
-  const criticalAlertCount = useMemo(() => {
-    return healthData.filter(
+    let filtered = healthData.filter(
       (row) => row.swc_status === "above_swc" || row.swc_status === "below_swc"
-    ).length;
-  }, [healthData]);
+    );
+    if (groupAthleteIds) {
+      filtered = filtered.filter((row) => groupAthleteIds.has(row.athlete_id));
+    }
+    return filtered.sort((left, right) => left.athlete.localeCompare(right.athlete, "fr"));
+  }, [healthData, groupAthleteIds]);
 
   const filteredRecentActivities = useMemo(() => {
-    let scopedActivities =
-      recentTab === "TOUT"
-        ? recentActivities
-        : recentActivities.filter((activity) => normalizeSportKey(activity.sport_type ?? "") === recentTab);
+    let scopedActivities = recentActivities;
+
+    if (groupAthleteIds) {
+      scopedActivities = scopedActivities.filter((act) => groupAthleteIds.has(act.athlete_id));
+    }
+
+    if (recentTab !== "TOUT") {
+      scopedActivities = scopedActivities.filter(
+        (activity) => normalizeSportKey(activity.sport_type ?? "") === recentTab
+      );
+    }
 
     if (recentWorkType) {
       scopedActivities = scopedActivities.filter(
@@ -173,12 +199,17 @@ export function DashboardPage() {
     }
 
     return scopedActivities.slice(0, 5);
-  }, [recentActivities, recentTab, recentWorkType]);
+  }, [recentActivities, recentTab, recentWorkType, groupAthleteIds]);
+
+  const filteredAcwrCohort = useMemo(() => {
+    if (!groupAthleteIds) return acwrCohort;
+    return acwrCohort.filter((row) => groupAthleteIds.has(row.athlete_id));
+  }, [acwrCohort, groupAthleteIds]);
 
   const acwrRows = useMemo(
     () =>
       sortRows(
-        acwrCohort,
+        filteredAcwrCohort,
         (row) => {
           switch (acwrSortBy) {
             case "external":
@@ -194,22 +225,22 @@ export function DashboardPage() {
         },
         acwrSortDir
       ),
-    [acwrCohort, acwrSortBy, acwrSortDir]
+    [filteredAcwrCohort, acwrSortBy, acwrSortDir]
   );
 
   const acwrSummary = useMemo(() => {
-    return buildAcwrDashboardSummary(acwrCohort);
-  }, [acwrCohort]);
+    return buildAcwrDashboardSummary(filteredAcwrCohort);
+  }, [filteredAcwrCohort]);
 
   const acwrDialogRows = useMemo(() => {
-    return acwrCohort
+    return filteredAcwrCohort
       .map((row) => ({ ...row, priority: getSnapshotPriority(row) }))
       .filter((row) => row.priority === "alert" || row.priority === "warning")
       .sort((a, b) => {
         const w = (s: string) => (s === "alert" ? 2 : 1);
         return w(b.priority) - w(a.priority) || a.athlete.localeCompare(b.athlete, "fr");
       });
-  }, [acwrCohort]);
+  }, [filteredAcwrCohort]);
 
   const handleAcwrSort = (column: AcwrSortBy) => {
     if (acwrSortBy !== column) {
@@ -224,13 +255,62 @@ export function DashboardPage() {
   return (
     <div className="space-y-4">
       {/* ── Header compact ── */}
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
           Vue d'ensemble
         </h1>
-        <span className="text-sm text-slate-500 dark:text-slate-400 capitalize">
-          {TODAY_LABEL}
-        </span>
+        <div className="flex items-center gap-3">
+          {/* Group filter — page-level */}
+          <div ref={groupDropdownRef} className="relative">
+            <button
+              onClick={() => setGroupDropdownOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              {selectedGroup ? (
+                <>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groups.find((g) => g.id === selectedGroup)?.color }} />
+                  {groups.find((g) => g.id === selectedGroup)?.name}
+                </>
+              ) : (
+                "Tous les groupes"
+              )}
+              <Icon name="expand_more" className={`text-sm text-slate-400 transition-transform duration-200 ${groupDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+            {groupDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 z-20 animate-in fade-in slide-in-from-top-1 duration-150">
+                <button
+                  onClick={() => { setSelectedGroup(null); setGroupDropdownOpen(false); }}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                    selectedGroup === null
+                      ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {selectedGroup === null && <Icon name="check" className="text-sm" />}
+                  <span className={selectedGroup === null ? "" : "ml-5"}>Tous les groupes</span>
+                </button>
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => { setSelectedGroup(g.id); setGroupDropdownOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                      selectedGroup === g.id
+                        ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {selectedGroup === g.id && <Icon name="check" className="text-sm" />}
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                    <span>{g.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span className="text-sm text-slate-500 dark:text-slate-400 capitalize">
+            {TODAY_LABEL}
+          </span>
+        </div>
       </div>
 
       {/* ── Row 1 — 4 KPI cards ── */}
@@ -244,7 +324,7 @@ export function DashboardPage() {
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Athlètes actifs</p>
                 <h3 className="text-xl font-semibold font-mono text-slate-900 dark:text-white">
-                  {athletesLoading ? "—" : athletes.length}
+                  {athletesLoading ? "—" : (groupAthleteIds ? groupAthleteIds.size : athletes.length)}
                 </h3>
               </div>
               <Icon name="group" className="text-emerald-600 dark:text-emerald-400 text-sm" />
@@ -280,10 +360,10 @@ export function DashboardPage() {
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Alertes SWC</p>
                 <h3 className="text-xl font-semibold font-mono text-slate-900 dark:text-white">
-                  {readinessLoading ? "—" : criticalAlertCount}
+                  {readinessLoading ? "—" : alerts.length}
                 </h3>
               </div>
-              {criticalAlertCount > 0 && (
+              {alerts.length > 0 && (
                 <Badge variant="orange" className="mt-1">URGENT</Badge>
               )}
             </div>
@@ -331,52 +411,6 @@ export function DashboardPage() {
               <Icon name="monitoring" className="text-slate-400" />
               Charge MLS
             </h2>
-            <div ref={groupDropdownRef} className="relative">
-              <button
-                onClick={() => setGroupDropdownOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-              >
-                {heatmapGroup ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groups.find((g) => g.id === heatmapGroup)?.color }} />
-                    {groups.find((g) => g.id === heatmapGroup)?.name}
-                  </>
-                ) : (
-                  "Tous les groupes"
-                )}
-                <Icon name="expand_more" className={`text-sm text-slate-400 transition-transform duration-200 ${groupDropdownOpen ? "rotate-180" : ""}`} />
-              </button>
-              {groupDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 z-20 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <button
-                    onClick={() => { setHeatmapGroup(null); setGroupDropdownOpen(false); }}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
-                      heatmapGroup === null
-                        ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
-                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    {heatmapGroup === null && <Icon name="check" className="text-sm" />}
-                    <span className={heatmapGroup === null ? "" : "ml-5"}>Tous les groupes</span>
-                  </button>
-                  {groups.map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => { setHeatmapGroup(g.id); setGroupDropdownOpen(false); }}
-                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
-                        heatmapGroup === g.id
-                          ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40"
-                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                      }`}
-                    >
-                      {heatmapGroup === g.id && <Icon name="check" className="text-sm" />}
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
-                      <span className={heatmapGroup === g.id ? "" : ""}>{g.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
           <CardContent className="p-0 flex-1 min-h-0 overflow-x-auto overflow-y-auto">
             <div className="min-w-[500px]">
@@ -388,11 +422,7 @@ export function DashboardPage() {
               ) : (
                 <div className="px-4 pt-4">
                   <div className="space-y-2">
-                    {heatmapData.athletes.filter((athleteName) => {
-                      if (!heatmapGroup) return true;
-                      const match = athletes.find((a) => `${a.first_name} ${a.last_name}` === athleteName || `${a.last_name} ${a.first_name}` === athleteName);
-                      return match?.athlete_group_id === heatmapGroup;
-                    }).map((athlete) => {
+                    {heatmapData.athletes.filter((name) => !groupAthleteNames || groupAthleteNames.has(name)).map((athlete) => {
                       const thresholds = heatmapData.getAthleteThresholds(athlete);
                       const athleteMatch = athletes.find((a) => `${a.first_name} ${a.last_name}` === athlete || `${a.last_name} ${a.first_name}` === athlete);
                       return (
@@ -649,6 +679,7 @@ export function DashboardPage() {
                     <Link
                       key={act.id}
                       to={`/activities/${act.id}`}
+                      state={detailState}
                       className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 text-left"
                       data-testid={`recent-activity-${act.id}`}
                     >
@@ -677,8 +708,8 @@ export function DashboardPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
               Alertes d'attention
-              {!readinessLoading && criticalAlertCount > 0 && (
-                <Badge variant="orange">{criticalAlertCount}</Badge>
+              {!readinessLoading && alerts.length > 0 && (
+                <Badge variant="orange">{alerts.length}</Badge>
               )}
             </h2>
             <span className="text-[10px] text-slate-400 hidden sm:inline">Cliquer pour ouvrir</span>

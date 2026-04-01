@@ -18,7 +18,7 @@ export const CalendarCell: React.FC<CalendarCellProps> = ({ day, view }) => {
 
     return (
       <div
-        className={`min-h-[112px] p-1 border-b border-r border-slate-200 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+        className={`min-h-[112px] p-1 border-b border-r border-slate-200 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${
           !day.isCurrentMonth ? "opacity-30 bg-slate-50 dark:bg-slate-900" : "bg-white dark:bg-slate-900"
         }`}
       >
@@ -46,7 +46,7 @@ export const CalendarCell: React.FC<CalendarCellProps> = ({ day, view }) => {
           {showAll && (
             <div
               onClick={() => setShowAll(false)}
-              className="text-[10px] text-slate-500 cursor-pointer hover:underline font-medium px-1"
+              className="text-[10px] text-slate-500 dark:text-slate-400 cursor-pointer hover:underline font-medium px-1"
             >
               Réduire
             </div>

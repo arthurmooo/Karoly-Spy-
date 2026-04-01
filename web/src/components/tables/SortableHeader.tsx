@@ -27,7 +27,7 @@ export function SortableHeader({ label, active, direction, onToggle, className }
           name={iconName}
           className={cn(
             "text-sm",
-            active ? "text-primary dark:text-primary" : "text-slate-400"
+            active ? "text-primary dark:text-blue-400" : "text-slate-400"
           )}
         />
       </button>

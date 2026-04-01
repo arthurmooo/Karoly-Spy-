@@ -35,6 +35,8 @@ import { getAthleteDailyLoadHistory } from "@/repositories/load.repository";
 import { getDecouplingBadgeVariant } from "@/lib/karolyMetrics";
 import { buildWeeklyHeatmapData, type WeeklyHeatmapData } from "@/services/load.service";
 import { buildPeriodLabel, isCurrentPeriod as checkIsCurrentPeriod } from "@/services/stats.service";
+import { buildHrvTimeline, buildHrvPdfSummary, type HrvPdfSummary } from "@/services/hrv.service";
+import { getReadinessSeries } from "@/repositories/readiness.repository";
 import { getSportConfig } from "@/lib/constants";
 import type { AthleteDetailOutletContext } from "@/components/layout/AthleteDetailLayout";
 import type { Athlete } from "@/types/athlete";
@@ -107,6 +109,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
 
   const [weeklyHeatmapData, setWeeklyHeatmapData] = useState<WeeklyHeatmapData | null>(null);
   const [isWeeklyHeatmapLoading, setIsWeeklyHeatmapLoading] = useState(false);
+  const [hrvSummary, setHrvSummary] = useState<HrvPdfSummary | null>(null);
 
   const [sportFilter, setSportFilter] = useState("TOUT");
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -162,6 +165,22 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
     return () => { isCancelled = true; };
   }, [athleteId, anchorIso, weekEndIso]);
 
+  // Load HRV summary for PDF export
+  useEffect(() => {
+    let cancelled = false;
+    if (!athleteId) { setHrvSummary(null); return; }
+
+    getReadinessSeries(athleteId, 35)
+      .then((rows) => {
+        if (cancelled) return;
+        const timeline = buildHrvTimeline(rows);
+        setHrvSummary(buildHrvPdfSummary(timeline));
+      })
+      .catch(() => { if (!cancelled) setHrvSummary(null); });
+
+    return () => { cancelled = true; };
+  }, [athleteId]);
+
   const handleKpiClick = useCallback((key: KpiCard["key"]) => {
     setActiveKpiKey(key);
   }, []);
@@ -172,6 +191,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
   }, []);
 
   const sessionsListPath = isAthleteMode ? "/mon-espace/seances" : undefined;
+  const activityBasePath = isAthleteMode ? "/mon-espace/activities" : "/activities";
 
   // Full spinner only on very first load (no data yet)
   if (athleteLoading || (isLoading && !report)) {
@@ -253,7 +273,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
                     ? [acwrDetail.external, acwrDetail.internal, acwrDetail.global]
                     : undefined;
                   setShowExportDialog(false);
-                  exportPdf(report, athleteName, acwrMetrics, coachComment.trim() || undefined);
+                  exportPdf(report, athleteName, acwrMetrics, coachComment.trim() || undefined, hrvSummary);
                 }}
               >
                 <Icon
@@ -312,8 +332,11 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
         cards={report.cards}
         distribution={report.distribution}
         sportDecoupling={report.sportDecoupling}
+        sessions={report.sessions}
+        sportFilter={sportFilter}
         onSportSelect={handleKpiSportSelect}
         sessionsListPath={sessionsListPath}
+        activityBasePath={activityBasePath}
       />
 
       {/* ── Section Volume & Charge ── */}
@@ -366,7 +389,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
 
           {acwrLoading ? (
             <Card>
-              <CardContent className="p-8 text-center text-sm text-slate-500">
+              <CardContent className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                 Chargement ACWR...
               </CardContent>
             </Card>
@@ -378,7 +401,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
             </div>
           ) : (
             <Card>
-              <CardContent className="p-8 text-center text-sm text-slate-500">
+              <CardContent className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                 Aucune donnée ACWR disponible pour cet athlète.
               </CardContent>
             </Card>
@@ -416,7 +439,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
                         </div>
                         <div>
                           <p className="text-sm font-medium text-slate-900 dark:text-white">{item.label}</p>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {item.sessionCount} séance{item.sessionCount > 1 ? "s" : ""}
                           </p>
                         </div>

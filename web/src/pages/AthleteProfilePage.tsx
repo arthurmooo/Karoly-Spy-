@@ -39,6 +39,7 @@ export function AthleteProfilePage() {
 
   const activeBike = activeProfiles.find((p) => isBikePhysioSport(p.sport));
   const activeRun = activeProfiles.find((p) => isRunPhysioSport(p.sport));
+  const athleteWeight = activeProfiles.find((p) => p.weight != null)?.weight ?? null;
   const archivedBike = archivedProfiles.filter((p) => isBikePhysioSport(p.sport));
   const archivedRun = archivedProfiles.filter((p) => isRunPhysioSport(p.sport));
 
@@ -117,6 +118,12 @@ export function AthleteProfilePage() {
           <div className="flex items-center gap-3 mt-1">
             {athlete.email && (
               <span className="text-sm text-slate-500">{athlete.email}</span>
+            )}
+            {athleteWeight != null && (
+              <span className="text-sm text-slate-500 flex items-center gap-1">
+                <Icon name="monitor_weight" className="text-sm text-slate-400" />
+                {athleteWeight} kg
+              </span>
             )}
             <Badge variant={athlete.is_active ? "emerald" : "red"}>
               {athlete.is_active ? "Actif" : "Inactif"}

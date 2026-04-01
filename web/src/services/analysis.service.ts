@@ -47,6 +47,16 @@ function deltaPct(current: number | null, previous: number | null): number | nul
   return ((current - previous) / previous) * 100;
 }
 
+function groupBySport(rows: NormalizedStatsActivity[]): Map<string, NormalizedStatsActivity[]> {
+  const map = new Map<string, NormalizedStatsActivity[]>();
+  for (const row of rows) {
+    const group = map.get(row.sportKey);
+    if (group) group.push(row);
+    else map.set(row.sportKey, [row]);
+  }
+  return map;
+}
+
 export function generateInsights(
   currentRows: NormalizedStatsActivity[],
   previousRows: NormalizedStatsActivity[]
@@ -118,7 +128,7 @@ export function generateInsights(
     }
   }
 
-  // --- Durabilité ---
+  // --- Durabilité globale ---
   const durValues = currentRows.map((r) => r.durabilityIndex).filter((v): v is number => v != null);
   const avgDur = mean(durValues);
   if (avgDur != null && avgDur > 1.1) {
@@ -128,6 +138,40 @@ export function generateInsights(
       severity: "warning",
       title: `Penalite de durabilite elevee (${ONE_DECIMAL.format(avgDur)}) — cout cardiaque accru en fin de seance`,
     });
+  }
+
+  // --- Durabilité par sport avec comparaison ---
+  const sportGroupsCur = groupBySport(currentRows);
+  const sportGroupsPrev = groupBySport(previousRows);
+  for (const [sportKey, sportRows] of sportGroupsCur) {
+    const curDurValues = sportRows.map((r) => r.durabilityIndex).filter((v): v is number => v != null);
+    const curAvg = mean(curDurValues);
+    if (curAvg == null || curDurValues.length < 2) continue;
+
+    const prevSportRows = sportGroupsPrev.get(sportKey);
+    const prevDurValues = prevSportRows?.map((r) => r.durabilityIndex).filter((v): v is number => v != null) ?? [];
+    const prevAvg = mean(prevDurValues);
+    const sportLabel = sportRows[0]!.sportLabel.toLowerCase();
+
+    if (prevAvg != null && prevAvg > 0) {
+      // Lower durability index = better, so negative delta = improvement
+      const delta = ((curAvg - prevAvg) / prevAvg) * 100;
+      const improved = delta < 0;
+      const dirLabel = improved ? "mieux" : "moins bien";
+      insights.push({
+        id: `durability-sport-${sportKey}`,
+        icon: improved ? "trending_down" : "trending_up",
+        severity: Math.abs(delta) > 5 && !improved ? "warning" : "info",
+        title: `En ${sportLabel}, durabilite moyenne de ${ONE_DECIMAL.format(curAvg)}. Soit ${ONE_DECIMAL.format(Math.abs(delta))}% ${dirLabel} que la periode precedente.`,
+      });
+    } else {
+      insights.push({
+        id: `durability-sport-${sportKey}`,
+        icon: "speed",
+        severity: curAvg > 1.1 ? "warning" : "info",
+        title: `En ${sportLabel}, durabilite moyenne de ${ONE_DECIMAL.format(curAvg)}.`,
+      });
+    }
   }
 
   // --- RPE moyen ---

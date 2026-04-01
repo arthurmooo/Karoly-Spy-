@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
 export function ProtectedRoute() {
-  const { session, role, loading } = useAuth();
+  const { session, role, loading, isRecovery } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -15,6 +15,11 @@ export function ProtectedRoute() {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Redirect to reset password page during recovery flow
+  if (isRecovery) {
+    return <Navigate to="/reset-password" replace />;
   }
 
   // Auto-redirect root based on role

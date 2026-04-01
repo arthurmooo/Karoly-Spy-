@@ -3,7 +3,7 @@ import { SPORT_CONFIG } from "@/lib/constants";
 
 export function CalendarLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500 mt-4">
+    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400 mt-4">
       {SPORT_CONFIG.map(s => (
         <div key={s.key} className="flex items-center gap-1.5">
           <div className={`w-3 h-3 rounded-lg ${s.bgLight} border ${s.border} flex items-center justify-center`}>

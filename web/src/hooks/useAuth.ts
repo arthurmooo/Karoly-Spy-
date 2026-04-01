@@ -10,8 +10,10 @@ interface AuthState {
   user: User | null;
   role: AppRole;
   loading: boolean;
+  isRecovery: boolean;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<{ error: any }>;
+  clearRecovery: () => void;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);
@@ -21,6 +23,7 @@ export function useAuthProvider(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [rawRole, setRawRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRecovery, setIsRecovery] = useState(false);
   const lastUserIdRef = useRef<string | null>(null);
   const bootstrapDoneRef = useRef(false);
 
@@ -82,6 +85,10 @@ export function useAuthProvider(): AuthState {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, s) => {
       if (cancelled) return;
+
+      if (event === "PASSWORD_RECOVERY") {
+        setIsRecovery(true);
+      }
 
       const nextUserId = s?.user?.id ?? null;
       const decision = resolveAuthTransition({
@@ -157,7 +164,9 @@ export function useAuthProvider(): AuthState {
     return { error };
   };
 
-  return { session, user, role: getRole(rawRole), loading, signIn, signOut };
+  const clearRecovery = () => setIsRecovery(false);
+
+  return { session, user, role: getRole(rawRole), loading, isRecovery, signIn, signOut, clearRecovery };
 }
 
 export function useAuth(): AuthState {

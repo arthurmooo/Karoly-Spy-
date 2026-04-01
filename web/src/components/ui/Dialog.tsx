@@ -39,7 +39,7 @@ export function Dialog({ open, onClose, children }: DialogProps) {
         if (event.target === overlayRef.current) onClose();
       }}
     >
-      <div className="dialog-enter bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+      <div className="dialog-enter bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
         {children}
       </div>
     </div>,
@@ -52,7 +52,7 @@ export const DialogHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEle
     <div
       ref={ref}
       className={cn(
-        "flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800",
+        "flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-700",
         className
       )}
       {...props}
@@ -73,7 +73,7 @@ export const DialogFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEle
     <div
       ref={ref}
       className={cn(
-        "flex flex-wrap items-center gap-2 p-6 pt-4 border-t border-slate-200 dark:border-slate-800",
+        "flex flex-wrap items-center gap-2 p-6 pt-4 border-t border-slate-200 dark:border-slate-700",
         className
       )}
       {...props}

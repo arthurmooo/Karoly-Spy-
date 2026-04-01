@@ -56,3 +56,36 @@ export function formatPaceDecimal(minPerKm: number): string {
   if (sec === 60) { min += 1; sec = 0; }
   return `${min}'${sec.toString().padStart(2, "0")} /km`;
 }
+
+// ── Natation (convention /100m) ──
+
+// m/s → "X'XX /100m"
+export function speedToSwimPace(ms: number): string {
+  if (!ms || ms <= 0) return "--";
+  const paceSec = 100 / ms;
+  let min = Math.floor(paceSec / 60);
+  let sec = Math.round(paceSec % 60);
+  if (sec === 60) { min += 1; sec = 0; }
+  return `${min}'${sec.toString().padStart(2, "0")} /100m`;
+}
+
+// m/s → decimal min/100m (PAS d'arrondi)
+export function speedToSwimPaceDecimal(ms: number): number | null {
+  if (!ms || ms <= 0) return null;
+  return 100 / ms / 60;
+}
+
+// min/100m decimal → "X'XX /100m"
+export function formatSwimPaceDecimal(minPer100m: number): string {
+  let min = Math.floor(minPer100m);
+  let sec = Math.round((minPer100m - min) * 60);
+  if (sec === 60) { min += 1; sec = 0; }
+  return `${min}'${sec.toString().padStart(2, "0")} /100m`;
+}
+
+// km/h → "X'XX /100m" (pour les charts Tempo qui reçoivent du km/h)
+export function kmhToSwimPace(kmh: number | null | undefined): string {
+  if (!kmh || kmh <= 0) return "--";
+  const ms = kmh / 3.6;
+  return speedToSwimPace(ms);
+}

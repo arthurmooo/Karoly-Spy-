@@ -1,17 +1,18 @@
 import { Icon } from "@/components/ui/Icon";
 import type { FocusAlert } from "@/services/analysis.service";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { isCoach as checkIsCoach } from "@/lib/auth/roles";
 import { getSportConfig } from "@/lib/constants";
+import { buildActivityLinkState, getActivityDetailPath } from "@/lib/activityNavigation";
 
 interface FocusCoachProps {
   alert: FocusAlert;
 }
 
 export function FocusCoach({ alert }: FocusCoachProps) {
+  const location = useLocation();
   const { role } = useAuth();
-  const coach = checkIsCoach(role);
+  const detailState = buildActivityLinkState(location);
 
   return (
     <div className="rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-800/60 dark:bg-red-950/30">
@@ -28,13 +29,12 @@ export function FocusCoach({ alert }: FocusCoachProps) {
           </p>
           <ul className="mt-2 space-y-0.5">
             {alert.sessions.map((session) => {
-              const path = coach
-                ? `/activities/${session.id}`
-                : `/mon-espace/activities/${session.id}`;
+              const path = getActivityDetailPath(session.id, role);
               return (
                 <li key={session.id}>
                   <Link
                     to={path}
+                    state={detailState}
                     className="group flex items-center gap-2 text-xs text-red-600 dark:text-red-400 cursor-pointer rounded px-2 py-1 hover:bg-red-100/80 dark:hover:bg-red-900/30 transition-all duration-150"
                   >
                     <Icon name={getSportConfig(session.sportKey).icon} className="text-sm opacity-70 group-hover:opacity-100 transition-opacity" />

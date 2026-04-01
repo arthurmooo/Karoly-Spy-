@@ -13,7 +13,9 @@ import {
 } from "recharts";
 import type { StreamPoint, GarminLap } from "@/types/activity";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
-import { speedToPaceDecimal, formatPaceDecimal } from "@/services/format.service";
+import { speedToPaceDecimal, speedToSwimPaceDecimal, formatPaceDecimal, formatSwimPaceDecimal } from "@/services/format.service";
+import { isSwimSport } from "@/services/activity.service";
+import { useChartTheme } from "@/hooks/useChartTheme";
 
 interface Props {
   streams: StreamPoint[];
@@ -36,9 +38,9 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function speedToPaceNum(ms: number): number | null {
+function speedToPaceNum(ms: number, swim = false): number | null {
   if (!ms || ms < 1.0) return null;   // < 1.0 m/s (~16:40/km) is walk/noise
-  return speedToPaceDecimal(ms);
+  return swim ? speedToSwimPaceDecimal(ms) : speedToPaceDecimal(ms);
 }
 
 /** Moving average (centered window). Does NOT smooth nulls into values. */
@@ -73,6 +75,9 @@ export function ActivityStreamChart({
   renderHeader,
 }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
+  const isSwim = isSwimSport(sportType);
+  const ct = useChartTheme();
+  const fmtPace = isSwim ? formatSwimPaceDecimal : formatPaceDecimal;
 
   const [visibleCurves, setVisibleCurves] = useState<Set<CurveKey>>(
     () => new Set<CurveKey>(isBike ? ["hr", "power", "alt"] : ["hr", "pace", "alt"]),
@@ -95,7 +100,7 @@ export function ActivityStreamChart({
 
   const chartData = useMemo(() => {
     const rawHr = streams.map((pt) => pt.hr ?? null);
-    const rawPace = streams.map((pt) => (!isBike && pt.spd ? speedToPaceNum(pt.spd) : null));
+    const rawPace = streams.map((pt) => (!isBike && pt.spd ? speedToPaceNum(pt.spd, isSwim) : null));
     const rawPower = streams.map((pt) => (isBike && pt.pwr ? pt.pwr : null));
     const rawAlt = streams.map((pt) => pt.alt ?? null);
 
@@ -222,14 +227,15 @@ export function ActivityStreamChart({
       const avgPower = powers.length ? Math.round(powers.reduce((a, b) => a + b, 0) / powers.length) : null;
       return { duration, avgHr, avgPower, avgPace: null };
     }
-    // Run: distance-weighted pace from speed stream
+    // Run/Swim: distance-weighted pace from speed stream
+    const paceToMs = isSwim ? 100 : 1000; // reverse conversion factor
     const speeds = displayData
-      .map((d) => (d.pace != null ? 1000 / (d.pace * 60) : null)) // pace back to m/s
+      .map((d) => (d.pace != null ? paceToMs / (d.pace * 60) : null)) // pace back to m/s
       .filter((v): v is number => v != null && v > 0);
     const avgSpeed = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : null;
-    const avgPace = avgSpeed ? speedToPaceNum(avgSpeed) : null;
+    const avgPace = avgSpeed ? speedToPaceNum(avgSpeed, isSwim) : null;
     return { duration, avgHr, avgPower: null, avgPace };
-  }, [zoomWindow, displayData, isBike]);
+  }, [zoomWindow, displayData, isBike, isSwim]);
 
   const toggleButtons: { key: CurveKey; label: string; color: string }[] = [
     { key: "hr", label: "FC", color: "#ef4444" },
@@ -290,7 +296,7 @@ export function ActivityStreamChart({
             <span>FC moy : <span className="font-medium text-red-500">{zoomStats.avgHr} bpm</span></span>
           )}
           {zoomStats.avgPace != null && (
-            <span>Allure moy : <span className="font-medium text-blue-500">{formatPaceDecimal(zoomStats.avgPace)}</span></span>
+            <span>Allure moy : <span className="font-medium text-blue-500">{fmtPace(zoomStats.avgPace)}</span></span>
           )}
           {zoomStats.avgPower != null && (
             <span>Puissance moy : <span className="font-medium text-green-500">{zoomStats.avgPower} W</span></span>
@@ -308,13 +314,13 @@ export function ActivityStreamChart({
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           >
-            <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} className="dark:opacity-20" />
+            <CartesianGrid stroke={ct.grid} strokeDasharray="3 3" vertical={false} />
 
             <XAxis
               type="number"
               dataKey="t"
               domain={[xMin, xMax]}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: ct.tick }}
               tickLine={false}
               axisLine={false}
               tickFormatter={formatTime}
@@ -339,15 +345,10 @@ export function ActivityStreamChart({
             <YAxis yAxisId="alt" domain={altBandDomain} allowDataOverflow hide />
 
             <Tooltip
-              contentStyle={{
-                borderRadius: "8px",
-                border: "none",
-                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                fontSize: "12px",
-              }}
+              contentStyle={ct.tooltipStyle}
               formatter={(value: number, name: string) => {
                 if (name === "hr") return [`${Math.round(value)} bpm`, "FC"];
-                if (name === "pace") return [formatPaceDecimal(value), "Allure"];
+                if (name === "pace") return [fmtPace(value), "Allure"];
                 if (name === "power") return [`${Math.round(value)} W`, "Puissance"];
                 if (name === "speed") return [`${value} km/h`, "Vitesse"];
                 if (name === "alt") return [`${Math.round(value)} m`, "Altitude"];

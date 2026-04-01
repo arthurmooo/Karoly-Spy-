@@ -1,4 +1,5 @@
 import {
+  addDays,
   addMilliseconds,
   addWeeks,
   endOfMonth,
@@ -57,6 +58,18 @@ export interface SportDecouplingItem {
   sessionCount: number;
   avgDecoupling: number | null;
   displayValue: string;
+  deltaPct: number | null;
+  deltaDisplay: string | null;
+}
+
+export interface HeatmapCell {
+  label: string;
+  mls: number;
+}
+
+export interface VolumeHistoryPoint {
+  label: string;
+  hours: number;
 }
 
 export interface AthleteKpiReport {
@@ -67,12 +80,16 @@ export interface AthleteKpiReport {
   cards: KpiCard[];
   distribution: SportDistributionItem[];
   weeklyLoad: WeeklyLoadPoint[];
+  volumeHistory: VolumeHistoryPoint[];
+  detailHeatmap: HeatmapCell[];
+  comparisonHeatmap: HeatmapCell[];
   sportDecoupling: SportDecouplingItem[];
   insights: TextInsight[];
   focusAlert: FocusAlert | null;
   hrZones: HrZonesAggregate | null;
   hrZonesBySport: Record<string, HrZonesAggregate>;
   availableSports: string[];
+  sessions: NormalizedStatsActivity[];
 }
 
 interface PeriodWindow {
@@ -400,10 +417,121 @@ function buildWeeklyLoad(rows: NormalizedStatsActivity[], now: Date): WeeklyLoad
   });
 }
 
-function buildSportDecoupling(rows: NormalizedStatsActivity[]): SportDecouplingItem[] {
-  const grouped = new Map<string, { label: string; sessionCount: number; decouplingValues: number[] }>();
+function buildVolumeHistory(
+  period: KpiPeriod,
+  allRows: NormalizedStatsActivity[],
+  now: Date,
+): VolumeHistoryPoint[] {
+  if (period === "week") {
+    // Last 8 weeks — total hours per week
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    return Array.from({ length: 8 }, (_, i) => {
+      const ws = subWeeks(currentWeekStart, 7 - i);
+      const we = endOfWeek(ws, { weekStartsOn: 1 });
+      const hours = allRows
+        .filter((r) => r.sessionDate >= ws && r.sessionDate <= we)
+        .reduce((s, r) => s + r.durationSec, 0) / 3600;
+      return {
+        label: format(ws, "d MMM", { locale: fr }),
+        hours: round1(hours),
+      };
+    });
+  }
+  // Last 8 months — total hours per month
+  const currentMonthStart = startOfMonth(now);
+  return Array.from({ length: 8 }, (_, i) => {
+    const ms = subMonths(currentMonthStart, 7 - i);
+    const me = endOfMonth(ms);
+    const hours = allRows
+      .filter((r) => r.sessionDate >= ms && r.sessionDate <= me)
+      .reduce((s, r) => s + r.durationSec, 0) / 3600;
+    return {
+      label: format(ms, "MMM yy", { locale: fr }),
+      hours: round1(hours),
+    };
+  });
+}
 
-  for (const row of rows) {
+function buildDetailHeatmap(
+  period: KpiPeriod,
+  currentRows: NormalizedStatsActivity[],
+  now: Date,
+): HeatmapCell[] {
+  if (period === "week") {
+    // 7 days (Mon→Sun) with daily MLS
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = addDays(weekStart, i);
+      const dayStr = format(day, "yyyy-MM-dd");
+      const dayMls = currentRows
+        .filter((r) => format(r.sessionDate, "yyyy-MM-dd") === dayStr)
+        .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
+      return {
+        label: format(day, "EEE d", { locale: fr }),
+        mls: round1(dayMls),
+      };
+    });
+  }
+  // Month: 4-5 weeks within the month
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const cells: HeatmapCell[] = [];
+  let ws = startOfWeek(monthStart, { weekStartsOn: 1 });
+  while (ws <= monthEnd) {
+    const we = endOfWeek(ws, { weekStartsOn: 1 });
+    const weekMls = currentRows
+      .filter((r) => r.sessionDate >= ws && r.sessionDate <= we)
+      .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
+    cells.push({
+      label: `${format(ws, "d", { locale: fr })}–${format(we, "d MMM", { locale: fr })}`,
+      mls: round1(weekMls),
+    });
+    ws = addWeeks(ws, 1);
+  }
+  return cells;
+}
+
+function buildComparisonHeatmap(
+  period: KpiPeriod,
+  allRows: NormalizedStatsActivity[],
+  now: Date,
+): HeatmapCell[] {
+  if (period === "week") {
+    // Last 4 weeks (MLS per week)
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    return Array.from({ length: 4 }, (_, i) => {
+      const ws = subWeeks(currentWeekStart, 3 - i);
+      const we = endOfWeek(ws, { weekStartsOn: 1 });
+      const weekMls = allRows
+        .filter((r) => r.sessionDate >= ws && r.sessionDate <= we)
+        .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
+      return {
+        label: format(ws, "d MMM", { locale: fr }),
+        mls: round1(weekMls),
+      };
+    });
+  }
+  // Last 4 months (MLS per month)
+  const currentMonthStart = startOfMonth(now);
+  return Array.from({ length: 4 }, (_, i) => {
+    const ms = subMonths(currentMonthStart, 3 - i);
+    const me = endOfMonth(ms);
+    const monthMls = allRows
+      .filter((r) => r.sessionDate >= ms && r.sessionDate <= me)
+      .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
+    return {
+      label: format(ms, "MMM yy", { locale: fr }),
+      mls: round1(monthMls),
+    };
+  });
+}
+
+function buildSportDecoupling(
+  currentRows: NormalizedStatsActivity[],
+  previousRows: NormalizedStatsActivity[],
+): SportDecouplingItem[] {
+  const grouped = new Map<string, { label: string; sessionCount: number; decouplingValues: number[] }>();
+  for (const row of currentRows) {
     const existing = grouped.get(row.sportKey);
     if (existing) {
       existing.sessionCount += 1;
@@ -417,15 +545,30 @@ function buildSportDecoupling(rows: NormalizedStatsActivity[]): SportDecouplingI
     }
   }
 
+  // Previous period averages by sport
+  const prevGrouped = new Map<string, number[]>();
+  for (const row of previousRows) {
+    const vals = prevGrouped.get(row.sportKey);
+    if (row.decouplingIndex != null) {
+      if (vals) vals.push(row.decouplingIndex);
+      else prevGrouped.set(row.sportKey, [row.decouplingIndex]);
+    }
+  }
+
   return [...grouped.entries()]
     .map(([sportKey, value]) => {
       const avgDecoupling = mean(value.decouplingValues);
+      const prevAvg = mean(prevGrouped.get(sportKey) ?? []);
+      // Absolute delta in percentage points (not relative %)
+      const absDelta = avgDecoupling != null && prevAvg != null ? round1(avgDecoupling - prevAvg) : null;
       return {
         sportKey,
         label: value.label,
         sessionCount: value.sessionCount,
         avgDecoupling: avgDecoupling != null ? round1(avgDecoupling) : null,
         displayValue: avgDecoupling != null ? `${ONE_DECIMAL.format(avgDecoupling)} %` : "--",
+        deltaPct: absDelta,
+        deltaDisplay: absDelta != null ? `${SIGNED_ONE_DECIMAL.format(absDelta)} %` : null,
       };
     })
     .sort((left, right) => right.sessionCount - left.sessionCount || left.label.localeCompare(right.label, "fr"));
@@ -435,10 +578,16 @@ export function getAthleteKpiFetchRange(period: KpiPeriod, now = new Date()): Pe
   const currentWindow = getCurrentPeriodWindow(period, now);
   const previousWindow = getPreviousPeriodWindow(period, currentWindow);
   const weeklyStart = getOldestLoadWeekStart(now);
-  const start = previousWindow.start < weeklyStart ? previousWindow.start : weeklyStart;
+  // For month mode, volume history needs 8 months of data
+  const comparisonStart = period === "month"
+    ? startOfMonth(subMonths(now, 7))
+    : weeklyStart;
+  const earliest = [previousWindow.start, weeklyStart, comparisonStart].reduce(
+    (min, d) => (d < min ? d : min)
+  );
 
   return {
-    start,
+    start: earliest,
     end: currentWindow.end,
   };
 }
@@ -508,11 +657,17 @@ export function buildAthleteKpiReport(
     cards: buildKpiCards(kpiCurrentRows, kpiPreviousRows),
     distribution: buildDistribution(currentRows),
     weeklyLoad: buildWeeklyLoad(normalizedRows, now),
-    sportDecoupling: buildSportDecoupling(currentRows),
+    volumeHistory: buildVolumeHistory(period, normalizedRows, now),
+    detailHeatmap: buildDetailHeatmap(period, currentRows, now),
+    comparisonHeatmap: buildComparisonHeatmap(period, normalizedRows, now),
+    sportDecoupling: buildSportDecoupling(currentRows, previousRows),
     insights,
     focusAlert,
     hrZones: aggregateHrZones(currentRows),
     hrZonesBySport,
     availableSports,
+    sessions: [...kpiCurrentRows].sort(
+      (a, b) => b.sessionDate.getTime() - a.sessionDate.getTime()
+    ),
   };
 }

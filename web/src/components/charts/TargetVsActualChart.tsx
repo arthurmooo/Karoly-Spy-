@@ -2,7 +2,8 @@ import { useMemo, useState, useRef, useCallback } from "react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell } from "recharts";
 import type { BlockGroupedIntervals, PlannedIntervalBlock } from "@/types/activity";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
-import { formatPaceDecimal, speedToPaceDecimal } from "@/services/format.service";
+import { formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
+import { isSwimSport } from "@/services/activity.service";
 
 interface Props {
   intervalsByBlock: BlockGroupedIntervals[];
@@ -33,12 +34,12 @@ type PreparedChartModel = {
   hasPlannedTargets: boolean;
 };
 
-function toRunPaceFromSpeed(speed: number | null | undefined): number | null {
+function toPaceFromSpeed(speed: number | null | undefined, isSwim: boolean): number | null {
   if (speed == null || speed <= 0) return null;
-  return speedToPaceDecimal(speed);
+  return isSwim ? speedToSwimPaceDecimal(speed) : speedToPaceDecimal(speed);
 }
 
-function formatTargetRange(min: number | null, max: number | null, isBike: boolean): string | null {
+function formatTargetRange(min: number | null, max: number | null, isBike: boolean, fmtPace: (v: number) => string): string | null {
   if (min == null && max == null) return null;
   if (isBike) {
     if (min != null && max != null) return `${Math.round(min)}-${Math.round(max)} W`;
@@ -49,16 +50,18 @@ function formatTargetRange(min: number | null, max: number | null, isBike: boole
   if (min != null && max != null) {
     const slower = Math.max(min, max);
     const faster = Math.min(min, max);
-    return `${formatPaceDecimal(slower)} - ${formatPaceDecimal(faster)}`;
+    return `${fmtPace(slower)} - ${fmtPace(faster)}`;
   }
   const value = min ?? max;
-  return value != null ? formatPaceDecimal(value) : null;
+  return value != null ? fmtPace(value) : null;
 }
 
 function buildTargetVsActualChartModel(
   intervalsByBlock: BlockGroupedIntervals[],
   plannedBlocks: PlannedIntervalBlock[] | undefined,
-  isBike: boolean
+  isBike: boolean,
+  isSwim: boolean,
+  fmtPace: (v: number) => string,
 ): PreparedChartModel {
   if (!plannedBlocks?.length || intervalsByBlock.length === 0) {
     return { chartData: [], yMax: 0, domainMin: 0, hasPlannedTargets: false };
@@ -73,10 +76,10 @@ function buildTargetVsActualChartModel(
 
     let plannedMin = isBike
       ? matchingPlanned?.target_type === "power" ? matchingPlanned.target_min : null
-      : toRunPaceFromSpeed(matchingPlanned?.target_max ?? null);
+      : toPaceFromSpeed(matchingPlanned?.target_max ?? null, isSwim);
     let plannedMax = isBike
       ? matchingPlanned?.target_type === "power" ? matchingPlanned.target_max : null
-      : toRunPaceFromSpeed(matchingPlanned?.target_min ?? null);
+      : toPaceFromSpeed(matchingPlanned?.target_min ?? null, isSwim);
 
     if (!isBike && plannedMin != null && plannedMax != null && plannedMin > plannedMax) {
       const tmp = plannedMin;
@@ -96,7 +99,7 @@ function buildTargetVsActualChartModel(
       const actual = isBike
         ? intv.avg_power
         : intv.avg_speed && intv.avg_speed > 0
-          ? speedToPaceDecimal(intv.avg_speed)
+          ? (isSwim ? speedToSwimPaceDecimal(intv.avg_speed) : speedToPaceDecimal(intv.avg_speed))
           : null;
 
       // Determine if actual is within target range
@@ -117,12 +120,12 @@ function buildTargetVsActualChartModel(
         actual: actual ?? null,
         actualLabel: isBike
           ? (actual != null ? `${Math.round(actual)} W` : null)
-          : (actual != null ? formatPaceDecimal(actual) : null),
+          : (actual != null ? fmtPace(actual) : null),
         plannedLine,
-        plannedLineLabel: plannedLine != null ? formatTargetRange(plannedLine, null, isBike) : null,
+        plannedLineLabel: plannedLine != null ? formatTargetRange(plannedLine, null, isBike, fmtPace) : null,
         plannedMin,
         plannedMax,
-        plannedRangeLabel: formatTargetRange(plannedMin, plannedMax, isBike),
+        plannedRangeLabel: formatTargetRange(plannedMin, plannedMax, isBike, fmtPace),
         inTarget,
       });
     }
@@ -180,6 +183,8 @@ type ActiveBarData = ChartRow & { rangeBase: number; rangeHeight: number };
 
 export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType, hideTitle }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
+  const isSwim = isSwimSport(sportType);
+  const fmtPace = isSwim ? formatSwimPaceDecimal : formatPaceDecimal;
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeBar, setActiveBar] = useState<{ row: ActiveBarData; cx: number } | null>(null);
 
@@ -195,8 +200,8 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
   }, []);
 
   const { chartData, yMax, domainMin, hasPlannedTargets } = useMemo(
-    () => buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, isBike),
-    [intervalsByBlock, plannedBlocks, isBike]
+    () => buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, isBike, isSwim, fmtPace),
+    [intervalsByBlock, plannedBlocks, isBike, isSwim, fmtPace]
   );
 
   // Compute nice round Y ticks for bike mode
@@ -255,7 +260,7 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
           tickFormatter={
             isBike
               ? (v: number) => `${Math.round(v)}W`
-              : (v: number) => formatPaceDecimal(yMax - v)
+              : (v: number) => fmtPace(yMax - v)
           }
         />
 
@@ -305,7 +310,7 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
       </BarChart>
     </ResponsiveContainer>
     );
-  }, [barData, bikeYTicks, isBike, yMax, domainMin, handleMouseMove, handleMouseLeave]);
+  }, [barData, bikeYTicks, isBike, yMax, domainMin, fmtPace, handleMouseMove, handleMouseLeave]);
 
   if (!hasPlannedTargets || chartData.length === 0) {
     return (
@@ -345,7 +350,7 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
           const actualLabel = row.actual != null
             ? isBike
               ? `${Math.round(row.actual)} W`
-              : formatPaceDecimal(yMax - row.actual)
+              : fmtPace(yMax - row.actual)
             : "—";
           const targetLabel = row.plannedRangeLabel ?? row.plannedLineLabel;
 

@@ -175,7 +175,14 @@ class SegmentCalculator:
     def calculate_drift(self, splits: Dict[str, SegmentData]) -> Optional[float]:
         """
         Calculates the percentage drift between the first and last phase.
-        Following Karoly: (1 - EA_last / EA_first) * 100
+
+        Formula:  Dec% = (1 - EA_last / EA_first) * 100
+        Convention:
+          - Positive = drift = fatigue (EA drops in second half → cardiac cost rises)
+          - Negative or ~0 = good coupling (stable or improving efficiency)
+        Thresholds: ≤5% good, 5-10% moderate, >10% significant
+        Note: the original spec PDF used (EA2/EA1 - 1)*100 which inverts the sign.
+        This codebase uses the convention above; all UI thresholds are calibrated accordingly.
         """
         if not splits or len(splits) < 2:
             return None

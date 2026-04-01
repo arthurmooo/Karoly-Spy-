@@ -2,7 +2,8 @@ import type { GarminLap } from "@/types/activity";
 import { useState } from "react";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
-import { formatDuration, speedToPace } from "@/services/format.service";
+import { formatDuration, speedToPace, speedToSwimPace } from "@/services/format.service";
+import { isSwimSport } from "@/services/activity.service";
 
 const DEFAULT_SORT_BY = "lap";
 const DEFAULT_SORT_DIR: SortDirection = "asc";
@@ -31,6 +32,7 @@ function formatSpeed(ms: number): string {
 
 export function LapsTable({ laps, sportType }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
+  const isSwim = isSwimSport(sportType);
   const [sortBy, setSortBy] = useState<"lap" | "duration" | "distance" | "speed" | "power" | "avg_hr" | "max_hr" | "cadence">(DEFAULT_SORT_BY);
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_SORT_DIR);
 
@@ -107,7 +109,9 @@ export function LapsTable({ laps, sportType }: Props) {
                 {lap.avg_speed
                   ? isBike
                     ? formatSpeed(lap.avg_speed)
-                    : speedToPace(lap.avg_speed)
+                    : isSwim
+                      ? speedToSwimPace(lap.avg_speed)
+                      : speedToPace(lap.avg_speed)
                   : "--"}
               </td>
               {isBike && (

@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useLatestActivity } from "@/hooks/useLatestActivity";
 import { WidgetShell } from "@/components/dashboard/WidgetShell";
 import { Icon } from "@/components/ui/Icon";
+import { buildActivityLinkState } from "@/lib/activityNavigation";
 import { mapSportLabel } from "@/services/activity.service";
 
 interface Props {
@@ -16,8 +17,10 @@ function formatDate(iso: string) {
 }
 
 export function CoachFeedbackWidget({ athleteId }: Props) {
+  const location = useLocation();
   const { activity, isLoading } = useLatestActivity(athleteId);
   const comment = activity?.coach_comment?.trim() || null;
+  const detailState = buildActivityLinkState(location);
 
   return (
     <WidgetShell
@@ -30,9 +33,10 @@ export function CoachFeedbackWidget({ athleteId }: Props) {
       {activity && comment && (
         <Link
           to={`/mon-espace/activities/${activity.id}`}
+          state={detailState}
           className="block space-y-2 rounded-xl p-3 -mx-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
         >
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <Icon name="directions_run" className="text-sm" />
             <span>
               {mapSportLabel(activity.sport_type ?? "")} · {formatDate(activity.session_date)}

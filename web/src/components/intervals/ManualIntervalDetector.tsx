@@ -18,7 +18,8 @@ import {
   type ManualDetectionMetric,
   type ManualDetectionMode,
 } from "@/services/manualIntervals.service";
-import { formatDistance, formatDuration, formatPaceDecimal } from "@/services/format.service";
+import { formatDistance, formatDuration, formatPaceDecimal, formatSwimPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
+import { isSwimSport } from "@/services/activity.service";
 
 interface Props {
   activity: Activity;
@@ -38,7 +39,8 @@ const DEFAULT_SORT_DIR: SortDirection = "asc";
 function formatMetricValue(
   segment: DetectedSegment,
   metric: ManualDetectionMetric,
-  isBike: boolean
+  isBike: boolean,
+  isSwim: boolean,
 ) {
   if (metric === "heart_rate") {
     return segment.avgHr != null ? `${Math.round(segment.avgHr)} bpm` : "--";
@@ -49,7 +51,9 @@ function formatMetricValue(
   if (isBike) {
     return segment.avgSpeed != null ? `${(segment.avgSpeed * 3.6).toFixed(1)} km/h` : "--";
   }
-  return segment.avgSpeed != null ? formatPaceDecimal(speedToPaceDecimal(segment.avgSpeed) ?? 0) : "--";
+  if (segment.avgSpeed == null) return "--";
+  if (isSwim) return formatSwimPaceDecimal(speedToSwimPaceDecimal(segment.avgSpeed) ?? 0);
+  return formatPaceDecimal(speedToPaceDecimal(segment.avgSpeed) ?? 0);
 }
 
 function formatDetectorDistance(distanceM: number) {
@@ -78,6 +82,7 @@ export function ManualIntervalDetector({
   onDetectedSegmentsChange,
 }: Props) {
   const isBike = isBikeSport(activity.sport_type);
+  const isSwim = isSwimSport(activity.sport_type);
   const streams = activity.activity_streams ?? [];
   const justInjectedRef = useRef(false);
   const [selectedBlock, setSelectedBlock] = useState<1 | 2>(1);
@@ -502,7 +507,9 @@ export function ManualIntervalDetector({
                   ? `${Math.round(summary.meanPower)} W`
                   : "--"
                 : summary.meanSpeed != null
-                  ? formatPaceDecimal(speedToPaceDecimal(summary.meanSpeed) ?? 0)
+                  ? isSwim
+                    ? formatSwimPaceDecimal(speedToSwimPaceDecimal(summary.meanSpeed) ?? 0)
+                    : formatPaceDecimal(speedToPaceDecimal(summary.meanSpeed) ?? 0)
                   : "--"}
             </p>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -517,7 +524,9 @@ export function ManualIntervalDetector({
                   ? `${Math.round(summary.lastPower)} W`
                   : "--"
                 : summary.lastSpeed != null
-                  ? formatPaceDecimal(speedToPaceDecimal(summary.lastSpeed) ?? 0)
+                  ? isSwim
+                    ? formatSwimPaceDecimal(speedToSwimPaceDecimal(summary.lastSpeed) ?? 0)
+                    : formatPaceDecimal(speedToPaceDecimal(summary.lastSpeed) ?? 0)
                   : "--"}
             </p>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -581,7 +590,7 @@ export function ManualIntervalDetector({
                       {segment.distanceM > 0 ? formatDetectorDistance(segment.distanceM) : "--"}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs font-semibold text-slate-900 dark:text-white">
-                      {formatMetricValue(segment, metric, isBike)}
+                      {formatMetricValue(segment, metric, isBike, isSwim)}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">
                       {segment.avgHr != null ? `${Math.round(segment.avgHr)} bpm` : "--"}
@@ -592,7 +601,9 @@ export function ManualIntervalDetector({
                           ? `${Math.round(segment.avgPower)} W`
                           : "--"
                         : segment.avgSpeed != null
-                          ? formatPaceDecimal(speedToPaceDecimal(segment.avgSpeed) ?? 0)
+                          ? isSwim
+                            ? formatSwimPaceDecimal(speedToSwimPaceDecimal(segment.avgSpeed) ?? 0)
+                            : formatPaceDecimal(speedToPaceDecimal(segment.avgSpeed) ?? 0)
                           : "--"}
                     </td>
                   </tr>

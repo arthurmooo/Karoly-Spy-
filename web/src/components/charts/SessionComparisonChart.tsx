@@ -15,6 +15,7 @@ import {
   formatComparisonTooltipMetric,
   type SessionComparisonChartModel,
 } from "@/services/sessionComparison.service";
+import { useChartTheme } from "@/hooks/useChartTheme";
 
 interface Props {
   chartModel: SessionComparisonChartModel;
@@ -38,6 +39,8 @@ export function SessionComparisonChart({
   currentLabel = "Courante",
   referenceLabel = "Référence",
 }: Props) {
+  const ct = useChartTheme();
+
   // --- Toggle state ---
   const [visibleCurves, setVisibleCurves] = useState<Set<CurveKey>>(
     () => new Set<CurveKey>(["currentMetric", "referenceMetric", "currentHr", "referenceHr", "alt"]),
@@ -251,12 +254,12 @@ export function SessionComparisonChart({
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           >
-            <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} className="dark:opacity-20" />
+            <CartesianGrid stroke={ct.grid} strokeDasharray="3 3" vertical={false} />
             <XAxis
               type="number"
               dataKey="percent"
               domain={xDomain}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: ct.tick }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => `${Math.round(value)}%`}
@@ -267,14 +270,14 @@ export function SessionComparisonChart({
               orientation="right"
               domain={metricDomain}
               reversed={chartModel.reversed}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: ct.tick }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
               yAxisId="hr"
               domain={hrDomain}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: ct.tick }}
               tickLine={false}
               axisLine={false}
             />
@@ -293,7 +296,7 @@ export function SessionComparisonChart({
                       {visibleCurves.has("currentMetric") && (
                         <div className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
-                          <span className="text-slate-500">{metricLabel} {currentLabel}</span>
+                          <span className="text-slate-500 dark:text-slate-400">{metricLabel} {currentLabel}</span>
                           <span className="ml-auto font-mono text-slate-900 dark:text-white">
                             {formatComparisonTooltipMetric(point.currentMetric, chartModel.metricKind)}
                           </span>
@@ -302,7 +305,7 @@ export function SessionComparisonChart({
                       {visibleCurves.has("referenceMetric") && (
                         <div className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-[#F97316]" />
-                          <span className="text-slate-500">{metricLabel} {referenceLabel}</span>
+                          <span className="text-slate-500 dark:text-slate-400">{metricLabel} {referenceLabel}</span>
                           <span className="ml-auto font-mono text-slate-900 dark:text-white">
                             {formatComparisonTooltipMetric(point.referenceMetric, chartModel.metricKind)}
                           </span>
@@ -311,7 +314,7 @@ export function SessionComparisonChart({
                       {visibleCurves.has("currentHr") && (
                         <div className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
-                          <span className="text-slate-500">FC {currentLabel}</span>
+                          <span className="text-slate-500 dark:text-slate-400">FC {currentLabel}</span>
                           <span className="ml-auto font-mono text-slate-900 dark:text-white">
                             {point.currentHr != null ? `${Math.round(point.currentHr)} bpm` : "--"}
                           </span>
@@ -320,7 +323,7 @@ export function SessionComparisonChart({
                       {visibleCurves.has("referenceHr") && (
                         <div className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-[#64748b]" />
-                          <span className="text-slate-500">FC {referenceLabel}</span>
+                          <span className="text-slate-500 dark:text-slate-400">FC {referenceLabel}</span>
                           <span className="ml-auto font-mono text-slate-900 dark:text-white">
                             {point.referenceHr != null ? `${Math.round(point.referenceHr)} bpm` : "--"}
                           </span>

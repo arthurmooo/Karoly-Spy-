@@ -386,3 +386,41 @@ export function computeTrend(
   if (!current || !avg30d || avg30d === 0) return null;
   return ((current - avg30d) / avg30d) * 100;
 }
+
+/* ─── HRV Summary for PDF export ─── */
+
+export interface HrvPdfSummary {
+  date: string;
+  lnRmssd7d: number | null;
+  restingHr: number | null;
+  swcStatus: HrvSwcStatus;
+  swcMean: number | null;
+  swcLow: number | null;
+  swcHigh: number | null;
+  interpretation: string;
+}
+
+export function buildHrvPdfSummary(
+  timeline: DerivedHrvPoint[],
+): HrvPdfSummary | null {
+  const latest = getLatestSignalPoint(timeline);
+  if (!latest) return null;
+
+  const statusLabels: Record<HrvSwcStatus, string> = {
+    within_swc: "Etat de forme stable (dans SWC)",
+    above_swc: "Amelioration detectee (au-dessus SWC)",
+    below_swc: "Alerte : degradation detectee (sous SWC)",
+    insufficient_data: "Donnees insuffisantes pour le SWC",
+  };
+
+  return {
+    date: latest.date,
+    lnRmssd7d: latest.ln_rmssd_7d_avg,
+    restingHr: latest.resting_hr,
+    swcStatus: latest.swc_status,
+    swcMean: latest.swc_mean_28d,
+    swcLow: latest.swc_low_28d,
+    swcHigh: latest.swc_high_28d,
+    interpretation: statusLabels[latest.swc_status],
+  };
+}

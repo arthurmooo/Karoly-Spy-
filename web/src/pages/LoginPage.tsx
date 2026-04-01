@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
@@ -78,9 +78,9 @@ export function LoginPage() {
               <label htmlFor={passwordInputId} className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 Mot de passe
               </label>
-              <span className="text-xs font-medium text-slate-400">
-                Mot de passe oublié non branché
-              </span>
+              <Link to="/forgot-password" className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                Mot de passe oublié ?
+              </Link>
             </div>
             <div className="relative">
               <Input

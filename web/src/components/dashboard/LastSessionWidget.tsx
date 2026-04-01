@@ -1,9 +1,10 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useLatestActivity } from "@/hooks/useLatestActivity";
 import { WidgetShell } from "@/components/dashboard/WidgetShell";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { getSportConfig } from "@/lib/constants";
+import { buildActivityLinkState } from "@/lib/activityNavigation";
 import { mapSportLabel, mapWorkTypeLabel } from "@/services/activity.service";
 import { formatDuration, formatDistance } from "@/services/format.service";
 
@@ -20,7 +21,9 @@ function formatDate(iso: string) {
 }
 
 export function LastSessionWidget({ athleteId }: Props) {
+  const location = useLocation();
   const { activity, isLoading } = useLatestActivity(athleteId);
+  const detailState = buildActivityLinkState(location);
 
   const sportCfg = activity ? getSportConfig(activity.sport_type ?? "") : null;
   const title = activity
@@ -38,7 +41,8 @@ export function LastSessionWidget({ athleteId }: Props) {
       {activity && sportCfg && (
         <Link
           to={`/mon-espace/activities/${activity.id}`}
-          className="block space-y-3 rounded-xl p-3 -mx-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          state={detailState}
+          className="block space-y-3 rounded-xl p-3 -mx-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
         >
           <div className="flex items-center gap-2.5">
             <Icon name={sportCfg.icon} className={`text-lg ${sportCfg.textColor}`} />
@@ -46,7 +50,7 @@ export function LastSessionWidget({ athleteId }: Props) {
               <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                 {title}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {formatDate(activity.session_date)} · {mapSportLabel(activity.sport_type ?? "")} · {mapWorkTypeLabel(activity.work_type)}
               </p>
             </div>

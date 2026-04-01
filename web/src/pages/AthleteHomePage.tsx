@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
@@ -12,11 +12,13 @@ import { useAthleteGroups } from "@/hooks/useAthleteGroups";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useActivities } from "@/hooks/useActivities";
 import { useMyAthleteProfile } from "@/hooks/useMyAthleteProfile";
+import { buildActivityLinkState } from "@/lib/activityNavigation";
 
 const DEFAULT_SORT_BY = "session_date";
 const DEFAULT_SORT_DIR: SortDirection = "desc";
 
 export function AthleteHomePage() {
+  const location = useLocation();
   const { profile, isLoading: profileLoading } = useMyAthleteProfile();
   const { getGroupById } = useAthleteGroups();
   const {
@@ -78,6 +80,7 @@ export function AthleteHomePage() {
       : activities;
 
   const rowLinkClassName = "block -mx-4 -my-3 px-4 py-3 transition-all duration-150";
+  const detailState = buildActivityLinkState(location);
 
   const athleteName = profile
     ? `${profile.first_name} ${profile.last_name}`
@@ -169,7 +172,7 @@ export function AthleteHomePage() {
                       className="cursor-pointer transition-all duration-150 hover:bg-primary/5 dark:hover:bg-primary/10"
                     >
                       <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           <div className="whitespace-nowrap">{format(new Date(act.date), "dd MMM yyyy", { locale: fr })}</div>
                           {act.title && act.title !== "Séance" && (
                             <div className="max-w-[180px] truncate text-xs text-slate-500 dark:text-slate-400 font-normal mt-0.5">
@@ -179,7 +182,7 @@ export function AthleteHomePage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           <div className="flex items-center gap-2">
                             <Icon name={sportCfg.icon} className={sportCfg.textColor} />
                             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{act.sport}</span>
@@ -187,7 +190,7 @@ export function AthleteHomePage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           <Badge
                             variant={
                               act.work_type === "Compétition" ? "orange" : act.work_type === "Endurance" ? "primary" : "slate"
@@ -198,17 +201,17 @@ export function AthleteHomePage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           {act.duration}
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           {act.distance}
                         </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           {act.mls != null ? (
                             <Badge variant={act.mls > 7 ? "red" : act.mls > 5 ? "orange" : act.mls > 3 ? "amber" : "emerald"}>
                               {act.mls.toFixed(1)}
@@ -219,7 +222,7 @@ export function AthleteHomePage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           {act.rpe != null && act.rpe >= 1 ? (
                             <Badge variant={act.rpe >= 9 ? "red" : act.rpe >= 7 ? "orange" : act.rpe >= 4 ? "amber" : "emerald"}>
                               {act.rpe}
@@ -230,12 +233,12 @@ export function AthleteHomePage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           {act.hr}
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        <Link to={detailHref} className={rowLinkClassName}>
+                        <Link to={detailHref} state={detailState} className={rowLinkClassName}>
                           {act.pace}
                         </Link>
                       </td>

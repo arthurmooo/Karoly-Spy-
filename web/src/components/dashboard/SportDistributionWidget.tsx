@@ -32,7 +32,7 @@ export function SportDistributionWidget({ distribution, isLoading }: Props) {
                     {item.label}
                   </span>
                 </div>
-                <span className="font-mono text-xs text-slate-500">
+                <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
                   {formatHoursHuman(item.hours)} · {item.sessionCount} séance{item.sessionCount > 1 ? "s" : ""}
                 </span>
               </div>

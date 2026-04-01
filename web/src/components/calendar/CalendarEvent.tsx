@@ -2,9 +2,9 @@ import React from "react";
 import { CalendarEvent as CalendarEventType } from "@/types/calendar";
 import { Icon } from "@/components/ui/Icon";
 import { getSportConfig } from "@/lib/constants";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { isCoach as checkIsCoach } from "@/lib/auth/roles";
+import { buildActivityLinkState, getActivityDetailPath } from "@/lib/activityNavigation";
 
 interface CalendarEventProps {
   event: CalendarEventType;
@@ -12,14 +12,14 @@ interface CalendarEventProps {
 }
 
 export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => {
+  const location = useLocation();
   const { role } = useAuth();
   const config = getSportConfig(event.sport);
+  const detailState = buildActivityLinkState(location);
   const detailPath =
     event.activityId == null
       ? null
-      : checkIsCoach(role)
-        ? `/activities/${event.activityId}`
-        : `/mon-espace/activities/${event.activityId}`;
+      : getActivityDetailPath(event.activityId, role);
 
   const isClickable = event.type === "realized" && detailPath;
   const testId = event.activityId ? `calendar-event-${event.activityId}` : undefined;
@@ -41,7 +41,7 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
 
     if (isClickable) {
       return (
-        <Link to={detailPath!} onClick={(e) => e.stopPropagation()} data-testid={testId} className={monthClassName} title={`${event.sport} - ${event.name}`}>
+        <Link to={detailPath!} state={detailState} onClick={(e) => e.stopPropagation()} data-testid={testId} className={monthClassName} title={`${event.sport} - ${event.name}`}>
           {monthContent}
         </Link>
       );
@@ -69,18 +69,18 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
           {event.name}
         </div>
         {event.durationSec && (
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
             {Math.floor(event.durationSec / 3600)}h {Math.floor((event.durationSec % 3600) / 60)}m
           </div>
         )}
         {event.distanceM && (
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
             {(event.distanceM / 1000).toFixed(1)} km
           </div>
         )}
         {event.mls && (
           <div className="mt-2 flex items-center gap-1">
-            <span className="text-[10px] font-semibold text-slate-500 uppercase">MLS:</span>
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">MLS:</span>
             <span className="text-xs font-bold font-mono text-slate-700 dark:text-slate-300">{event.mls.toFixed(1)}</span>
           </div>
         )}
@@ -89,7 +89,7 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
 
     if (isClickable) {
       return (
-        <Link to={detailPath!} onClick={(e) => e.stopPropagation()} data-testid={testId} className={`block ${weekClassName}`}>
+        <Link to={detailPath!} state={detailState} onClick={(e) => e.stopPropagation()} data-testid={testId} className={`block ${weekClassName}`}>
           {weekContent}
         </Link>
       );

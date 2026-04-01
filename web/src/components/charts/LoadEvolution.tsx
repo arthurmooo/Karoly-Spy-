@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useCallback } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
+import { useChartTheme } from "@/hooks/useChartTheme";
 import type { WeeklyLoadPoint } from "@/services/stats.service";
 
 interface LoadEvolutionProps {
@@ -13,6 +14,7 @@ const TOOLTIP_W = 180;
 export function LoadEvolution({ points }: LoadEvolutionProps) {
   const [activePoint, setActivePoint] = useState<{ data: WeeklyLoadPoint; cx: number; cy: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const ct = useChartTheme();
 
   const handleMouseMove = useCallback((state: any) => {
     if (state.activePayload?.length) {
@@ -38,9 +40,9 @@ export function LoadEvolution({ points }: LoadEvolutionProps) {
             <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} />
-        <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: ct.tick }} />
+        <YAxis tick={{ fontSize: 11, fill: ct.tick }} />
         <Tooltip content={() => null} cursor={false} />
         <Area
           type="monotone"
@@ -49,11 +51,11 @@ export function LoadEvolution({ points }: LoadEvolutionProps) {
           strokeWidth={2}
           fill="url(#loadEvolutionFill)"
           isAnimationActive={false}
-          activeDot={{ r: 5, stroke: "#2563eb", strokeWidth: 2, fill: "#fff" }}
+          activeDot={{ r: 5, stroke: "#2563eb", strokeWidth: 2, fill: ct.activeDotFill }}
         />
       </AreaChart>
     </ResponsiveContainer>
-  ), [points, handleMouseMove, handleMouseLeave]);
+  ), [points, handleMouseMove, handleMouseLeave, ct]);
 
   if (points.length === 0) {
     return (
@@ -85,7 +87,7 @@ export function LoadEvolution({ points }: LoadEvolutionProps) {
         <CardTitle className="text-base text-slate-900 dark:text-white">
           Évolution de la charge
         </CardTitle>
-        <p className="text-sm text-slate-500">Somme MLS par semaine calendaire sur les 8 dernières semaines.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Somme MLS par semaine calendaire sur les 8 dernières semaines.</p>
       </CardHeader>
       <CardContent>
         <div ref={containerRef} className="relative h-[320px]">

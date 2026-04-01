@@ -55,7 +55,6 @@ class StorageMonitor:
             **existing_details,
             "pct": pct,
             "status": status,
-            "file_count": self._get_file_count(),
         }
 
         # 5. Upsert monitoring row
@@ -83,16 +82,6 @@ class StorageMonitor:
         """Call the get_storage_usage_bytes RPC function."""
         res = self.db.client.rpc("get_storage_usage_bytes", {"bucket": BUCKET_NAME}).execute()
         return int(res.data) if res.data else 0
-
-    def _get_file_count(self) -> int:
-        """Get approximate file count in the bucket via count query."""
-        try:
-            res = self.db.client.rpc("get_storage_usage_bytes", {"bucket": BUCKET_NAME}).execute()
-            # Use a simple count approach - list objects with limit
-            count_res = self.db.client.from_("storage.objects").select("id", count="exact").eq("bucket_id", BUCKET_NAME).execute()
-            return count_res.count if hasattr(count_res, 'count') and count_res.count else 0
-        except Exception:
-            return 0
 
     def _get_existing_details(self) -> dict:
         """Fetch existing details from system_monitoring to preserve fields like last_email_sent."""

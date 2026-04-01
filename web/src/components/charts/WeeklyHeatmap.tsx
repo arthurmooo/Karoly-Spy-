@@ -1,20 +1,16 @@
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/hooks/useAuth";
-import { isCoach } from "@/lib/auth/roles";
 import { getSportConfig } from "@/lib/constants";
+import { buildActivityLinkState, getActivityDetailPath } from "@/lib/activityNavigation";
 import { formatDuration } from "@/services/format.service";
 import type { WeeklyHeatmapData, WeeklyHeatmapLevel } from "@/services/load.service";
 
 interface WeeklyHeatmapProps {
   data: WeeklyHeatmapData | null;
   isLoading?: boolean;
-}
-
-function activityPath(id: string, coach: boolean): string {
-  return coach ? `/activities/${id}` : `/mon-espace/activities/${id}`;
 }
 
 interface LevelStyle {
@@ -68,8 +64,9 @@ function formatTooltipDate(isoDate: string): string {
 }
 
 export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
+  const location = useLocation();
   const { role } = useAuth();
-  const coach = isCoach(role);
+  const detailState = buildActivityLinkState(location);
 
   if (isLoading) {
     return (
@@ -171,7 +168,8 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
                           return (
                           <Link
                             key={act.id}
-                            to={activityPath(act.id, coach)}
+                            to={getActivityDetailPath(act.id, role)}
+                            state={detailState}
                             className="flex items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:bg-white/10"
                           >
                             <Icon name={cfg.icon} className={`text-xs ${cfg.textColor}`} />

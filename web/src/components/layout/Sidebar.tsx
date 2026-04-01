@@ -19,7 +19,7 @@ export const COACH_NAV_ITEMS: CoachNavItem[] = [
   { path: "/profiles", label: "Profils physio", icon: "cardiology", testId: "coach-nav-profiles" },
   { path: "/activities", label: "Séances", icon: "exercise", testId: "coach-nav-activities" },
   { path: "/calendar", label: "Calendrier", icon: "calendar_month", testId: "coach-nav-calendar" },
-  { path: "/health", label: "Analytique", icon: "monitoring", testId: "coach-nav-health" },
+  { path: "/health", label: "Santé et HRV", icon: "monitoring", testId: "coach-nav-health" },
 ];
 
 export const ADMIN_NAV_ITEMS: CoachNavItem[] = [

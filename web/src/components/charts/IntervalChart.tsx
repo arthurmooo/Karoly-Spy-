@@ -11,7 +11,9 @@ import {
 } from "recharts";
 import type { BlockGroupedIntervals, RepWindow } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
-import { formatPaceDecimal, speedToPaceDecimal } from "@/services/format.service";
+import { formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
+import { isSwimSport } from "@/services/activity.service";
+import { useChartTheme } from "@/hooks/useChartTheme";
 import type { ViewMode } from "@/components/tables/IntervalDetailTable";
 
 interface Props {
@@ -49,6 +51,7 @@ export function buildIntervalChartModel(
   repWindowsByBlock: Record<number, RepWindow[]>,
   isBike: boolean,
   viewMode: ViewMode,
+  isSwim = false,
 ): IntervalChartModel {
   const flat: IntervalChartPoint[] = [];
   const boundaries: { index: number; label: string }[] = [];
@@ -76,7 +79,7 @@ export function buildIntervalChartModel(
               : null,
           hrRaw: window.hr_raw != null ? Math.round(window.hr_raw) : null,
           hrCorr: window.hr_corr != null ? Math.round(window.hr_corr) : null,
-          pace: !isBike && window.output && window.output > 0 ? 60 / window.output : null,
+          pace: !isBike && window.output && window.output > 0 ? (isSwim ? 6 / window.output : 60 / window.output) : null,
           power: isBike && window.output != null ? Math.round(window.output) : null,
           output: window.output ?? null,
           ea: window.ea ?? null,
@@ -89,7 +92,7 @@ export function buildIntervalChartModel(
           index: seqIdx,
           hr: intv.avg_hr != null ? Math.round(intv.avg_hr) : null,
           pace: !isBike && intv.avg_speed && intv.avg_speed > 0
-            ? speedToPaceDecimal(intv.avg_speed)
+            ? (isSwim ? speedToSwimPaceDecimal(intv.avg_speed) : speedToPaceDecimal(intv.avg_speed))
             : null,
           power: isBike && intv.avg_power ? Math.round(intv.avg_power) : null,
         });
@@ -115,11 +118,14 @@ export function IntervalChart({
   hideTitle,
 }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
+  const isSwim = isSwimSport(sportType);
+  const ct = useChartTheme();
+  const fmtPace = isSwim ? formatSwimPaceDecimal : formatPaceDecimal;
 
   // Flatten all active intervals across blocks, tracking block boundaries
   const { data, blockBoundaries, title, xAxisLabel, labelPrefix } = useMemo(
-    () => buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, isBike, viewMode),
-    [intervalsByBlock, repWindowsByBlock, isBike, viewMode]
+    () => buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, isBike, viewMode, isSwim),
+    [intervalsByBlock, repWindowsByBlock, isBike, viewMode, isSwim]
   );
 
   if (data.length === 0) return null;
@@ -144,13 +150,13 @@ export function IntervalChart({
       <div className="h-[250px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} className="dark:opacity-20" />
+            <CartesianGrid stroke={ct.grid} strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="index"
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: ct.tick }}
               tickLine={false}
               axisLine={false}
-              label={{ value: xAxisLabel, position: "insideBottom", offset: -2, fontSize: 10, fill: "#94a3b8" }}
+              label={{ value: xAxisLabel, position: "insideBottom", offset: -2, fontSize: 10, fill: ct.tick }}
             />
             <YAxis
               yAxisId="left"
@@ -169,17 +175,17 @@ export function IntervalChart({
               tickLine={false}
               axisLine={false}
               width={45}
-              tickFormatter={isBike ? (v: number) => `${v}W` : (v: number) => formatPaceDecimal(v)}
+              tickFormatter={isBike ? (v: number) => `${v}W` : (v: number) => fmtPace(v)}
             />
             <Tooltip
-              contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "12px" }}
+              contentStyle={ct.tooltipStyle}
               formatter={(value: number, name: string) => {
                 if (name === "hr") return [`${value} bpm`, "FC"];
                 if (name === "hrRaw") return [`${value} bpm`, "FC brute"];
                 if (name === "hrCorr") return [`${value} bpm`, "FC corrigée"];
-                if (name === "pace") return [formatPaceDecimal(value), "Allure"];
+                if (name === "pace") return [fmtPace(value), "Allure"];
                 if (name === "power") return [`${value} W`, "Puissance"];
-                if (name === "output") return [isBike ? `${Math.round(value)} W` : formatPaceDecimal(60 / value), "Output"];
+                if (name === "output") return [isBike ? `${Math.round(value)} W` : fmtPace(isSwim ? 6 / value : 60 / value), "Output"];
                 if (name === "ea") return [value.toFixed(3), "EA"];
                 return [value, name];
               }}

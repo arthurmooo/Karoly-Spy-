@@ -322,7 +322,7 @@ export function AthletesPage() {
                     >
                       {/* Name */}
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/profile`} className="flex items-center gap-3">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="flex items-center gap-3">
                           <AthleteAvatar firstName={athlete.first_name} lastName={athlete.last_name} avatarUrl={athlete.avatar_url} size="md" shape="rounded" />
                           <span className="text-sm font-semibold text-slate-900 dark:text-white">
                             {athlete.first_name} {athlete.last_name}
@@ -331,7 +331,7 @@ export function AthletesPage() {
                       </td>
                       {/* Email */}
                       <td className="whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/profile`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
                           {athlete.email ?? "--"}
                         </Link>
                       </td>
@@ -361,7 +361,7 @@ export function AthletesPage() {
                       </td>
                       {/* Status */}
                       <td className="whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/profile`} className="block px-6 py-3">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-6 py-3">
                           <Badge
                             variant={athlete.is_active ? "emerald" : "red"}
                           >
@@ -371,7 +371,7 @@ export function AthletesPage() {
                       </td>
                       {/* Since */}
                       <td className="whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/profile`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
                           {formatDate(athlete.start_date)}
                         </Link>
                       </td>

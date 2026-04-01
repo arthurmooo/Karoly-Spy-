@@ -1,4 +1,4 @@
-import { speedToPace, formatDuration, formatDistance } from "./format.service";
+import { speedToPace, speedToSwimPace, formatDuration, formatDistance } from "./format.service";
 
 const SPORT_LABELS: Record<string, string> = {
   CAP: "Course",
@@ -59,6 +59,14 @@ export function normalizeSportKey(sport: string): string {
   return SPORT_CANONICAL_KEYS[normalized] ?? normalized;
 }
 
+export function isSwimSport(sport: string | null | undefined): boolean {
+  return normalizeSportKey(sport ?? "") === "NAT";
+}
+
+export function isBikeSport(sport: string | null | undefined): boolean {
+  return normalizeSportKey(sport ?? "") === "VELO";
+}
+
 export function mapWorkTypeLabel(workType: string | null): string {
   if (!workType) return "--";
   return WORK_TYPE_LABELS[workType] ?? workType;
@@ -69,12 +77,12 @@ export function formatPaceOrPower(
   avgSpeed: number | null,
   avgPower: number | null
 ): string {
-  const normalizedSport = sport.trim().toUpperCase();
-
-  if (normalizedSport === "VELO" || normalizedSport === "VTT" || normalizedSport === "BIKE") {
+  if (isBikeSport(sport)) {
     return avgPower ? `${Math.round(avgPower)} W` : "--";
   }
-  // Run / swim / etc. → pace
+  if (isSwimSport(sport)) {
+    return avgSpeed ? speedToSwimPace(avgSpeed) : "--";
+  }
   return avgSpeed ? speedToPace(avgSpeed) : "--";
 }
 

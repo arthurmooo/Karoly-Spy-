@@ -6,7 +6,8 @@ import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import type { BlockGroupedIntervals, ActivityInterval, RepWindow } from "@/types/activity";
-import { formatDuration, formatPaceDecimal, speedToPaceDecimal } from "@/services/format.service";
+import { formatDuration, formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
+import { isSwimSport } from "@/services/activity.service";
 import { cn } from "@/lib/cn";
 
 interface Props {
@@ -100,7 +101,7 @@ export type ViewMode = "intervals" | "windows";
 
 // ── Computation helpers ──
 
-function computeRows(intervals: ActivityInterval[], isBike: boolean): RowData[] {
+function computeRows(intervals: ActivityInterval[], isBike: boolean, isSwim: boolean): RowData[] {
   const active = intervals.filter((i) => i.type === "work" || i.type === "active");
   if (active.length === 0) return [];
   const firstHr = active[0]!.avg_hr;
@@ -108,7 +109,7 @@ function computeRows(intervals: ActivityInterval[], isBike: boolean): RowData[] 
     const paceOrPower = isBike
       ? intv.avg_power ?? null
       : intv.avg_speed && intv.avg_speed > 0
-        ? speedToPaceDecimal(intv.avg_speed)
+        ? (isSwim ? speedToSwimPaceDecimal(intv.avg_speed) : speedToPaceDecimal(intv.avg_speed))
         : null;
     const paHr =
       intv.avg_hr && paceOrPower
@@ -160,12 +161,12 @@ function computeSummary(rows: RowData[]): SummaryData | null {
   };
 }
 
-function computeWindowRows(repWindows: RepWindow[], isBike: boolean): WindowRow[] {
+function computeWindowRows(repWindows: RepWindow[], isBike: boolean, isSwim: boolean): WindowRow[] {
   if (!repWindows || repWindows.length === 0) return [];
   const firstHr = repWindows[0]!.hr_raw;
   return repWindows.map((w) => {
     const pace = w.output != null && w.output > 0
-      ? isBike ? Math.round(w.output) : 60 / w.output
+      ? isBike ? Math.round(w.output) : isSwim ? 6 / w.output : 60 / w.output
       : null;
     const hrRef = w.hr_corr ?? w.hr_raw;
     const paHr = w.output != null && hrRef != null && hrRef > 0 ? w.output / hrRef : null;
@@ -236,6 +237,7 @@ export function IntervalDetailTable({
   onViewChange,
 }: Props) {
   const isBike = BIKE_SPORTS.has(sportType);
+  const isSwim = isSwimSport(sportType);
   const [sortBy, setSortBy] = useState<SortCol>("index");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [internalExpanded, setInternalExpanded] = useState<Set<number>>(new Set());
@@ -245,22 +247,22 @@ export function IntervalDetailTable({
   // ── Per-block interval data ──
   const blockData = useMemo(() =>
     intervalsByBlock.map((group) => {
-      const rows = computeRows(group.intervals, isBike);
+      const rows = computeRows(group.intervals, isBike, isSwim);
       const summary = computeSummary(rows);
       return { blockIndex: group.blockIndex, label: group.label, rows, summary };
     }),
-    [intervalsByBlock, isBike]
+    [intervalsByBlock, isBike, isSwim]
   );
 
   // ── Per-block window data ──
   const blockWindowData = useMemo(() =>
     intervalsByBlock.map((group) => {
       const windows = repWindowsByBlock[group.blockIndex] ?? [];
-      const rows = computeWindowRows(windows, isBike);
+      const rows = computeWindowRows(windows, isBike, isSwim);
       const summary = computeWindowSummary(rows);
       return { blockIndex: group.blockIndex, label: group.label, rows, summary };
     }),
-    [intervalsByBlock, repWindowsByBlock, isBike]
+    [intervalsByBlock, repWindowsByBlock, isBike, isSwim]
   );
 
   const hasAnyIntervals = blockData.some((b) => b.summary != null);
@@ -282,13 +284,15 @@ export function IntervalDetailTable({
 
   function formatPace(val: number | null): string {
     if (val == null) return "--";
-    return isBike ? `${Math.round(val)} W` : formatPaceDecimal(val);
+    if (isBike) return `${Math.round(val)} W`;
+    return isSwim ? formatSwimPaceDecimal(val) : formatPaceDecimal(val);
   }
 
   function formatOutput(val: number | null): string {
     if (val == null) return "--";
     if (isBike) return `${Math.round(val)} W`;
-    return val > 0 ? formatPaceDecimal(60 / val) : "--";
+    if (!val || val <= 0) return "--";
+    return isSwim ? formatSwimPaceDecimal(6 / val) : formatPaceDecimal(60 / val);
   }
 
   const handleViewChange = (v: ViewMode) => {
@@ -411,6 +415,20 @@ export function IntervalDetailTable({
 
 const INTERVAL_COL_COUNT = 9;
 
+const IntervalColGroup = () => (
+  <colgroup>
+    <col className="w-[18%]" />
+    <col className="w-[9%]" />
+    <col className="w-[11%]" />
+    <col className="w-[11%]" />
+    <col className="w-[10%]" />
+    <col className="w-[10%]" />
+    <col className="w-[10%]" />
+    <col className="w-[10%]" />
+    <col className="w-[11%]" />
+  </colgroup>
+);
+
 function IntervalBlockView({
   blockIndex, label, summary, sorted, expanded, onToggle,
   sortBy, sortDir, handleSort, isBike, formatPace, multiBlock,
@@ -429,7 +447,8 @@ function IntervalBlockView({
   multiBlock: boolean;
 }) {
   return (
-    <table className="w-full border-collapse text-left">
+    <table className="w-full table-fixed border-collapse text-left">
+      <IntervalColGroup />
       <thead>
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
           <SortableHeader label="#" active={sortBy === "index"} direction={sortDir} onToggle={() => handleSort("index")} className="px-3 py-2" />
@@ -457,7 +476,6 @@ function IntervalBlockView({
               {multiBlock && (
                 <Badge variant="primary" className="mr-1">{label}</Badge>
               )}
-              <span>1–{summary.count}</span>
               <Badge variant="slate">{summary.count} reps</Badge>
             </div>
           </td>
@@ -495,7 +513,8 @@ function IntervalBlockView({
               expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
             )}>
               <div className="overflow-hidden">
-                <table className="w-full border-collapse text-left">
+                <table className="w-full table-fixed border-collapse text-left">
+                  <IntervalColGroup />
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {sorted.map((row) => (
                       <tr key={`${blockIndex}-${row.index}`} className="bg-slate-50/40 dark:bg-slate-800/20">
@@ -542,6 +561,21 @@ function IntervalBlockView({
 
 const WINDOW_COL_COUNT = 10;
 
+const WindowColGroup = () => (
+  <colgroup>
+    <col className="w-[16%]" />
+    <col className="w-[9%]" />
+    <col className="w-[10%]" />
+    <col className="w-[9%]" />
+    <col className="w-[9%]" />
+    <col className="w-[10%]" />
+    <col className="w-[9%]" />
+    <col className="w-[9%]" />
+    <col className="w-[9%]" />
+    <col className="w-[10%]" />
+  </colgroup>
+);
+
 function WindowBlockView({
   blockIndex, label, summary, sorted, expanded, onToggle,
   sortBy, sortDir, handleSort, isBike, formatPace, formatOutput, multiBlock,
@@ -561,7 +595,8 @@ function WindowBlockView({
   multiBlock: boolean;
 }) {
   return (
-    <table className="w-full border-collapse text-left">
+    <table className="w-full table-fixed border-collapse text-left">
+      <WindowColGroup />
       <thead>
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
           <SortableHeader label="#" active={sortBy === "index"} direction={sortDir} onToggle={() => handleSort("index")} className="px-3 py-2" />
@@ -589,7 +624,6 @@ function WindowBlockView({
               {multiBlock && (
                 <Badge variant="primary" className="mr-1">{label}</Badge>
               )}
-              <span>1–{summary.count}</span>
               <Badge variant="slate">{summary.count} reps</Badge>
             </div>
           </td>
@@ -629,7 +663,8 @@ function WindowBlockView({
               expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
             )}>
               <div className="overflow-hidden">
-                <table className="w-full border-collapse text-left">
+                <table className="w-full table-fixed border-collapse text-left">
+                  <WindowColGroup />
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {sorted.map((row) => (
                       <tr key={`${blockIndex}-w-${row.index}`} className="bg-slate-50/40 dark:bg-slate-800/20">

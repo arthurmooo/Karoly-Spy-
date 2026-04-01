@@ -8,12 +8,15 @@ import type { DisplayBlock } from "@/lib/activityBlocks";
 import {
   formatDuration,
   formatPaceDecimal,
+  formatSwimPaceDecimal,
   speedToPace,
+  speedToSwimPace,
 } from "@/services/format.service";
+import { isBikeSport, isSwimSport } from "@/services/activity.service";
 
 interface Props {
   displayBlocks: DisplayBlock[];
-  isBike: boolean;
+  sportType: string;
   hasResolvedBlocks: boolean;
   detectionSource: string | null;
 }
@@ -22,7 +25,9 @@ type SortCol = "label" | "duration" | "mean" | "last" | "hr_mean" | "hr_last" | 
 const DEFAULT_SORT_BY: SortCol = "label";
 const DEFAULT_DIR: SortDirection = "asc";
 
-export function IntervalBlocksCard({ displayBlocks, isBike, hasResolvedBlocks, detectionSource }: Props) {
+export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks, detectionSource }: Props) {
+  const isBike = isBikeSport(sportType);
+  const isSwim = isSwimSport(sportType);
   const [sortBy, setSortBy] = useState<SortCol>(DEFAULT_SORT_BY);
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIR);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -91,8 +96,8 @@ export function IntervalBlocksCard({ displayBlocks, isBike, hasResolvedBlocks, d
                           </div>
                         </td>
                         <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{block.durationSec != null ? formatDuration(block.durationSec) : "--"}</td>
-                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">{isBike ? (block.powerMean != null ? `${Math.round(block.powerMean)} W` : "--") : (block.paceMean != null ? formatPaceDecimal(block.paceMean) : "--")}</td>
-                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{isBike ? (block.powerLast != null ? `${Math.round(block.powerLast)} W` : "--") : (block.paceLast != null ? formatPaceDecimal(block.paceLast) : "--")}</td>
+                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">{isBike ? (block.powerMean != null ? `${Math.round(block.powerMean)} W` : "--") : (block.paceMean != null ? (isSwim ? formatSwimPaceDecimal(block.paceMean / 10) : formatPaceDecimal(block.paceMean)) : "--")}</td>
+                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{isBike ? (block.powerLast != null ? `${Math.round(block.powerLast)} W` : "--") : (block.paceLast != null ? (isSwim ? formatSwimPaceDecimal(block.paceLast / 10) : formatPaceDecimal(block.paceLast)) : "--")}</td>
                         <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">{block.hrMean != null ? `${Math.round(block.hrMean)} bpm` : "--"}</td>
                         <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{block.hrLast != null ? `${Math.round(block.hrLast)} bpm` : "--"}</td>
                         <td className="whitespace-nowrap px-6 py-3 text-sm text-slate-500">{block.source ?? detectionSource ?? "--"}</td>
@@ -101,7 +106,7 @@ export function IntervalBlocksCard({ displayBlocks, isBike, hasResolvedBlocks, d
                         <tr key={row.id} className="bg-blue-50/30 dark:bg-slate-800/30">
                           <td className="whitespace-nowrap py-2 pl-14 pr-6 text-xs text-slate-500 dark:text-slate-400">#{i + 1}</td>
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{row.durationSec != null ? formatDuration(row.durationSec) : "--"}</td>
-                          <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{isBike ? (row.avgPower != null ? `${Math.round(row.avgPower)} W` : "--") : (row.avgSpeed ? speedToPace(row.avgSpeed) : "--")}</td>
+                          <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{isBike ? (row.avgPower != null ? `${Math.round(row.avgPower)} W` : "--") : (row.avgSpeed ? (isSwim ? speedToSwimPace(row.avgSpeed) : speedToPace(row.avgSpeed)) : "--")}</td>
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-400" />
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{row.avgHr != null ? `${Math.round(row.avgHr)} bpm` : "--"}</td>
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-400">{row.avgCadence != null ? `${Math.round(row.avgCadence)} rpm` : ""}</td>

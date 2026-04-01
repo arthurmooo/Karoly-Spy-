@@ -13,7 +13,9 @@ import {
   LabelList,
   CartesianGrid,
 } from "recharts";
-import { kmhToPace } from "@/services/format.service";
+import { kmhToPace, kmhToSwimPace } from "@/services/format.service";
+import { isSwimSport } from "@/services/activity.service";
+import { useChartTheme } from "@/hooks/useChartTheme";
 
 interface Props {
   splits4: Record<string, SegmentPhaseMetrics> | null | undefined;
@@ -40,6 +42,7 @@ const GAP = 50;
 export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitle }: Props & { hideTitle?: boolean }) {
   const [activeSegment, setActiveSegment] = useState<{ point: SegmentChartPoint; cx: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const ct = useChartTheme();
 
   const handleMouseMove = useCallback((state: any) => {
     if (state.activePayload?.length) {
@@ -53,6 +56,7 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
   }, []);
 
   const isBike = BIKE_SPORTS.has(sportType);
+  const isSwim = isSwimSport(sportType);
   const labels = phaseLabels ?? DEFAULT_LABELS;
 
   const phases = splits4 ? PHASE_KEYS.map((key) => splits4[key] ?? null) : [];
@@ -94,7 +98,7 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
         fc_abs: phase.hr != null ? `${Math.round(phase.hr)} bpm` : "--",
         allure_abs: isBike
           ? phase.power != null ? `${Math.round(phase.power)} W` : "--"
-          : kmhToPace(phase.speed),
+          : isSwim ? kmhToSwimPace(phase.speed) : kmhToPace(phase.speed),
         ratio_abs: phase.ratio != null ? phase.ratio.toFixed(3) : "--",
       };
     })
@@ -112,11 +116,11 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" className="dark:opacity-20" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={ct.grid} />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: ct.tick }} tickLine={false} axisLine={false} />
         <YAxis
           domain={[0, "auto"]}
-          tick={{ fontSize: 11, fill: "#64748b" }}
+          tick={{ fontSize: 11, fill: ct.tick }}
           tickLine={false}
           axisLine={false}
           tickFormatter={(v: number) => v.toFixed(2)}
@@ -142,7 +146,7 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
       </BarChart>
     </ResponsiveContainer>
     );
-  }, [chartData, isBike, handleMouseMove, handleMouseLeave]);
+  }, [chartData, isBike, handleMouseMove, handleMouseLeave, ct]);
 
   if (!splits4) {
     return (
@@ -197,17 +201,17 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#3b82f6]" />
-                <span className="text-slate-500">FC</span>
+                <span className="text-slate-500 dark:text-slate-400">FC</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.fc_abs}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#f97316]" />
-                <span className="text-slate-500">{isBike ? "Puissance" : "Allure"}</span>
+                <span className="text-slate-500 dark:text-slate-400">{isBike ? "Puissance" : "Allure"}</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.allure_abs}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-lg bg-[#22c55e]" />
-                <span className="text-slate-500">Ratio</span>
+                <span className="text-slate-500 dark:text-slate-400">Ratio</span>
                 <span className="ml-auto font-mono font-medium text-slate-900 dark:text-white">{activeSegment.point.ratio_abs}</span>
               </div>
             </div>
