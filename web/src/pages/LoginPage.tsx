@@ -35,6 +35,9 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden" data-testid="login-page">
       <div className="z-10 w-full max-w-[440px] flex flex-col items-center mb-8">
+        <div className="mb-3 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+          Preview Deploy Test
+        </div>
         <img
           src="/ks-logo.png"
           alt="KS Endurance Training"
