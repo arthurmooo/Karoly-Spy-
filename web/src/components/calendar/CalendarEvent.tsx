@@ -34,7 +34,7 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
       <>
         <Icon name={config.icon} className={`text-[10px] shrink-0 ${event.type === "planned" ? "opacity-40" : ""}`} />
         <span className={`text-[10px] font-medium truncate ${event.type === "planned" ? "text-slate-400 italic" : ""}`}>
-          {event.name}
+          {event.locationTag ? `${event.name} ${event.locationTag}` : event.name}
         </span>
       </>
     );
@@ -63,7 +63,7 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
       <>
         <div className={`text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 mb-1 ${config.textColor}`}>
           <Icon name={config.icon} className="text-xs" />
-          {event.sport}
+          {event.locationTag ? `${event.sport} ${event.locationTag}` : event.sport}
         </div>
         <div className={`text-sm font-semibold truncate mb-1 ${event.type === "planned" ? "text-slate-400 italic" : "text-slate-900 dark:text-white"}`}>
           {event.name}

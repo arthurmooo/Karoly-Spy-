@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { getSportConfig } from "@/lib/constants";
 import { getDecouplingBadgeVariant } from "@/lib/karolyMetrics";
+import { isValidRpe } from "@/lib/rpe";
 import { getCardMeta } from "./KpiCards";
 import type {
   KpiCard,
@@ -338,7 +339,7 @@ function SessionListContent({
 }
 
 function SessionRpeContent({ sessions, basePath }: { sessions: NormalizedStatsActivity[]; basePath?: string }) {
-  const withRpe = sessions.filter((s) => s.rpe != null);
+  const withRpe = sessions.filter((s) => isValidRpe(s.rpe));
   if (withRpe.length === 0) return <EmptyState />;
 
   return (

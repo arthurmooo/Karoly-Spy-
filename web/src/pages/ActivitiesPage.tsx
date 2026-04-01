@@ -166,7 +166,7 @@ export function ActivitiesPage() {
                 </tr>
               ) : (
                 displayActivities.map((act) => {
-                  const cfg = getSportConfig(act.sport);
+                  const cfg = getSportConfig(act.sportRaw);
                   const detailHref = `/activities/${act.id}`;
                   const rowLinkClassName = "block -mx-4 -my-3.5 px-4 py-3.5 transition-all duration-150";
 
@@ -311,7 +311,7 @@ export function ActivitiesPage() {
           </div>
         ) : (
           displayActivities.map((act) => {
-            const cfg = getSportConfig(act.sport);
+            const cfg = getSportConfig(act.sportRaw);
             const detailHref = `/activities/${act.id}`;
 
             return (

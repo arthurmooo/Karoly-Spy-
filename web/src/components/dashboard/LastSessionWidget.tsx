@@ -5,8 +5,9 @@ import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { getSportConfig } from "@/lib/constants";
 import { buildActivityLinkState } from "@/lib/activityNavigation";
-import { mapSportLabel, mapWorkTypeLabel } from "@/services/activity.service";
+import { mapSportLabel, mapWorkTypeLabel, getIndoorTag } from "@/services/activity.service";
 import { formatDuration, formatDistance } from "@/services/format.service";
+import { isValidRpe } from "@/lib/rpe";
 
 interface Props {
   athleteId: string;
@@ -51,7 +52,7 @@ export function LastSessionWidget({ athleteId }: Props) {
                 {title}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {formatDate(activity.session_date)} · {mapSportLabel(activity.sport_type ?? "")} · {mapWorkTypeLabel(activity.work_type)}
+                {formatDate(activity.session_date)} · {mapSportLabel(activity.sport_type ?? "")}{(() => { const t = getIndoorTag(activity.sport_type ?? "", activity.source_sport, activity.activity_name); return t ? ` ${t}` : ""; })()} · {mapWorkTypeLabel(activity.work_type)}
               </p>
             </div>
           </div>
@@ -62,7 +63,7 @@ export function LastSessionWidget({ athleteId }: Props) {
             {activity.load_index != null && (
               <Metric label="Charge (MLS)" value={Math.round(activity.load_index).toLocaleString("fr-FR")} />
             )}
-            {activity.rpe != null && (
+            {isValidRpe(activity.rpe) && (
               <Metric label="RPE" value={activity.rpe.toString()} />
             )}
           </div>

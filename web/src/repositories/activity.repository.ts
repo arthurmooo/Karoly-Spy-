@@ -5,6 +5,7 @@ import type {
   ActivityInterval,
   ActivityComparisonCandidate,
   ActivityFilters,
+  FormAnalysisComparableActivity,
   GarminLap,
   StreamPoint,
   WorkTypeValue,
@@ -55,7 +56,7 @@ export async function getActivities(filters: ActivityFilters = {}) {
   let query = supabase
     .from("activities")
     .select(
-      `id, athlete_id, session_date, sport_type, work_type, activity_name,
+      `id, athlete_id, session_date, sport_type, source_sport, work_type, activity_name,
        manual_activity_name, duration_sec, moving_time_sec, distance_m, load_index, avg_hr, avg_power, rpe,
        interval_pace_mean, interval_power_mean, interval_hr_mean,
        interval_detection_source, decoupling_index,
@@ -326,6 +327,29 @@ export async function getComparableActivities(baseActivity: Activity): Promise<A
     .slice(0, 20) as ActivityComparisonCandidate[];
 }
 
+export async function getFormAnalysisComparableActivities(baseActivity: Activity): Promise<FormAnalysisComparableActivity[]> {
+  if (!baseActivity.athlete_id || !baseActivity.session_date) return [];
+
+  const sportKey = normalizeSportKey(baseActivity.sport_type ?? "");
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select(
+      `id, athlete_id, session_date, sport_type, activity_name, manual_activity_name,
+       duration_sec, moving_time_sec, distance_m, avg_hr, avg_power, rpe, temp_avg, form_analysis`
+    )
+    .eq("athlete_id", baseActivity.athlete_id)
+    .in("sport_type", getSportFilterValues(sportKey))
+    .lt("session_date", baseActivity.session_date)
+    .neq("id", baseActivity.id)
+    .not("form_analysis", "is", null)
+    .order("session_date", { ascending: false })
+    .limit(120);
+
+  if (error) throw error;
+  return (data ?? []) as FormAnalysisComparableActivity[];
+}
+
 export async function updateManualIntervalOverrides(
   activityId: string,
   payload: ManualIntervalsUpdatePayload
@@ -367,7 +391,7 @@ export async function getRecentActivities(limit = 10) {
   const { data, error } = await supabase
     .from("activities")
     .select(
-      `id, athlete_id, session_date, sport_type, work_type, activity_name,
+      `id, athlete_id, session_date, sport_type, source_sport, work_type, activity_name,
        manual_activity_name, duration_sec, moving_time_sec, distance_m, load_index, avg_hr,
        athletes(first_name, last_name)`
     )

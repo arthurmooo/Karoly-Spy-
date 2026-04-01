@@ -1,5 +1,6 @@
 import { CalendarEvent } from "@/types/calendar";
 import { isSameDay } from "date-fns";
+import { getIndoorTag } from "@/services/activity.service";
 
 export function mergeRealizedAndPlanned(activities: any[], plannedWorkouts: any[]): CalendarEvent[] {
   const events: CalendarEvent[] = [];
@@ -20,6 +21,7 @@ export function mergeRealizedAndPlanned(activities: any[], plannedWorkouts: any[
       athleteId: act.athlete_id,
       athleteName: act.athletes ? `${act.athletes.first_name} ${act.athletes.last_name.charAt(0)}.` : "Inconnu",
       activityId: act.id,
+      locationTag: getIndoorTag(act.sport_type, act.source_sport, act.activity_name),
     });
   });
 

@@ -78,7 +78,7 @@ export function LoginPage() {
               <label htmlFor={passwordInputId} className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 Mot de passe
               </label>
-              <Link to="/forgot-password" className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+              <Link to="/forgot-password" state={{ email }} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
                 Mot de passe oublié ?
               </Link>
             </div>

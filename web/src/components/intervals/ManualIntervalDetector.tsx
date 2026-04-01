@@ -357,18 +357,18 @@ export function ManualIntervalDetector({
               onClick={() => setSelectedBlock(blockIndex)}
               className={`relative flex-1 py-2.5 px-3 text-left transition-all
                 ${active
-                  ? "border-b-2 border-primary text-primary bg-primary/5"
-                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                  ? "border-b-2 border-primary bg-primary/5 dark:bg-blue-500/15"
+                  : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
                 }`}
             >
-              <span className="block text-[10px] tracking-widest uppercase opacity-60 mb-0.5">BLOC</span>
+              <span className={`block text-[10px] tracking-widest uppercase mb-0.5 ${active ? "text-blue-600 dark:text-blue-300" : "text-slate-500 dark:text-slate-400"}`}>BLOC</span>
               <div className="flex items-center gap-2">
-                <span className={`font-mono text-sm ${active ? "font-semibold" : ""}`}>{blockIndex}</span>
+                <span className={`font-mono text-sm ${active ? "font-semibold text-blue-600 dark:text-blue-300" : "text-slate-700 dark:text-slate-200"}`}>{blockIndex}</span>
                 {hasManualBlockOverride(activity, blockIndex) && (
                   <Badge variant="orange" className="text-[9px] px-1.5 py-0">manuel</Badge>
                 )}
               </div>
-              <span className="block text-[10px] text-slate-400 mt-0.5">
+              <span className={`block text-[10px] mt-0.5 ${active ? "text-blue-500/70 dark:text-blue-400/70" : "text-slate-500 dark:text-slate-400"}`}>
                 {formatBlockSubtitle(activity, blockIndex)}
               </span>
             </button>

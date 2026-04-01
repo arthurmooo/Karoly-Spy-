@@ -1,9 +1,12 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { FormAnalysisComparableSessionsDialog } from "@/components/activity/FormAnalysisComparableSessionsDialog";
 import { Badge } from "@/components/ui/Badge";
 import { Disclosure, DisclosureTrigger, DisclosureContent, useDisclosureContext } from "@/components/ui/Disclosure";
 import { Icon } from "@/components/ui/Icon";
-import type { FormAnalysis, FormGlobalDecision, FormModuleDecision } from "@/types/activity";
+import { getFormAnalysisComparableActivities } from "@/repositories/activity.repository";
+import { getFormAnalysisHeartRateKpi, selectComparableFormAnalysisActivities } from "@/services/formAnalysisComparable.service";
+import type { Activity, FormAnalysis, FormAnalysisComparableActivity, FormGlobalDecision, FormModuleDecision } from "@/types/activity";
 
 type DecisionKey = FormGlobalDecision | FormModuleDecision | "unknown";
 
@@ -259,13 +262,45 @@ function comparisonModeLabel(mode: string | null | undefined, count: number | nu
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function FormAnalysisPanel({ formAnalysis }: { formAnalysis: FormAnalysis }) {
+export function FormAnalysisPanel({ activity, formAnalysis }: { activity: Activity; formAnalysis: FormAnalysis }) {
   const finalKey = formAnalysis.decision?.final ?? formAnalysis.decision?.module ?? formAnalysis.decision?.global ?? "unknown";
   const meta = DECISION_META[finalKey as DecisionKey] ?? DECISION_META.unknown;
   const isIntervals = formAnalysis.module === "intervals";
   const decLabel = formAnalysis.decoupling?.metric === "dec_int_pct" ? "Dec int." : "Découplage";
+  const hrKpi = getFormAnalysisHeartRateKpi(formAnalysis);
+  const [showComparableDialog, setShowComparableDialog] = useState(false);
+  const [comparableActivities, setComparableActivities] = useState<FormAnalysisComparableActivity[]>([]);
+  const [isLoadingComparableActivities, setIsLoadingComparableActivities] = useState(false);
+  const [comparableActivitiesError, setComparableActivitiesError] = useState<string | null>(null);
 
   const reasons = formAnalysis.decision?.reasons?.filter(r => r !== "historique_insuffisant") ?? [];
+
+  useEffect(() => {
+    if (!showComparableDialog) return;
+
+    let cancelled = false;
+    setIsLoadingComparableActivities(true);
+    setComparableActivitiesError(null);
+
+    getFormAnalysisComparableActivities(activity)
+      .then((rows) => {
+        if (cancelled) return;
+        setComparableActivities(selectComparableFormAnalysisActivities(activity, rows));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Comparable form-analysis activities fetch error:", error);
+        setComparableActivities([]);
+        setComparableActivitiesError("Impossible de charger les séances comparables.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingComparableActivities(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activity, showComparableDialog]);
 
   return (
     <div className="space-y-4">
@@ -293,12 +328,16 @@ export function FormAnalysisPanel({ formAnalysis }: { formAnalysis: FormAnalysis
           {formAnalysis.decision?.durability_flag && (
             <Badge variant="amber">Flag durabilité</Badge>
           )}
-          <div className="flex items-center gap-1.5 rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1">
+          <button
+            type="button"
+            onClick={() => setShowComparableDialog(true)}
+            className="flex items-center gap-1.5 rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 transition-all duration-150 hover:bg-slate-200 dark:hover:bg-slate-700"
+          >
             <Icon name="compare" className="text-[14px] text-slate-400" />
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               {comparisonModeLabel(formAnalysis.comparison_mode, formAnalysis.comparable_count)}
             </span>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -341,13 +380,13 @@ export function FormAnalysisPanel({ formAnalysis }: { formAnalysis: FormAnalysis
             tooltip="Dérive de la FC à allure constante (%). Une valeur proche de 0% indique une bonne résistance à la fatigue. Au-delà de +5%, la fatigue s'accumule."
           />
 
-          {/* FC corrigée */}
+          {/* FC */}
           <KpiCard
-            label="FC corrigée"
-            value={fmt(formAnalysis.temperature?.hr_corr, 1, " bpm")}
-            delta={fmtDelta(formAnalysis.temperature?.delta_hr_corr, 1, " bpm")}
-            deltaColorClass={deltaColor(formAnalysis.temperature?.delta_hr_corr, true)}
-            tooltip="Fréquence cardiaque ajustée selon la température du jour (bpm). Permet de comparer des séances par temps chaud ou froid sur la même base."
+            label={hrKpi.label}
+            value={fmt(hrKpi.value, 1, " bpm")}
+            delta={hrKpi.delta != null ? fmtDelta(hrKpi.delta, 1, " bpm") : undefined}
+            deltaColorClass={deltaColor(hrKpi.delta, true)}
+            tooltip={hrKpi.tooltip}
           />
 
           {/* RPE */}
@@ -462,6 +501,14 @@ export function FormAnalysisPanel({ formAnalysis }: { formAnalysis: FormAnalysis
           </div>
         </DisclosureContent>
       </Disclosure>
+
+      <FormAnalysisComparableSessionsDialog
+        open={showComparableDialog}
+        onClose={() => setShowComparableDialog(false)}
+        activities={comparableActivities}
+        isLoading={isLoadingComparableActivities}
+        errorMessage={comparableActivitiesError}
+      />
 
     </div>
   );

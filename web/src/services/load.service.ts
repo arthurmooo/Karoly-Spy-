@@ -1,4 +1,5 @@
 import { addDays, endOfWeek, parseISO, startOfWeek } from "date-fns";
+import { isValidRpe } from "@/lib/rpe";
 import type { DailyLoadHistoryRow, WeeklyMonitoringRow } from "@/repositories/load.repository";
 import type {
   ActivityLoadRow,
@@ -259,7 +260,7 @@ function getPhase1Load(kind: AcwrMetricKind, row: ActivityLoadRow): number | nul
 
   if (kind === "internal") {
     const activeMinutes = getActiveDurationMinutes(row);
-    if (activeMinutes == null || row.rpe == null) return null;
+    if (activeMinutes == null || !isValidRpe(row.rpe)) return null;
     return activeMinutes * row.rpe;
   }
 

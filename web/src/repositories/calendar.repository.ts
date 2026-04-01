@@ -8,7 +8,7 @@ export async function getActivities(startDate: string, endDate: string, athleteI
   while (true) {
     let query = supabase
       .from("activities")
-      .select("id, athlete_id, session_date, sport_type, work_type, activity_name, duration_sec, distance_m, load_index, avg_hr, athletes(first_name, last_name)")
+      .select("id, athlete_id, session_date, sport_type, source_sport, work_type, activity_name, duration_sec, distance_m, load_index, avg_hr, athletes(first_name, last_name)")
       .gte("session_date", startDate)
       .lte("session_date", endDate)
       .order("session_date", { ascending: true })

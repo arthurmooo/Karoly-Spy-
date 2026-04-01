@@ -20,7 +20,7 @@ import { useAthleteGroups } from "@/hooks/useAthleteGroups";
 import { useReadiness } from "@/hooks/useReadiness";
 import { getActivitiesCountForDay, getRecentActivities } from "@/repositories/activity.repository";
 import { formatDuration } from "@/services/format.service";
-import { normalizeSportKey } from "@/services/activity.service";
+import { normalizeSportKey, getIndoorTag } from "@/services/activity.service";
 import { buildAcwrDashboardSummary, getSnapshotPriority } from "@/services/load.service";
 import type { AcwrMetricKind, AcwrSnapshotRow, AcwrStatus } from "@/types/acwr";
 import { StorageGauge } from "@/components/system/StorageGauge";
@@ -670,6 +670,7 @@ export function DashboardPage() {
                     ? `${athleteData.first_name} ${athleteData.last_name?.charAt(0) ?? ""}.`
                     : "—";
                   const sportCfg = getSportConfig(act.sport_type ?? "");
+                  const indoorTag = getIndoorTag(act.sport_type ?? "", (act as any).source_sport, act.activity_name);
                   const averageHr = act.avg_hr != null ? `${Math.round(act.avg_hr)} bpm` : null;
                   const duration = (act as { moving_time_sec?: number | null }).moving_time_sec
                     ? formatDuration((act as { moving_time_sec: number }).moving_time_sec)
@@ -685,6 +686,7 @@ export function DashboardPage() {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Icon name={sportCfg.icon} className={sportCfg.textColor} />
+                        {indoorTag && <span className="text-[9px] font-bold text-slate-400 -ml-2">{indoorTag === "(HT)" ? "HT" : "Tapis"}</span>}
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{athleteName}</p>
                           <p className="text-xs text-slate-500 font-mono">{duration}</p>

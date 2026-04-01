@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { mapWorkTypeLabel } from "@/services/activity.service";
+import { mapWorkTypeLabel, getIndoorTag } from "@/services/activity.service";
 import type { Activity, WorkTypeValue } from "@/types/activity";
 
 interface Props {
@@ -50,6 +50,7 @@ export function ActivityHeader({
     : "--";
   const hasFitFile = Boolean(activity.fit_file_path);
   const hasResolvedBlocks = Boolean(activity.segmented_metrics?.interval_blocks?.length);
+  const indoorTag = getIndoorTag(activity.sport_type, activity.source_json?.sport, activity.activity_name);
 
   const hasManualOverride = Boolean(activity.manual_work_type);
   const hasPendingAnalysis = Boolean(activity.analysis_dirty);
@@ -96,6 +97,7 @@ export function ActivityHeader({
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{title}</h1>
             {hasFitFile && <Badge variant="emerald">FIT stocké</Badge>}
             {hasResolvedBlocks && <Badge variant="primary">Blocs détectés</Badge>}
+            {indoorTag && <Badge variant="slate">{indoorTag === "(HT)" ? "Home Trainer" : "Tapis"}</Badge>}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 sm:gap-4">
             <span className="flex items-center gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">

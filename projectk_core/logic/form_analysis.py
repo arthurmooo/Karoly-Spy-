@@ -13,7 +13,7 @@ import pandas as pd
 from projectk_core.logic.models import Activity
 
 
-SOT_VERSION = "karo_pdf_2026_03_20b"
+SOT_VERSION = "karo_pdf_2026_04_01a"
 MIN_BETA_SAMPLES = 8
 MAX_BETA_SAMPLES = 20
 MIN_BASELINE_SESSIONS = 5
@@ -32,6 +32,9 @@ GRADE_MIN_INPUT_COVERAGE = 0.80
 GRADE_HIGH_COVERAGE = 0.90
 GRADE_MEDIUM_COVERAGE = 0.75
 DEGRADED_CONFIDENCE_PENALTY = 0.12
+MIN_TEMP_RANGE_C = 5.0
+MAX_BETA_HR = 3.0
+MAX_BETA_DRIFT = 0.5
 
 ABNORMAL_FEELING_PATTERNS = [
     r"jambes?\s+vides?",
@@ -76,6 +79,45 @@ def _compute_slope(xs: List[float], ys: List[float]) -> Optional[float]:
         return None
     slope = float(((x - x_mean) * (y - float(y.mean()))).sum() / denom)
     return slope
+
+
+def _compute_multivariate_beta(
+    temps: List[float],
+    ys: List[float],
+    outputs: List[float],
+) -> Optional[Dict[str, float]]:
+    """Multivariate OLS: y ~ beta_temp * temp + beta_output * output + intercept.
+
+    Returns None if temp range is too narrow to produce a meaningful estimate.
+    """
+    n = len(temps)
+    if n < 2 or len(ys) != n or len(outputs) != n:
+        return None
+
+    t = np.array(temps, dtype=float)
+    y = np.array(ys, dtype=float)
+    o = np.array(outputs, dtype=float)
+
+    temp_range = float(t.max() - t.min())
+    if temp_range < MIN_TEMP_RANGE_C:
+        return None
+
+    X = np.column_stack([t, o, np.ones(n)])
+    betas, residuals, _, _ = np.linalg.lstsq(X, y, rcond=None)
+    beta_temp = float(betas[0])
+    beta_output = float(betas[1])
+
+    ss_res = float(residuals[0]) if len(residuals) > 0 else float(((y - X @ betas) ** 2).sum())
+    ss_tot = float(((y - y.mean()) ** 2).sum())
+    r_squared = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+    return {
+        "beta_temp": beta_temp,
+        "beta_output": beta_output,
+        "r_squared": r_squared,
+        "temp_range": temp_range,
+        "n_samples": n,
+    }
 
 
 def _normalize_sport(activity_type: str) -> str:
@@ -607,49 +649,117 @@ class FormAnalysisEngine:
         *,
         current_temp: Optional[float],
         current_hr_raw: float,
+        current_output: float,
         current_drift_raw: float,
         matched_rows: List[ComparableRow],
     ) -> Dict[str, Any]:
-        rows_with_temp = [
-            row
-            for row in matched_rows
-            if (_safe_float(row.form_analysis.get("temperature", {}).get("temp")) or row.temp_avg) is not None
-            and _safe_float(row.form_analysis.get("temperature", {}).get("hr_mean_raw")) is not None
-        ]
-        regression_rows = rows_with_temp[:MAX_BETA_SAMPLES]
+        # Collect rows with temp + hr; also grab output + drift when available
+        row_data: List[Dict[str, Any]] = []
+        for row in matched_rows:
+            fa = row.form_analysis
+            temp = _safe_float(fa.get("temperature", {}).get("temp")) or row.temp_avg
+            hr = _safe_float(fa.get("temperature", {}).get("hr_mean_raw"))
+            if temp is None or hr is None:
+                continue
+            row_data.append({
+                "temp": temp,
+                "hr": hr,
+                "output": _safe_float(fa.get("output", {}).get("mean")),
+                "drift": _safe_float(fa.get("decoupling", {}).get("raw")),
+            })
+        regression_rows = row_data[:MAX_BETA_SAMPLES]
 
         comparison_mode = "same_temp_bin"
         beta_hr = None
         beta_drift = None
+        beta_output = None
         tref = current_temp
+        beta_rejected = False
+        beta_rejection_reason: Optional[str] = None
+        beta_r_squared: Optional[float] = None
+        beta_temp_range: Optional[float] = None
 
         if current_temp is not None and len(regression_rows) >= MIN_BETA_SAMPLES:
-            temps = [
-                _safe_float(row.form_analysis.get("temperature", {}).get("temp")) or row.temp_avg
-                for row in regression_rows
-            ]
-            hrs = [
-                _safe_float(row.form_analysis.get("temperature", {}).get("hr_mean_raw"))
-                for row in regression_rows
-            ]
-            drift_values = [
-                _safe_float(row.form_analysis.get("decoupling", {}).get("raw"))
-                for row in regression_rows
-            ]
-            if all(v is not None for v in temps) and all(v is not None for v in hrs):
-                beta_hr = _compute_slope(temps, hrs)
-                valid_drift_pairs = [
-                    (temp, drift)
-                    for temp, drift in zip(temps, drift_values)
-                    if temp is not None and drift is not None
+            temps = [r["temp"] for r in regression_rows]
+            hrs = [r["hr"] for r in regression_rows]
+
+            # Primary path: multivariate (HR ~ temp + output)
+            rows_with_output = [r for r in regression_rows if r["output"] is not None]
+            used_multivariate = False
+
+            if len(rows_with_output) >= MIN_BETA_SAMPLES:
+                mv_result = _compute_multivariate_beta(
+                    [r["temp"] for r in rows_with_output],
+                    [r["hr"] for r in rows_with_output],
+                    [r["output"] for r in rows_with_output],
+                )
+                if mv_result is not None:
+                    used_multivariate = True
+                    raw_beta = mv_result["beta_temp"]
+                    beta_r_squared = mv_result["r_squared"]
+                    beta_temp_range = mv_result["temp_range"]
+                    beta_output = mv_result["beta_output"]
+
+                    if raw_beta < 0:
+                        beta_rejected = True
+                        beta_rejection_reason = "negative_beta"
+                    elif raw_beta > MAX_BETA_HR:
+                        beta_hr = MAX_BETA_HR
+                        beta_rejection_reason = "capped_at_max"
+                    else:
+                        beta_hr = raw_beta
+
+                    tref = _median([r["temp"] for r in rows_with_output])
+                    if beta_hr is not None:
+                        comparison_mode = "beta_regression"
+                else:
+                    beta_rejection_reason = "insufficient_temp_range"
+
+            # Fallback: univariate with guard rails
+            if not used_multivariate:
+                if all(v is not None for v in temps) and all(v is not None for v in hrs):
+                    raw_slope = _compute_slope(temps, hrs)
+                    t_arr = np.array(temps, dtype=float)
+                    beta_temp_range = float(t_arr.max() - t_arr.min())
+                    if beta_temp_range < MIN_TEMP_RANGE_C:
+                        beta_rejection_reason = "insufficient_temp_range_univariate"
+                    elif raw_slope is not None:
+                        if raw_slope < 0:
+                            beta_rejected = True
+                            beta_rejection_reason = "negative_beta_univariate"
+                        elif raw_slope > MAX_BETA_HR:
+                            beta_hr = MAX_BETA_HR
+                            beta_rejection_reason = "capped_at_max_univariate"
+                        else:
+                            beta_hr = raw_slope
+                        tref = _median(temps)
+                        if beta_hr is not None:
+                            comparison_mode = "beta_regression"
+
+            # Beta drift: multivariate if possible, else univariate with guard rails
+            drift_rows = [r for r in regression_rows if r["drift"] is not None and r["output"] is not None]
+            if len(drift_rows) >= MIN_BETA_SAMPLES:
+                drift_mv = _compute_multivariate_beta(
+                    [r["temp"] for r in drift_rows],
+                    [r["drift"] for r in drift_rows],
+                    [r["output"] for r in drift_rows],
+                )
+                if drift_mv is not None and 0 <= drift_mv["beta_temp"] <= MAX_BETA_DRIFT:
+                    beta_drift = drift_mv["beta_temp"]
+
+            if beta_drift is None:
+                drift_pairs = [
+                    (r["temp"], r["drift"])
+                    for r in regression_rows
+                    if r["drift"] is not None
                 ]
-                if len(valid_drift_pairs) >= MIN_BETA_SAMPLES:
-                    beta_drift = _compute_slope(
-                        [pair[0] for pair in valid_drift_pairs],
-                        [pair[1] for pair in valid_drift_pairs],
+                if len(drift_pairs) >= MIN_BETA_SAMPLES:
+                    raw_drift = _compute_slope(
+                        [p[0] for p in drift_pairs],
+                        [p[1] for p in drift_pairs],
                     )
-                tref = _median([*temps, current_temp])
-                comparison_mode = "beta_regression" if beta_hr is not None else "same_temp_bin"
+                    if raw_drift is not None and 0 <= raw_drift <= MAX_BETA_DRIFT:
+                        beta_drift = raw_drift
 
         hr_corr = current_hr_raw
         drift_corr = current_drift_raw
@@ -663,10 +773,15 @@ class FormAnalysisEngine:
             "comparison_mode": comparison_mode,
             "beta_hr": beta_hr,
             "beta_drift": beta_drift,
+            "beta_output": beta_output,
             "tref": tref,
             "hr_corr": hr_corr,
             "drift_corr": drift_corr,
             "comparable_count": len(matched_rows),
+            "beta_rejected": beta_rejected,
+            "beta_rejection_reason": beta_rejection_reason,
+            "beta_r_squared": beta_r_squared,
+            "beta_temp_range": beta_temp_range,
         }
 
     def _collect_baseline_rows(
@@ -685,12 +800,15 @@ class FormAnalysisEngine:
         comparison_mode: str,
         has_rpe: bool,
         degraded_output: bool = False,
+        beta_rejected: bool = False,
     ) -> float:
         score = 0.35
         score += min(comparable_count, 20) * 0.02
         score += min(baseline_count, 8) * 0.03
-        if comparison_mode == "beta_regression":
+        if comparison_mode == "beta_regression" and not beta_rejected:
             score += 0.12
+        elif beta_rejected:
+            score -= 0.04
         if has_rpe:
             score += 0.08
         if degraded_output:
@@ -803,6 +921,7 @@ class FormAnalysisEngine:
         temperature_ctx = self._compute_temperature_context(
             current_temp=current_temp,
             current_hr_raw=hr_mean_raw,
+            current_output=output_mean,
             current_drift_raw=dec_raw,
             matched_rows=preliminary,
         )
@@ -818,6 +937,7 @@ class FormAnalysisEngine:
         temperature_ctx = self._compute_temperature_context(
             current_temp=current_temp,
             current_hr_raw=hr_mean_raw,
+            current_output=output_mean,
             current_drift_raw=dec_raw,
             matched_rows=matched_rows,
         )
@@ -855,7 +975,7 @@ class FormAnalysisEngine:
                 baseline_hr_values.append(hr_val)
             if output_val is not None:
                 baseline_output_values.append(output_val)
-            if rpe_val is not None:
+            if rpe_val is not None and rpe_val >= 1:
                 baseline_rpe_values.append(rpe_val)
             ea_delta_prev = _safe_float(fa.get("ea", {}).get("delta_pct"))
             dec_delta_prev = _safe_float(fa.get("decoupling", {}).get("delta"))
@@ -871,7 +991,8 @@ class FormAnalysisEngine:
         ea_delta = ((ea_today - ea_base) / ea_base * 100.0) if ea_today is not None and ea_base else None
         dec_delta = (dec_today - dec_base) if dec_base is not None else None
         hr_delta = (temperature_ctx["hr_corr"] - hr_base) if hr_base is not None else None
-        current_rpe = _safe_float(activity.metadata.rpe)
+        _raw_rpe = _safe_float(activity.metadata.rpe)
+        current_rpe = _raw_rpe if _raw_rpe is not None and _raw_rpe >= 1 else None
         rpe_delta = (current_rpe - rpe_base) if current_rpe is not None and rpe_base is not None else None
         output_delta = ((output_mean - output_base) / output_base * 100.0) if output_base else None
         output_stable = abs(output_delta or 0.0) <= (OUTPUT_STABLE_TOLERANCE * 100.0) if output_delta is not None else False
@@ -948,6 +1069,7 @@ class FormAnalysisEngine:
                 "tref": _safe_round(temperature_ctx["tref"], 2),
                 "beta_hr": _safe_round(temperature_ctx["beta_hr"], 4),
                 "beta_drift": _safe_round(temperature_ctx["beta_drift"], 4),
+                "beta_output": _safe_round(temperature_ctx.get("beta_output"), 4),
                 "hr_mean_raw": _safe_round(hr_mean_raw, 2),
                 "hr_corr": _safe_round(temperature_ctx["hr_corr"], 2),
                 "drift_raw": _safe_round(dec_raw, 3),
@@ -955,6 +1077,10 @@ class FormAnalysisEngine:
                 "hr_corr_baseline": _safe_round(hr_base, 2),
                 "delta_hr_corr": _safe_round(hr_delta, 2),
                 "temp_bin_width_c": TEMP_BIN_WIDTH_C,
+                "beta_rejected": temperature_ctx.get("beta_rejected", False),
+                "beta_rejection_reason": temperature_ctx.get("beta_rejection_reason"),
+                "beta_r_squared": _safe_round(temperature_ctx.get("beta_r_squared"), 4),
+                "beta_temp_range": _safe_round(temperature_ctx.get("beta_temp_range"), 2),
             },
             "output": {
                 "metric": output_ctx["metric"],
@@ -1006,6 +1132,7 @@ class FormAnalysisEngine:
                 comparison_mode=temperature_ctx["comparison_mode"],
                 has_rpe=current_rpe is not None,
                 degraded_output=output_ctx.get("normalization") == "speed_fallback_no_grade",
+                beta_rejected=temperature_ctx.get("beta_rejected", False),
             ),
         }
 
@@ -1138,6 +1265,7 @@ class FormAnalysisEngine:
         temperature_ctx = self._compute_temperature_context(
             current_temp=current_temp,
             current_hr_raw=hr_mean_raw,
+            current_output=output_mean,
             current_drift_raw=dec_int_raw,
             matched_rows=preliminary,
         )
@@ -1153,6 +1281,7 @@ class FormAnalysisEngine:
         temperature_ctx = self._compute_temperature_context(
             current_temp=current_temp,
             current_hr_raw=hr_mean_raw,
+            current_output=output_mean,
             current_drift_raw=dec_int_raw,
             matched_rows=matched_rows,
         )
@@ -1202,7 +1331,7 @@ class FormAnalysisEngine:
                 baseline_hr_values.append(hr_val)
             if output_val is not None:
                 baseline_output_values.append(output_val)
-            if rpe_val is not None:
+            if rpe_val is not None and rpe_val >= 1:
                 baseline_rpe_values.append(rpe_val)
 
         baseline_count = len(baseline_rows)
@@ -1222,7 +1351,8 @@ class FormAnalysisEngine:
         output_delta = ((output_mean - output_base) / output_base * 100.0) if output_base else None
         output_stable = abs(output_delta or 0.0) <= (OUTPUT_STABLE_TOLERANCE * 100.0) if output_delta is not None else False
         output_down = (output_delta or 0.0) <= -(OUTPUT_STABLE_TOLERANCE * 100.0)
-        current_rpe = _safe_float(activity.metadata.rpe)
+        _raw_rpe = _safe_float(activity.metadata.rpe)
+        current_rpe = _raw_rpe if _raw_rpe is not None and _raw_rpe >= 1 else None
         rpe_delta = (current_rpe - rpe_base) if current_rpe is not None and rpe_base is not None else None
         rpe_available = current_rpe is not None and rpe_base is not None
         abnormal_feeling = _has_abnormal_feeling(activity)
@@ -1309,6 +1439,7 @@ class FormAnalysisEngine:
                 "tref": _safe_round(temperature_ctx["tref"], 2),
                 "beta_hr": _safe_round(temperature_ctx["beta_hr"], 4),
                 "beta_drift": _safe_round(temperature_ctx["beta_drift"], 4),
+                "beta_output": _safe_round(temperature_ctx.get("beta_output"), 4),
                 "hr_mean_raw": _safe_round(hr_mean_raw, 2),
                 "hr_corr": _safe_round(temperature_ctx["hr_corr"], 2),
                 "drift_raw": _safe_round(dec_int_raw, 3),
@@ -1316,6 +1447,10 @@ class FormAnalysisEngine:
                 "hr_corr_baseline": _safe_round(hr_base, 2),
                 "delta_hr_corr": _safe_round(hr_delta, 2),
                 "temp_bin_width_c": TEMP_BIN_WIDTH_C,
+                "beta_rejected": temperature_ctx.get("beta_rejected", False),
+                "beta_rejection_reason": temperature_ctx.get("beta_rejection_reason"),
+                "beta_r_squared": _safe_round(temperature_ctx.get("beta_r_squared"), 4),
+                "beta_temp_range": _safe_round(temperature_ctx.get("beta_temp_range"), 2),
             },
             "output": {
                 "metric": output_ctx["metric"],
@@ -1372,5 +1507,6 @@ class FormAnalysisEngine:
                 comparison_mode=temperature_ctx["comparison_mode"],
                 has_rpe=current_rpe is not None,
                 degraded_output=output_ctx.get("normalization") == "speed_fallback_no_grade",
+                beta_rejected=temperature_ctx.get("beta_rejected", False),
             ),
         }

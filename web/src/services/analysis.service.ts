@@ -1,5 +1,6 @@
 import type { NormalizedStatsActivity } from "@/services/stats.service";
 import { isDecouplingAlert } from "@/lib/karolyMetrics";
+import { isValidRpe } from "@/lib/rpe";
 
 export interface TextInsight {
   id: string;
@@ -175,7 +176,7 @@ export function generateInsights(
   }
 
   // --- RPE moyen ---
-  const curRpeValues = currentRows.map((r) => r.rpe).filter((v): v is number => v != null);
+  const curRpeValues = currentRows.map((r) => r.rpe).filter((v): v is number => isValidRpe(v));
   const avgRpe = mean(curRpeValues);
   if (avgRpe != null && avgRpe > 7) {
     insights.push({
@@ -187,7 +188,7 @@ export function generateInsights(
   }
 
   // --- RPE delta ---
-  const prevRpeValues = previousRows.map((r) => r.rpe).filter((v): v is number => v != null);
+  const prevRpeValues = previousRows.map((r) => r.rpe).filter((v): v is number => isValidRpe(v));
   const prevAvgRpe = mean(prevRpeValues);
   if (avgRpe != null && prevAvgRpe != null) {
     const rpeDelta = avgRpe - prevAvgRpe;

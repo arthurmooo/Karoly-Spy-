@@ -144,6 +144,23 @@ export interface ActivityComparisonCandidate {
   decoupling_index: number | null;
 }
 
+export interface FormAnalysisComparableActivity {
+  id: string;
+  athlete_id: string;
+  session_date: string;
+  sport_type: string;
+  activity_name: string;
+  manual_activity_name?: string | null;
+  duration_sec: number | null;
+  moving_time_sec: number | null;
+  distance_m: number | null;
+  avg_hr: number | null;
+  avg_power: number | null;
+  rpe: number | null;
+  temp_avg?: number | null;
+  form_analysis?: FormAnalysis | null;
+}
+
 export interface ActivityFilters {
   athlete_id?: string;
   sport_type?: string;

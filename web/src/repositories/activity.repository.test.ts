@@ -4,6 +4,7 @@ type QueryResult = { data: unknown; error: { code?: string; message?: string } |
 
 const mockState = vi.hoisted(() => ({
   activityResults: [] as QueryResult[],
+  comparableActivitiesResult: { data: [], error: null } as QueryResult,
   intervalResult: { data: [], error: null } as QueryResult,
   activitySelects: [] as string[],
 }));
@@ -14,7 +15,7 @@ const supabaseMock = vi.hoisted(() => ({
       return {
         select: vi.fn((columns: string) => {
           mockState.activitySelects.push(columns);
-          return {
+          const detailBuilder = {
             eq: vi.fn(() => ({
               single: vi.fn(async () => {
                 const next = mockState.activityResults.shift();
@@ -25,6 +26,22 @@ const supabaseMock = vi.hoisted(() => ({
               }),
             })),
           };
+
+          const comparableBuilder = {
+            eq: vi.fn(() => comparableBuilder),
+            in: vi.fn(() => comparableBuilder),
+            lt: vi.fn(() => comparableBuilder),
+            neq: vi.fn(() => comparableBuilder),
+            not: vi.fn(() => comparableBuilder),
+            order: vi.fn(() => comparableBuilder),
+            limit: vi.fn(async () => mockState.comparableActivitiesResult),
+          };
+
+          if (!columns.includes("fit_file_path") && columns.includes("temp_avg") && columns.includes("form_analysis")) {
+            return comparableBuilder;
+          }
+
+          return detailBuilder;
         }),
       };
     }
@@ -48,6 +65,7 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 import { getActivityDetail } from "./activity.repository";
+import { getFormAnalysisComparableActivities } from "./activity.repository";
 
 function makeActivityRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -116,6 +134,7 @@ function missingColumn(message: string): QueryResult {
 
 beforeEach(() => {
   mockState.activityResults = [];
+  mockState.comparableActivitiesResult = { data: [], error: null };
   mockState.intervalResult = { data: [{ id: "interval-1", activity_id: "activity-1" }], error: null };
   mockState.activitySelects = [];
   supabaseMock.from.mockClear();
@@ -213,5 +232,41 @@ describe("getActivityDetail", () => {
     expect(mockState.activitySelects[4]).not.toContain("form_analysis");
     expect(result.activity.form_analysis).toBeUndefined();
     expect(result.intervals).toEqual([{ id: "interval-1", activity_id: "activity-1" }]);
+  });
+});
+
+describe("getFormAnalysisComparableActivities", () => {
+  it("fetches past activities with form_analysis for the same athlete and sport", async () => {
+    mockState.comparableActivitiesResult = {
+      data: [
+        {
+          id: "cmp-1",
+          athlete_id: "athlete-1",
+          session_date: "2026-03-15T09:00:00.000Z",
+          sport_type: "Run",
+          activity_name: "Tempo ref",
+          manual_activity_name: null,
+          duration_sec: 3600,
+          moving_time_sec: 3500,
+          distance_m: 10000,
+          avg_hr: 150,
+          avg_power: null,
+          rpe: 4,
+          temp_avg: 18,
+          form_analysis: { template_key: "run|tempo|flat" },
+        },
+      ],
+      error: null,
+    };
+
+    const rows = await getFormAnalysisComparableActivities(
+      makeActivityRow({ athletes: { first_name: "Arthur", last_name: "Mo" } }) as any
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe("cmp-1");
+    const lastSelect = mockState.activitySelects[mockState.activitySelects.length - 1];
+    expect(lastSelect).toContain("temp_avg");
+    expect(lastSelect).toContain("form_analysis");
   });
 });

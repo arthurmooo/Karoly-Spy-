@@ -1,4 +1,5 @@
 import { speedToPace, speedToSwimPace, formatDuration, formatDistance } from "./format.service";
+import { sanitizeRpe } from "@/lib/rpe";
 
 const SPORT_LABELS: Record<string, string> = {
   CAP: "Course",
@@ -86,6 +87,35 @@ export function formatPaceOrPower(
   return avgSpeed ? speedToPace(avgSpeed) : "--";
 }
 
+export function isRunSport(sport: string | null | undefined): boolean {
+  return normalizeSportKey(sport ?? "") === "CAP";
+}
+
+/**
+ * Détecte si une séance est indoor et retourne un tag court.
+ * - Vélo indoor (Home Trainer) → "(HT)"
+ * - Course indoor (Tapis) → "(Tapis)"
+ * - Sinon → null
+ */
+export function getIndoorTag(
+  sportType: string,
+  sourceSport?: string | null,
+  activityName?: string | null
+): string | null {
+  const text = `${sourceSport ?? ""} ${activityName ?? ""}`.toLowerCase();
+  if (isBikeSport(sportType)) {
+    if (text.includes("home trainer") || text.includes("home-trainer") || text.includes("virtual ride")) {
+      return "(HT)";
+    }
+  }
+  if (isRunSport(sportType)) {
+    if (text.includes("tapis")) {
+      return "(Tapis)";
+    }
+  }
+  return null;
+}
+
 export function isTempo(name: string | null | undefined): boolean {
   if (!name) return false;
   return /tempo/i.test(name);
@@ -99,17 +129,22 @@ export function formatActivityRow(row: Record<string, unknown>) {
   const avgPower = row.avg_power as number | null;
   const sportType = (row.sport_type as string) ?? "";
   const normalizedSport = sportType.trim().toUpperCase();
+  const sourceSport = (row.source_sport as string | null) ?? null;
+  const activityName = (row.activity_name as string | null) ?? null;
+  const sportLabel = mapSportLabel(sportType);
+  const indoorTag = getIndoorTag(sportType, sourceSport, activityName);
 
   return {
     id: row.id as string,
     date: row.session_date as string,
-    title: ((row.manual_activity_name as string | null) || (row.activity_name as string | null) || "Séance")
+    title: ((row.manual_activity_name as string | null) || activityName || "Séance")
       .trim(),
     athlete: athletes
       ? `${athletes.first_name} ${(athletes.last_name as string).charAt(0)}.`
       : "Inconnu",
     athlete_id: row.athlete_id as string,
-    sport: mapSportLabel((row.sport_type as string) ?? ""),
+    sportRaw: sportLabel,
+    sport: indoorTag ? `${sportLabel} ${indoorTag}` : sportLabel,
     work_type: mapWorkTypeLabel(row.work_type as string | null),
     duration: formatDuration(durationSec),
     distance: formatDistance(distanceM),
@@ -120,7 +155,7 @@ export function formatActivityRow(row: Record<string, unknown>) {
       avgSpeed,
       avgPower
     ),
-    rpe: (row.rpe as number | null) ?? null,
+    rpe: sanitizeRpe(row.rpe as number | null),
     pace_sort_value:
       normalizedSport === "VELO" || normalizedSport === "VTT" || normalizedSport === "BIKE"
         ? avgPower

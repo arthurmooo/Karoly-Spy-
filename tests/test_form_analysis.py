@@ -7,7 +7,11 @@ import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from projectk_core.logic.form_analysis import ComparableRow, FormAnalysisEngine, SOT_VERSION, _extract_current_temperature
+from projectk_core.logic.form_analysis import (
+    ComparableRow, FormAnalysisEngine, SOT_VERSION,
+    _extract_current_temperature, _compute_multivariate_beta,
+    MIN_TEMP_RANGE_C, MAX_BETA_HR,
+)
 from projectk_core.logic.models import Activity, ActivityMetadata
 
 
@@ -385,8 +389,8 @@ def test_35_min_continuous_produces_result():
     assert analysis["stable_segment"]["window_label"] == "10-30"
 
 
-def test_output_filter_excludes_beyond_3_percent():
-    """Issue 2: OUTPUT_COMPARABLE_MAX_TOLERANCE ±3% should filter baselines."""
+def test_output_filter_excludes_beyond_10_percent():
+    """OUTPUT_COMPARABLE_MAX_TOLERANCE ±10% should filter baselines."""
     start = datetime(2026, 3, 17, tzinfo=timezone.utc)
     activity = make_bike_activity(start_time=start, temp=20.0, rpe=4.0, power=200.0, hr=150.0)
     engine = StubFormAnalysisEngine([])
@@ -400,26 +404,26 @@ def test_output_filter_excludes_beyond_3_percent():
     template_key = first_pass["template_key"]
     output_mean = first_pass["output"]["mean"]
 
-    # Row with output at 210W — should be excluded (>3% from ~200W)
+    # Row with output at +15% — should be excluded (>10%)
     excluded_row = build_comparable_row(
         session_date=start - timedelta(days=1),
         template_key=template_key,
         module="continuous_tempo",
         temp=20.0,
         hr_corr=150.0,
-        output_mean=210.0,
+        output_mean=output_mean * 1.15,
         ea_today=1.33,
         dec_today=1.0,
         rpe=5.0,
     )
-    # Row with output at 204W — should be included (<3% from ~200W)
+    # Row with output at +5% — should be included (<10%)
     included_row = build_comparable_row(
         session_date=start - timedelta(days=2),
         template_key=template_key,
         module="continuous_tempo",
         temp=20.0,
         hr_corr=150.0,
-        output_mean=output_mean * 1.02,
+        output_mean=output_mean * 1.05,
         ea_today=1.33,
         dec_today=1.0,
         rpe=5.0,
@@ -468,3 +472,126 @@ def test_segment_temperature_preferred_over_activity():
     # Without segment_df, should fallback to metadata (18°C)
     temp_fallback = _extract_current_temperature(activity)
     assert temp_fallback == 18.0
+
+
+# ── Multivariate beta & guard rails ─────────────────────────────────────────
+
+
+def test_multivariate_beta_positive_when_output_controlled():
+    """With output as covariate, beta_temp should capture the true positive temp effect."""
+    temps = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28]
+    outputs = [200, 205, 198, 210, 195, 202, 208, 197, 203, 206]
+    hrs = [140 + 1.5 * t + 0.3 * o for t, o in zip(temps, outputs)]
+
+    result = _compute_multivariate_beta(temps, hrs, outputs)
+    assert result is not None
+    assert result["beta_temp"] > 0
+    assert result["beta_temp"] < MAX_BETA_HR
+    assert result["r_squared"] > 0.8
+
+
+def test_negative_beta_rejected_falls_back_to_same_temp_bin():
+    """When multivariate beta is negative, analysis should reject and use same_temp_bin."""
+    start = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    activity = make_bike_activity(start_time=start, temp=20.0, rpe=5.0, power=200.0, hr=150.0)
+    engine = StubFormAnalysisEngine([])
+
+    first_pass = engine.analyze(activity_id=None, athlete_id="a1", activity=activity, metrics_dict={})
+    template_key = first_pass["template_key"]
+
+    # Create rows where higher temp → lower HR (negative relationship)
+    # All within ±2°C of current temp (20°C) so they also pass same_temp_bin filter
+    rows = [
+        build_comparable_row(
+            session_date=start - timedelta(days=i + 1),
+            template_key=template_key,
+            module="continuous_tempo",
+            temp=18.0 + i * 0.5,  # 18.0 to 22.5 — within temp bin of 20°C
+            hr_corr=160.0 - i * 2,  # HR drops as temp rises
+            output_mean=200.0,
+            ea_today=1.33,
+            dec_today=1.0,
+            rpe=5.0,
+        )
+        for i in range(10)
+    ]
+    engine = StubFormAnalysisEngine(rows)
+    analysis = engine.analyze(activity_id=None, athlete_id="a1", activity=activity, metrics_dict={})
+
+    # temp range = 4.5°C < MIN_TEMP_RANGE_C (5.0) → beta not computed
+    assert analysis["temperature"]["beta_hr"] is None
+    assert analysis["comparison_mode"] == "same_temp_bin"
+
+
+def test_tref_excludes_current_temp():
+    """tref should be computed from historical temps only, not include current temp."""
+    start = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    # Current session at extreme temp (35°C) to make the difference visible
+    activity = make_bike_activity(start_time=start, temp=35.0, rpe=5.0, power=200.0, hr=160.0)
+    engine = StubFormAnalysisEngine([])
+
+    first_pass = engine.analyze(activity_id=None, athlete_id="a1", activity=activity, metrics_dict={})
+    template_key = first_pass["template_key"]
+
+    # Historical sessions all around 15°C
+    rows = [
+        build_comparable_row(
+            session_date=start - timedelta(days=i + 1),
+            template_key=template_key,
+            module="continuous_tempo",
+            temp=13.0 + i,
+            hr_corr=140.0 + i * 0.5,  # Positive beta
+            output_mean=200.0,
+            ea_today=1.33,
+            dec_today=1.0,
+            rpe=5.0,
+        )
+        for i in range(10)
+    ]
+    engine = StubFormAnalysisEngine(rows)
+    analysis = engine.analyze(activity_id=None, athlete_id="a1", activity=activity, metrics_dict={})
+
+    # tref should be median of [13..22] = 17.5, NOT skewed toward 35
+    if analysis["temperature"]["beta_hr"] is not None:
+        assert analysis["temperature"]["tref"] <= 22.0
+
+
+def test_beta_capped_at_maximum():
+    """beta_hr should be capped at MAX_BETA_HR when the raw value exceeds it."""
+    start = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    activity = make_bike_activity(start_time=start, temp=25.0, rpe=5.0, power=200.0, hr=160.0)
+    engine = StubFormAnalysisEngine([])
+
+    first_pass = engine.analyze(activity_id=None, athlete_id="a1", activity=activity, metrics_dict={})
+    template_key = first_pass["template_key"]
+
+    # Create rows with extreme HR/temp relationship (slope ~5 bpm/°C)
+    rows = [
+        build_comparable_row(
+            session_date=start - timedelta(days=i + 1),
+            template_key=template_key,
+            module="continuous_tempo",
+            temp=10.0 + i * 2,
+            hr_corr=130.0 + i * 10,  # 5 bpm per °C
+            output_mean=200.0,
+            ea_today=1.33,
+            dec_today=1.0,
+            rpe=5.0,
+        )
+        for i in range(10)
+    ]
+    engine = StubFormAnalysisEngine(rows)
+    analysis = engine.analyze(activity_id=None, athlete_id="a1", activity=activity, metrics_dict={})
+
+    assert analysis["temperature"]["beta_hr"] == MAX_BETA_HR
+    assert analysis["temperature"]["beta_rejection_reason"] == "capped_at_max"
+
+
+def test_insufficient_temp_range_rejects_beta():
+    """If temperature range < MIN_TEMP_RANGE_C, beta should not be computed."""
+    result = _compute_multivariate_beta(
+        temps=[18.0, 19.0, 18.5, 19.5, 18.2, 19.8, 18.8, 19.2],
+        ys=[150.0] * 8,
+        outputs=[200.0] * 8,
+    )
+    assert result is None

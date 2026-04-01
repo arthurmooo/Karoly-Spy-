@@ -13,6 +13,7 @@ import {
   subWeeks,
 } from "date-fns";
 import { fr } from "date-fns/locale";
+import { isValidRpe, sanitizeRpe } from "@/lib/rpe";
 import type { StatsActivityRow } from "@/repositories/stats.repository";
 import { mapSportLabel, normalizeSportKey } from "@/services/activity.service";
 import { formatHoursHuman } from "@/services/format.service";
@@ -178,7 +179,7 @@ function normalizeActivity(row: StatsActivityRow): NormalizedStatsActivity {
     distanceM: row.distance_m ?? 0,
     durationSec: toDurationSec(row),
     loadIndex: row.load_index,
-    rpe: row.rpe,
+    rpe: sanitizeRpe(row.rpe),
     decouplingIndex: row.decoupling_index,
     durabilityIndex: row.durability_index ?? null,
     avgHr: row.avg_hr ?? null,
@@ -227,12 +228,12 @@ function buildKpiCards(currentRows: NormalizedStatsActivity[], previousRows: Nor
   const currentRpe = mean(
     currentRows
       .map((row) => row.rpe)
-      .filter((value): value is number => value != null)
+      .filter((value): value is number => isValidRpe(value))
   );
   const previousRpe = mean(
     previousRows
       .map((row) => row.rpe)
-      .filter((value): value is number => value != null)
+      .filter((value): value is number => isValidRpe(value))
   );
   const currentDecoupling = mean(
     currentRows
@@ -299,13 +300,13 @@ function buildDistribution(rows: NormalizedStatsActivity[]): SportDistributionIt
       existing.durationSec += row.durationSec;
       existing.distanceM += row.distanceM;
       existing.count += 1;
-      if (row.rpe != null) existing.rpeValues.push(row.rpe);
+      if (isValidRpe(row.rpe)) existing.rpeValues.push(row.rpe);
     } else {
       totals.set(row.sportKey, {
         label: row.sportLabel,
         durationSec: row.durationSec,
         distanceM: row.distanceM,
-        rpeValues: row.rpe != null ? [row.rpe] : [],
+        rpeValues: isValidRpe(row.rpe) ? [row.rpe] : [],
         count: 1,
       });
     }

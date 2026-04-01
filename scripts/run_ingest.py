@@ -446,6 +446,19 @@ class IngestionRobot:
         except Exception as e:
             print(f"   Storage check failed (non-blocking): {e}")
 
+        # Post-ingestion: patch missing RPE for recent activities
+        try:
+            from scripts.patch_rpe import RPEPatcher
+            print("\n🩹 Checking for missing RPE to patch...")
+            patcher = RPEPatcher(self.db, self.nolio)
+            result = patcher.run(since_days=14)
+            if result['patched'] > 0:
+                print(f"   ✅ Patched {result['patched']} activities with newly available RPE")
+            else:
+                print(f"   ☕ No new RPE to patch ({result['still_missing']} still awaiting athlete input)")
+        except Exception as e:
+            print(f"   ⚠️ RPE patch failed (non-blocking): {e}")
+
         print("\n🏁 Ingestion Complete.")
 
     def process_webhooks(self):
@@ -537,14 +550,14 @@ class IngestionRobot:
             return
 
         # 1. Duplicate Check (Nolio ID) - Allow refresh if critical data or FIT file is missing
-        exists = self.db.client.table("activities").select("id, duration_sec, distance_m, sport_type, fit_file_path").eq("nolio_id", act_id).execute()
+        exists = self.db.client.table("activities").select("id, duration_sec, distance_m, sport_type, fit_file_path, rpe, moving_time_sec, load_index, load_components, segmented_metrics").eq("nolio_id", act_id).execute()
         if exists.data:
             rec = exists.data[0]
             dist = rec.get("distance_m")
             dur = rec.get("duration_sec")
             sport = rec.get("sport_type")
             has_fit = rec.get("fit_file_path") is not None
-            
+
             # Condition for refresh:
             # - Missing duration or distance
             # - Missing FIT file (if it's a sport that should have one AND Nolio has a file)
@@ -553,8 +566,19 @@ class IngestionRobot:
             nolio_has_file = nolio_act.get("file_url") is not None
             is_missing_fit = not has_fit and sport in ['Run', 'Bike', 'Swim'] and nolio_has_file
             is_probably_km = (dist is not None and 0 < dist < 300 and sport in ['Run', 'Bike'])
-            
+
             if not (is_missing or is_missing_fit or is_probably_km or self.force_refresh):
+                # Inline RPE patch: if DB has no RPE but Nolio now has one, patch surgically
+                db_rpe = rec.get("rpe")
+                nolio_rpe = nolio_act.get("rpe")
+                if (db_rpe is None or db_rpe == 0) and nolio_rpe is not None and nolio_rpe >= 1:
+                    try:
+                        from scripts.patch_rpe import RPEPatcher
+                        patcher = RPEPatcher(self.db, self.nolio)
+                        patcher.patch_activity(rec, int(nolio_rpe))
+                        print(f"      🩹 Patched RPE inline: {act_id} → RPE={int(nolio_rpe)}")
+                    except Exception as e:
+                        print(f"      ⚠️ Inline RPE patch failed for {act_id}: {e}")
                 return
                 
             reason = "Force refresh" if self.force_refresh else (

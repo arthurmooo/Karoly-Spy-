@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
 export function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const [email, setEmail] = useState((location.state as any)?.email || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");

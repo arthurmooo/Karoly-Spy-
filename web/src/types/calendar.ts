@@ -12,6 +12,7 @@ export interface CalendarEvent {
   athleteId: string;
   athleteName: string;
   activityId?: string;          // null si planifié non réalisé
+  locationTag?: string | null;  // "(HT)" pour vélo indoor
 }
 
 export interface CalendarDay {

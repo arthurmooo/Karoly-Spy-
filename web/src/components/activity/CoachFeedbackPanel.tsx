@@ -4,6 +4,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { Activity, ActivitySourceJson } from "@/types/activity";
+import { sanitizeRpe } from "@/lib/rpe";
 
 interface Props {
   activity: Activity;
@@ -37,7 +38,7 @@ export function CoachFeedbackPanel({
   const [coachNote, setCoachNote] = useState(activity.coach_comment ?? "");
   const sourceJson = activity.source_json ?? null;
   const segmentedMetrics = activity.segmented_metrics ?? null;
-  const rpe = activity.rpe ?? sourceJson?.rpe ?? null;
+  const rpe = sanitizeRpe(activity.rpe) ?? sanitizeRpe(sourceJson?.rpe) ?? null;
   const athleteFeedback = activity.athlete_comment?.trim() || getFeedbackText(sourceJson);
   const feeling = sourceJson?.feeling ?? null;
   const isDirty = coachNote !== (activity.coach_comment ?? "");

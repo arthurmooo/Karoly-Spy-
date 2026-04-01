@@ -101,7 +101,7 @@ export function ActivityAnalysisSection({
         </DisclosureTrigger>
         <DisclosureContent>
           <div className="space-y-5 px-6 pt-2 pb-6">
-            {formAnalysis ? <FormAnalysisPanel formAnalysis={formAnalysis} /> : null}
+            {formAnalysis ? <FormAnalysisPanel activity={activity} formAnalysis={formAnalysis} /> : null}
 
             {/* Zone Distribution — always shown if streams + physio */}
             {hasStreams && (

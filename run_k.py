@@ -68,6 +68,36 @@ def cmd_reprocess(args):
         log.exception("Reprocessing Error")
         sys.exit(1)
 
+def cmd_patch_rpe(args):
+    """
+    Patch missing RPE values by re-fetching from Nolio API.
+    """
+    mode = "[DRY RUN] " if args.dry_run else ""
+    console.print(f"[bold yellow]🩹 {mode}Launching RPE Patcher...[/bold yellow]")
+    if args.since_days:
+        console.print(f"   • Lookback: [cyan]{args.since_days} days[/cyan]")
+    if args.athlete:
+        console.print(f"   • Filter: [cyan]{args.athlete}[/cyan]")
+
+    try:
+        from scripts.patch_rpe import RPEPatcher
+        from projectk_core.db.connector import DBConnector
+        from projectk_core.integrations.nolio import NolioClient
+
+        patcher = RPEPatcher(DBConnector(), NolioClient())
+        result = patcher.run(
+            since_days=args.since_days,
+            dry_run=args.dry_run,
+            athlete_filter=args.athlete,
+        )
+        console.print(f"\n[bold green]✅ RPE Patch Complete.[/bold green] "
+                       f"Patched: [cyan]{result['patched']}[/cyan] | "
+                       f"Still missing: [yellow]{result['still_missing']}[/yellow]")
+    except Exception as e:
+        console.print(f"\n[bold red]❌ RPE Patch Failed:[/bold red] {e}")
+        log.exception("RPE Patch Error")
+        sys.exit(1)
+
 def cmd_audit(args):
     """
     Health check for the database: identifies missing profiles or default thresholds.
@@ -132,6 +162,13 @@ Examples:
     parser_reprocess.add_argument("--since-days", type=int, help="Only reprocess activities from the last N days")
     parser_reprocess.set_defaults(func=cmd_reprocess)
     
+    # --- Command: patch-rpe ---
+    parser_patch = subparsers.add_parser("patch-rpe", help="Patch missing RPE values from Nolio")
+    parser_patch.add_argument("--since-days", type=int, default=None, help="Lookback in days (None=all history)")
+    parser_patch.add_argument("--athlete", type=str, help="Filter by athlete first name")
+    parser_patch.add_argument("--dry-run", action="store_true", help="Preview without writing to DB")
+    parser_patch.set_defaults(func=cmd_patch_rpe)
+
     # --- Command: audit ---
     parser_audit = subparsers.add_parser("audit", help="Check database health (profiles, duplicates)")
     parser_audit.set_defaults(func=cmd_audit)
