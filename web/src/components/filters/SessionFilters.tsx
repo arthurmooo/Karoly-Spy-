@@ -305,7 +305,7 @@ function ChipButton({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium border whitespace-nowrap shrink-0 transition-all duration-150",
         active
-          ? activeClassName ?? "bg-primary/10 text-primary border-primary/30"
+          ? activeClassName ?? "bg-primary/10 text-primary border-primary/30 dark:bg-primary dark:text-white dark:border-primary"
           : "bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600",
         className,
       )}

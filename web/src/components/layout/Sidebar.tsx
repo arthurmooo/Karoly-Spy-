@@ -15,10 +15,10 @@ export interface CoachNavItem {
 
 export const COACH_NAV_ITEMS: CoachNavItem[] = [
   { path: "/dashboard", label: "Tableau de bord", icon: "dashboard", testId: "coach-nav-dashboard" },
-  { path: "/athletes", label: "Athlètes", icon: "groups", testId: "coach-nav-athletes" },
-  { path: "/profiles", label: "Profils physio", icon: "cardiology", testId: "coach-nav-profiles" },
   { path: "/activities", label: "Séances", icon: "exercise", testId: "coach-nav-activities" },
   { path: "/calendar", label: "Calendrier", icon: "calendar_month", testId: "coach-nav-calendar" },
+  { path: "/athletes", label: "Athlètes", icon: "groups", testId: "coach-nav-athletes" },
+  { path: "/profiles", label: "Profils physio", icon: "cardiology", testId: "coach-nav-profiles" },
   { path: "/health", label: "Santé et HRV", icon: "monitoring", testId: "coach-nav-health" },
 ];
 

@@ -26,7 +26,10 @@ export async function updateCoachStatus(profileId: string, isActive: boolean) {
 
 export async function inviteCoach(payload: { email: string; display_name: string }) {
   const { data, error } = await supabase.functions.invoke("invite-coach", {
-    body: payload,
+    body: {
+      ...payload,
+      redirect_to: `${window.location.origin}/accept-invite`,
+    },
   });
   return unwrap(data, error);
 }

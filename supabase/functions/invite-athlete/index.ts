@@ -7,6 +7,24 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function getRedirectTo(req: Request, explicitRedirectTo: unknown) {
+  if (typeof explicitRedirectTo === "string" && explicitRedirectTo.trim()) {
+    return explicitRedirectTo.trim();
+  }
+
+  const origin = req.headers.get("origin");
+  if (origin) {
+    return `${origin.replace(/\/$/, "")}/accept-invite`;
+  }
+
+  const fallback = Deno.env.get("APP_SITE_URL");
+  if (fallback) {
+    return `${fallback.replace(/\/$/, "")}/accept-invite`;
+  }
+
+  return undefined;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -60,13 +78,14 @@ Deno.serve(async (req) => {
     }
 
     // 2. Parse body
-    const { email, first_name, last_name, athlete_group_id, coach_id } = await req.json();
+    const { email, first_name, last_name, athlete_group_id, coach_id, redirect_to } = await req.json();
     if (!email || !first_name || !last_name) {
       return new Response(JSON.stringify({ error: "email, first_name, and last_name required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const redirectTo = getRedirectTo(req, redirect_to);
 
     let targetCoachId: string | null = user.id;
     let targetStructureId: string | null = callerProfile.structure_id ?? null;
@@ -143,7 +162,7 @@ Deno.serve(async (req) => {
       // Athlete already exists for this coach (e.g. imported from Nolio) — just invite to auth
       const { data: inviteData, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
         email.toLowerCase().trim(),
-        { data: { role: "athlete" } }
+        { data: { role: "athlete" }, redirectTo }
       );
 
       if (inviteErr) {
@@ -196,7 +215,7 @@ Deno.serve(async (req) => {
     // 4. New athlete — invite via auth
     const { data: inviteData, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email.toLowerCase().trim(),
-      { data: { role: "athlete" } }
+      { data: { role: "athlete" }, redirectTo }
     );
 
     if (inviteErr) throw inviteErr;

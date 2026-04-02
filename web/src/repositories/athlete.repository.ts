@@ -42,7 +42,10 @@ export async function inviteAthlete(payload: {
   athlete_group_id?: string | null;
 }) {
   const { data, error } = await supabase.functions.invoke("invite-athlete", {
-    body: payload,
+    body: {
+      ...payload,
+      redirect_to: `${window.location.origin}/accept-invite`,
+    },
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
