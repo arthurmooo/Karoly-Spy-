@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { format, parseISO, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -317,6 +317,61 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
     useState<Set<PrimarySeriesKey>>(new Set(DEFAULT_PRIMARY_SERIES));
   const [visibleScores, setVisibleScores] =
     useState<Set<ScoreSeriesKey>>(new Set(DEFAULT_SCORE_SERIES));
+
+  // Custom tooltip state — anti-jitter pattern
+  const primaryChartRef = useRef<HTMLDivElement>(null);
+  const scoreChartRef = useRef<HTMLDivElement>(null);
+  const [primaryTooltip, setPrimaryTooltip] = useState<{ rows: { label: string; value: string; color: string }[]; dateLabel: string; cx: number; cy: number } | null>(null);
+  const [scoreTooltip, setScoreTooltip] = useState<{ rows: { label: string; value: string; color: string }[]; dateLabel: string; cx: number; cy: number } | null>(null);
+
+  const handlePrimaryMouseMove = useCallback((state: any) => {
+    if (state.activePayload?.length) {
+      const timestamp = state.activePayload[0]?.payload?.timestamp;
+      const dateLabel = timestamp ? format(new Date(Number(timestamp)), "EEEE d MMM yyyy", { locale: fr }) : "";
+      const rows = state.activePayload
+        .filter((entry: any) => entry.value != null)
+        .map((entry: any) => {
+          const dataKey = entry.dataKey as string;
+          if (dataKey === "swc_low_28d" || dataKey === "swc_high_28d") {
+            return {
+              label: dataKey === "swc_low_28d" ? "SWC bas" : "SWC haut",
+              value: formatTooltipMetric(Number.isFinite(entry.value) ? entry.value : null, "", 3),
+              color: entry.stroke ?? entry.color ?? "#94a3b8",
+            };
+          }
+          const config = PRIMARY_SERIES.find((s) => s.key === dataKey);
+          return {
+            label: config?.label ?? dataKey,
+            value: formatTooltipMetric(Number.isFinite(entry.value) ? entry.value : null, config?.unit ?? "", config?.axis === "ln" ? 3 : 1),
+            color: entry.stroke ?? entry.color ?? "#94a3b8",
+          };
+        });
+      setPrimaryTooltip({ rows, dateLabel, cx: state.activeCoordinate?.x ?? 0, cy: state.activeCoordinate?.y ?? 0 });
+    }
+  }, []);
+
+  const handlePrimaryMouseLeave = useCallback(() => setPrimaryTooltip(null), []);
+
+  const handleScoreMouseMove = useCallback((state: any) => {
+    if (state.activePayload?.length) {
+      const timestamp = state.activePayload[0]?.payload?.timestamp;
+      const dateLabel = timestamp ? format(new Date(Number(timestamp)), "EEEE d MMM yyyy", { locale: fr }) : "";
+      const rows = state.activePayload
+        .filter((entry: any) => entry.value != null)
+        .map((entry: any) => {
+          const series = SCORE_SERIES.find((s) => s.key === entry.dataKey);
+          return {
+            label: series?.label ?? String(entry.dataKey),
+            value: formatTooltipMetric(Number.isFinite(entry.value) ? entry.value : null, "/10", 1),
+            color: entry.stroke ?? entry.color ?? "#94a3b8",
+          };
+        });
+      setScoreTooltip({ rows, dateLabel, cx: state.activeCoordinate?.x ?? 0, cy: state.activeCoordinate?.y ?? 0 });
+    }
+  }, []);
+
+  const handleScoreMouseLeave = useCallback(() => setScoreTooltip(null), []);
+
   const { readinessSeries, healthData, isLoading } = useReadiness(
     id,
     MAX_SERIES_LOOKBACK_DAYS
@@ -881,11 +936,13 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
             </div>
           </div>
 
-          <div className="h-[360px] w-full">
+          <div ref={primaryChartRef} className="relative h-[360px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={primaryChartData}
                 margin={{ top: 10, right: 20, left: -20, bottom: 5 }}
+                onMouseMove={handlePrimaryMouseMove}
+                onMouseLeave={handlePrimaryMouseLeave}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -911,43 +968,7 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
                 <YAxis yAxisId="ln" hide domain={primaryDomains.ln} />
                 <YAxis yAxisId="rmssd" hide domain={primaryDomains.rmssd} />
                 <YAxis yAxisId="hr" hide domain={primaryDomains.hr} />
-                <Tooltip
-                  labelFormatter={(value) =>
-                    format(new Date(Number(value)), "EEEE d MMM yyyy", { locale: fr })
-                  }
-                  formatter={(value, _name, item) => {
-                    const dataKey = item.dataKey as keyof PrimaryChartRow;
-                    const numericValue =
-                      typeof value === "number" ? value : Number(value);
-                    if (dataKey === "swc_low_28d" || dataKey === "swc_high_28d") {
-                      return [
-                        formatTooltipMetric(
-                          Number.isFinite(numericValue) ? numericValue : null,
-                          "",
-                          3
-                        ),
-                        dataKey === "swc_low_28d" ? "SWC bas" : "SWC haut",
-                      ];
-                    }
-
-                    const config = PRIMARY_SERIES.find((series) => series.key === dataKey);
-                    return [
-                      formatTooltipMetric(
-                        Number.isFinite(numericValue) ? numericValue : null,
-                        config?.unit ?? "",
-                        config?.axis === "ln" ? 3 : 1
-                      ),
-                      config?.label ?? dataKey,
-                    ];
-                  }}
-                  contentStyle={{
-                    backgroundColor: "var(--tw-colors-slate-800)",
-                    borderRadius: "8px",
-                    border: "1px solid var(--tw-colors-slate-700)",
-                    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  }}
-                  labelStyle={{ fontWeight: "bold", color: "#f8fafc" }}
-                />
+                <Tooltip content={() => null} cursor={false} />
                 {swcAreas.map((area, index) => (
                   <ReferenceArea
                     key={`swc-area-${index}`}
@@ -1010,6 +1031,30 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
                 )}
               </LineChart>
             </ResponsiveContainer>
+
+            {primaryTooltip && (() => {
+              const containerW = primaryChartRef.current?.offsetWidth ?? 600;
+              const TOOLTIP_W = 220;
+              const GAP = 16;
+              let tx = primaryTooltip.cx + GAP;
+              if (tx + TOOLTIP_W > containerW) tx = primaryTooltip.cx - TOOLTIP_W - GAP;
+              tx = Math.max(0, tx);
+              const ty = Math.max(8, primaryTooltip.cy - 20);
+              return (
+                <div
+                  className="pointer-events-none absolute z-10 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs shadow-lg"
+                  style={{ left: tx, top: ty, minWidth: 160, transition: "left 100ms ease-out, top 100ms ease-out" }}
+                >
+                  <p className="mb-1.5 font-bold text-slate-50">{primaryTooltip.dateLabel}</p>
+                  {primaryTooltip.rows.map((row, i) => (
+                    <p key={i} className="flex items-center gap-2 text-slate-200">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: row.color }} />
+                      {row.label} : {row.value}
+                    </p>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </CardContent>
       </Card>
@@ -1064,11 +1109,13 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
             </div>
           </div>
 
-          <div className="h-[320px] w-full">
+          <div ref={scoreChartRef} className="relative h-[320px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={scoreChartData}
                 margin={{ top: 10, right: 20, left: -20, bottom: 5 }}
+                onMouseMove={handleScoreMouseMove}
+                onMouseLeave={handleScoreMouseLeave}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -1098,31 +1145,7 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
                   axisLine={false}
                   ticks={[0, 2, 4, 6, 8, 10]}
                 />
-                <Tooltip
-                  labelFormatter={(value) =>
-                    format(new Date(Number(value)), "EEEE d MMM yyyy", { locale: fr })
-                  }
-                  formatter={(value, _name, item) => {
-                    const series = SCORE_SERIES.find((entry) => entry.key === item.dataKey);
-                    const numericValue =
-                      typeof value === "number" ? value : Number(value);
-                    return [
-                      formatTooltipMetric(
-                        Number.isFinite(numericValue) ? numericValue : null,
-                        "/10",
-                        1
-                      ),
-                      series?.label ?? String(item.dataKey),
-                    ];
-                  }}
-                  contentStyle={{
-                    backgroundColor: "var(--tw-colors-slate-800)",
-                    borderRadius: "8px",
-                    border: "1px solid var(--tw-colors-slate-700)",
-                    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  }}
-                  labelStyle={{ fontWeight: "bold", color: "#f8fafc" }}
-                />
+                <Tooltip content={() => null} cursor={false} />
                 {SCORE_SERIES.filter((series) => visibleScores.has(series.key)).map((series) => (
                   <Line
                     key={series.key}
@@ -1139,6 +1162,30 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
                 ))}
               </LineChart>
             </ResponsiveContainer>
+
+            {scoreTooltip && (() => {
+              const containerW = scoreChartRef.current?.offsetWidth ?? 600;
+              const TOOLTIP_W = 220;
+              const GAP = 16;
+              let tx = scoreTooltip.cx + GAP;
+              if (tx + TOOLTIP_W > containerW) tx = scoreTooltip.cx - TOOLTIP_W - GAP;
+              tx = Math.max(0, tx);
+              const ty = Math.max(8, scoreTooltip.cy - 20);
+              return (
+                <div
+                  className="pointer-events-none absolute z-10 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs shadow-lg"
+                  style={{ left: tx, top: ty, minWidth: 160, transition: "left 100ms ease-out, top 100ms ease-out" }}
+                >
+                  <p className="mb-1.5 font-bold text-slate-50">{scoreTooltip.dateLabel}</p>
+                  {scoreTooltip.rows.map((row, i) => (
+                    <p key={i} className="flex items-center gap-2 text-slate-200">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: row.color }} />
+                      {row.label} : {row.value}
+                    </p>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </CardContent>
       </Card>
