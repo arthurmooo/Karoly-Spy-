@@ -126,18 +126,13 @@ Deno.serve(async (req) => {
         const { group_id } = body;
         if (!group_id) return jsonResponse({ error: "group_id required" }, 400);
 
-        // Check athletes assigned
-        const { count } = await supabaseAdmin
+        // Dissociate athletes from group before deleting
+        const { error: unlinkErr } = await supabaseAdmin
           .from("athletes")
-          .select("id", { count: "exact", head: true })
+          .update({ athlete_group_id: null, updated_at: new Date().toISOString() })
           .eq("athlete_group_id", group_id);
 
-        if (count && count > 0) {
-          return jsonResponse(
-            { error: `Impossible de supprimer : ${count} athlète(s) assigné(s) à ce groupe.` },
-            409
-          );
-        }
+        if (unlinkErr) throw unlinkErr;
 
         const { error } = await supabaseAdmin
           .from("athlete_groups")

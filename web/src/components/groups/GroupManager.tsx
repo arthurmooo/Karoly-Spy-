@@ -405,29 +405,22 @@ export function GroupManager({
           </button>
         </DialogHeader>
         <DialogBody>
-          {deleteTarget && (athleteCountByGroup[deleteTarget.id] ?? 0) > 0 ? (
-            <p className="text-sm text-red-600 dark:text-red-400">
-              Impossible de supprimer le groupe{" "}
-              <span className="font-semibold">"{deleteTarget?.name}"</span> : il contient{" "}
-              {athleteCountByGroup[deleteTarget.id]} athlète(s). Réassignez-les d'abord.
-            </p>
-          ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Supprimer le groupe{" "}
-              <span className="font-semibold text-slate-900 dark:text-white">
-                "{deleteTarget?.name}"
-              </span>{" "}
-              ? Cette action est irréversible.
-            </p>
-          )}
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Supprimer le groupe{" "}
+            <span className="font-semibold text-slate-900 dark:text-white">
+              "{deleteTarget?.name}"
+            </span>{" "}
+            ? Cette action est irréversible.
+            {deleteTarget && (athleteCountByGroup[deleteTarget.id] ?? 0) > 0 && (
+              <span className="block mt-2 text-slate-500 dark:text-slate-400">
+                Les {athleteCountByGroup[deleteTarget.id]} athlète(s) du groupe seront dissocié(s) mais pas supprimé(s).
+              </span>
+            )}
+          </p>
         </DialogBody>
         <DialogFooter>
           <Button
             onClick={() => void handleDelete()}
-            disabled={
-              deleteTarget != null &&
-              (athleteCountByGroup[deleteTarget.id] ?? 0) > 0
-            }
             className="bg-red-600 hover:bg-red-700 text-white"
           >
             Supprimer
