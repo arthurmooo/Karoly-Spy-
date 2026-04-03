@@ -1,12 +1,14 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { startOfWeek, endOfWeek, format } from "date-fns";
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { useSearchParams } from "react-router-dom";
 import { useMyAthleteProfile } from "@/hooks/useMyAthleteProfile";
 import { useAthleteKpis } from "@/hooks/useAthleteKpis";
 import { useDashboardPreferences, type WidgetId } from "@/hooks/useDashboardPreferences";
 import { Icon } from "@/components/ui/Icon";
 import { Card, CardContent } from "@/components/ui/Card";
+import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { getCardMeta } from "@/components/kpis/KpiCards";
+import { KpiDetailDialog } from "@/components/kpis/KpiDetailDialog";
 import { LastSessionWidget } from "@/components/dashboard/LastSessionWidget";
 import { NextPlannedWidget } from "@/components/dashboard/NextPlannedWidget";
 import { AcwrWidget } from "@/components/dashboard/AcwrWidget";
@@ -14,7 +16,12 @@ import { WellnessWidget } from "@/components/dashboard/WellnessWidget";
 import { CoachFeedbackWidget } from "@/components/dashboard/CoachFeedbackWidget";
 import { SportDistributionWidget } from "@/components/dashboard/SportDistributionWidget";
 import { DashboardSettingsDialog } from "@/components/dashboard/DashboardSettingsDialog";
-import type { KpiCard } from "@/services/stats.service";
+import {
+  buildPeriodLabel,
+  getCurrentKpiPeriodWindow,
+  type KpiCard,
+  type KpiPeriod,
+} from "@/services/stats.service";
 
 const TODAY_LABEL = new Date().toLocaleDateString("fr-FR", {
   weekday: "long",
@@ -24,24 +31,37 @@ const TODAY_LABEL = new Date().toLocaleDateString("fr-FR", {
 });
 
 const DASHBOARD_CARDS: KpiCard["key"][] = ["distance", "hours", "sessions", "rpe"];
+const PERIOD_OPTIONS: Array<{ key: KpiPeriod; label: string; shortLabel: string }> = [
+  { key: "week", label: "Semaine", shortLabel: "S" },
+  { key: "month", label: "Mois", shortLabel: "M" },
+  { key: "year", label: "Année", shortLabel: "A" },
+];
 
-const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-
-function getKpiLink(key: KpiCard["key"]): string {
-  if (key === "sessions") return `/mon-espace/seances?from=${weekStart}&to=${weekEnd}`;
-  return "/mon-espace/bilan";
+function isKpiPeriod(value: string | null): value is KpiPeriod {
+  return PERIOD_OPTIONS.some((option) => option.key === value);
 }
 
 export function MyDashboardPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { profile, isLoading: profileLoading } = useMyAthleteProfile();
+  const periodParam = searchParams.get("period");
+  const period: KpiPeriod = isKpiPeriod(periodParam) ? periodParam : "week";
   const { report, isLoading: kpiLoading } = useAthleteKpis(
     profile?.id ?? null,
-    "week"
+    period
   );
   const { visibleWidgets, prefs, toggleWidget, moveWidget, resetDefaults } =
     useDashboardPreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeKpiKey, setActiveKpiKey] = useState<KpiCard["key"] | null>(null);
+  const [modalSportFilter, setModalSportFilter] = useState("TOUT");
+
+  useEffect(() => {
+    if (modalSportFilter === "TOUT") return;
+    if (!report?.availableSports.includes(modalSportFilter)) {
+      setModalSportFilter("TOUT");
+    }
+  }, [modalSportFilter, report?.availableSports]);
 
   if (profileLoading) {
     return (
@@ -65,6 +85,11 @@ export function MyDashboardPage() {
   const athleteId = profile.id;
   const cards = report?.cards.filter((c) => DASHBOARD_CARDS.includes(c.key)) ?? [];
   const showKpis = visibleWidgets.includes("weekly-summary");
+  const periodWindow = getCurrentKpiPeriodWindow(period);
+  const periodLabel = buildPeriodLabel(period, new Date());
+  const sessionsListPath =
+    `/mon-espace/seances?from=${format(periodWindow.start, "yyyy-MM-dd")}` +
+    `&to=${format(periodWindow.end, "yyyy-MM-dd")}`;
 
   // Content widgets (everything except weekly-summary)
   const contentWidgets = visibleWidgets.filter((id) => id !== "weekly-summary");
@@ -91,6 +116,7 @@ export function MyDashboardPage() {
             <SportDistributionWidget
               distribution={report?.distribution ?? []}
               isLoading={kpiLoading}
+              period={period}
             />
           </div>
         );
@@ -120,6 +146,31 @@ export function MyDashboardPage() {
         </button>
       </div>
 
+      {showKpis && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 px-4 py-3 shadow-sm backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/80 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+              {periodLabel}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Les KPI et la répartition sports suivent cette temporalité.
+            </p>
+          </div>
+          <SlidingTabs
+            items={PERIOD_OPTIONS}
+            value={period}
+            onChange={(nextPeriod) => {
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set("period", nextPeriod);
+                return next;
+              });
+            }}
+            rounded="xl"
+          />
+        </div>
+      )}
+
       {/* ── KPI Cards Row ── */}
       {showKpis && (
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -142,7 +193,15 @@ export function MyDashboardPage() {
                 const deltaZero = card.deltaPct == null || card.deltaPct === 0;
 
                 return (
-                  <Link key={card.key} to={getKpiLink(card.key)} className="block">
+                  <button
+                    key={card.key}
+                    type="button"
+                    onClick={() => {
+                      setModalSportFilter("TOUT");
+                      setActiveKpiKey(card.key);
+                    }}
+                    className="block w-full text-left"
+                  >
                     <Card className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
@@ -181,10 +240,30 @@ export function MyDashboardPage() {
                         </div>
                       </CardContent>
                     </Card>
-                  </Link>
+                  </button>
                 );
               })}
         </div>
+      )}
+
+      {report && (
+        <KpiDetailDialog
+          open={activeKpiKey !== null}
+          onClose={() => {
+            setActiveKpiKey(null);
+            setModalSportFilter("TOUT");
+          }}
+          cardKey={activeKpiKey}
+          cards={report.cards}
+          distribution={report.distribution}
+          sportDecoupling={report.sportDecoupling}
+          sessions={report.sessions}
+          sportFilter={modalSportFilter}
+          onSportSelect={setModalSportFilter}
+          onSportFilterReset={() => setModalSportFilter("TOUT")}
+          sessionsListPath={sessionsListPath}
+          activityBasePath="/mon-espace/activities"
+        />
       )}
 
       {/* ── Content Widgets Grid ── */}

@@ -25,6 +25,7 @@ interface KpiDetailDialogProps {
   sessions: NormalizedStatsActivity[];
   sportFilter: string;
   onSportSelect: (sportKey: string) => void;
+  onSportFilterReset?: () => void;
   sessionsListPath?: string;
   activityBasePath?: string;
 }
@@ -147,6 +148,7 @@ export function KpiDetailDialog({
   sessions,
   sportFilter,
   onSportSelect,
+  onSportFilterReset,
   sessionsListPath,
   activityBasePath,
 }: KpiDetailDialogProps) {
@@ -157,6 +159,9 @@ export function KpiDetailDialog({
 
   const meta = getCardMeta(cardKey, card.value);
   const isSportFiltered = sportFilter !== "TOUT";
+  const filteredSessions = isSportFiltered
+    ? sessions.filter((session) => session.sportKey === sportFilter)
+    : sessions;
 
   const titleMap: Record<KpiCard["key"], string> = {
     distance: "Distance",
@@ -189,7 +194,9 @@ export function KpiDetailDialog({
               )}
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {isSportFiltered ? `${sessions.length} séance${sessions.length > 1 ? "s" : ""}` : `Total : ${card.displayValue}`}
+              {isSportFiltered
+                ? `${filteredSessions.length} séance${filteredSessions.length > 1 ? "s" : ""}`
+                : `Total : ${card.displayValue}`}
             </p>
           </div>
         </div>
@@ -202,23 +209,38 @@ export function KpiDetailDialog({
       </DialogHeader>
 
       <DialogBody>
+        {isSportFiltered && onSportFilterReset && (
+          <button
+            type="button"
+            onClick={onSportFilterReset}
+            className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <Icon name="arrow_back" className="text-sm" />
+            Tous les sports
+          </button>
+        )}
+
         {isSportFiltered ? (
           /* ── Sport-filtered: per-session list ── */
           <>
             {cardKey === "distance" && (
-              <SessionDistanceContent sessions={sessions} basePath={activityBasePath} />
+              <SessionDistanceContent sessions={filteredSessions} basePath={activityBasePath} />
             )}
             {cardKey === "hours" && (
-              <SessionHoursContent sessions={sessions} basePath={activityBasePath} />
+              <SessionHoursContent sessions={filteredSessions} basePath={activityBasePath} />
             )}
             {cardKey === "sessions" && (
-              <SessionListContent sessions={sessions} sessionsListPath={sessionsListPath} basePath={activityBasePath} />
+              <SessionListContent
+                sessions={filteredSessions}
+                sessionsListPath={sessionsListPath}
+                basePath={activityBasePath}
+              />
             )}
             {cardKey === "rpe" && (
-              <SessionRpeContent sessions={sessions} basePath={activityBasePath} />
+              <SessionRpeContent sessions={filteredSessions} basePath={activityBasePath} />
             )}
             {cardKey === "decoupling" && (
-              <SessionDecouplingContent sessions={sessions} basePath={activityBasePath} />
+              <SessionDecouplingContent sessions={filteredSessions} basePath={activityBasePath} />
             )}
           </>
         ) : (

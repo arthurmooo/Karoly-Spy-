@@ -1,7 +1,9 @@
 import {
   addDays,
   addMilliseconds,
+  addMonths,
   addWeeks,
+  endOfYear,
   endOfMonth,
   endOfWeek,
   format,
@@ -9,8 +11,10 @@ import {
   parseISO,
   startOfMonth,
   startOfWeek,
+  startOfYear,
   subMonths,
   subWeeks,
+  subYears,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { isValidRpe, sanitizeRpe } from "@/lib/rpe";
@@ -20,7 +24,7 @@ import { formatHoursHuman } from "@/services/format.service";
 import { generateInsights, type TextInsight, type FocusAlert } from "@/services/analysis.service";
 import { HR_ZONE_COLORS } from "@/lib/constants";
 
-export type KpiPeriod = "week" | "month";
+export type KpiPeriod = "week" | "month" | "year";
 
 export interface KpiCard {
   key: "distance" | "hours" | "sessions" | "rpe" | "decoupling";
@@ -129,11 +133,9 @@ const WEEKLY_LOAD_POINT_COUNT = 8;
 const MAX_DISTRIBUTION_SPORTS = 3;
 
 function getCurrentPeriodWindow(period: KpiPeriod, now: Date): PeriodWindow {
-  const start = period === "week" ? startOfWeek(now, { weekStartsOn: 1 }) : startOfMonth(now);
+  const start = getPeriodStart(period, now);
   const today = new Date();
-  const periodEnd = period === "week"
-    ? endOfWeek(now, { weekStartsOn: 1 })
-    : endOfMonth(now);
+  const periodEnd = getPeriodEnd(period, now);
   // If `now` falls in the real current period, cap at today (partial).
   // Otherwise (historical), use the full period end.
   const isCurrentPeriod = today >= start && today <= periodEnd;
@@ -143,17 +145,36 @@ function getCurrentPeriodWindow(period: KpiPeriod, now: Date): PeriodWindow {
   };
 }
 
+function getPeriodStart(period: KpiPeriod, anchor: Date): Date {
+  if (period === "week") return startOfWeek(anchor, { weekStartsOn: 1 });
+  if (period === "month") return startOfMonth(anchor);
+  return startOfYear(anchor);
+}
+
+function getPeriodEnd(period: KpiPeriod, anchor: Date): Date {
+  if (period === "week") return endOfWeek(anchor, { weekStartsOn: 1 });
+  if (period === "month") return endOfMonth(anchor);
+  return endOfYear(anchor);
+}
+
 function getPreviousPeriodWindow(period: KpiPeriod, currentWindow: PeriodWindow): PeriodWindow {
   const previousStart =
     period === "week"
       ? subWeeks(currentWindow.start, 1)
-      : startOfMonth(subMonths(currentWindow.start, 1));
+      : period === "month"
+        ? startOfMonth(subMonths(currentWindow.start, 1))
+        : startOfYear(subYears(currentWindow.start, 1));
   const elapsedMs = Math.max(currentWindow.end.getTime() - currentWindow.start.getTime(), 0);
   const rawEnd = addMilliseconds(previousStart, elapsedMs);
 
   return {
     start: previousStart,
-    end: period === "month" && rawEnd > endOfMonth(previousStart) ? endOfMonth(previousStart) : rawEnd,
+    end:
+      period === "month" && rawEnd > endOfMonth(previousStart)
+        ? endOfMonth(previousStart)
+        : period === "year" && rawEnd > endOfYear(previousStart)
+          ? endOfYear(previousStart)
+          : rawEnd,
   };
 }
 
@@ -438,16 +459,32 @@ function buildVolumeHistory(
       };
     });
   }
-  // Last 8 months — total hours per month
-  const currentMonthStart = startOfMonth(now);
+  if (period === "month") {
+    // Last 8 months — total hours per month
+    const currentMonthStart = startOfMonth(now);
+    return Array.from({ length: 8 }, (_, i) => {
+      const ms = subMonths(currentMonthStart, 7 - i);
+      const me = endOfMonth(ms);
+      const hours = allRows
+        .filter((r) => r.sessionDate >= ms && r.sessionDate <= me)
+        .reduce((s, r) => s + r.durationSec, 0) / 3600;
+      return {
+        label: format(ms, "MMM yy", { locale: fr }),
+        hours: round1(hours),
+      };
+    });
+  }
+
+  // Last 8 years — total hours per year
+  const currentYearStart = startOfYear(now);
   return Array.from({ length: 8 }, (_, i) => {
-    const ms = subMonths(currentMonthStart, 7 - i);
-    const me = endOfMonth(ms);
+    const ys = startOfYear(subYears(currentYearStart, 7 - i));
+    const ye = endOfYear(ys);
     const hours = allRows
-      .filter((r) => r.sessionDate >= ms && r.sessionDate <= me)
+      .filter((r) => r.sessionDate >= ys && r.sessionDate <= ye)
       .reduce((s, r) => s + r.durationSec, 0) / 3600;
     return {
-      label: format(ms, "MMM yy", { locale: fr }),
+      label: format(ys, "yyyy", { locale: fr }),
       hours: round1(hours),
     };
   });
@@ -473,23 +510,39 @@ function buildDetailHeatmap(
       };
     });
   }
-  // Month: 4-5 weeks within the month
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
-  const cells: HeatmapCell[] = [];
-  let ws = startOfWeek(monthStart, { weekStartsOn: 1 });
-  while (ws <= monthEnd) {
-    const we = endOfWeek(ws, { weekStartsOn: 1 });
-    const weekMls = currentRows
-      .filter((r) => r.sessionDate >= ws && r.sessionDate <= we)
-      .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
-    cells.push({
-      label: `${format(ws, "d", { locale: fr })}–${format(we, "d MMM", { locale: fr })}`,
-      mls: round1(weekMls),
-    });
-    ws = addWeeks(ws, 1);
+  if (period === "month") {
+    // Month: 4-5 weeks within the month
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    const cells: HeatmapCell[] = [];
+    let ws = startOfWeek(monthStart, { weekStartsOn: 1 });
+    while (ws <= monthEnd) {
+      const we = endOfWeek(ws, { weekStartsOn: 1 });
+      const weekMls = currentRows
+        .filter((r) => r.sessionDate >= ws && r.sessionDate <= we)
+        .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
+      cells.push({
+        label: `${format(ws, "d", { locale: fr })}–${format(we, "d MMM", { locale: fr })}`,
+        mls: round1(weekMls),
+      });
+      ws = addWeeks(ws, 1);
+    }
+    return cells;
   }
-  return cells;
+
+  // Year: 12 months within the year
+  const yearStart = startOfYear(now);
+  return Array.from({ length: 12 }, (_, i) => {
+    const ms = startOfMonth(addMonths(yearStart, i));
+    const me = endOfMonth(ms);
+    const monthMls = currentRows
+      .filter((r) => r.sessionDate >= ms && r.sessionDate <= me)
+      .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
+    return {
+      label: format(ms, "MMM", { locale: fr }),
+      mls: round1(monthMls),
+    };
+  });
 }
 
 function buildComparisonHeatmap(
@@ -512,17 +565,33 @@ function buildComparisonHeatmap(
       };
     });
   }
-  // Last 4 months (MLS per month)
-  const currentMonthStart = startOfMonth(now);
+  if (period === "month") {
+    // Last 4 months (MLS per month)
+    const currentMonthStart = startOfMonth(now);
+    return Array.from({ length: 4 }, (_, i) => {
+      const ms = subMonths(currentMonthStart, 3 - i);
+      const me = endOfMonth(ms);
+      const monthMls = allRows
+        .filter((r) => r.sessionDate >= ms && r.sessionDate <= me)
+        .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
+      return {
+        label: format(ms, "MMM yy", { locale: fr }),
+        mls: round1(monthMls),
+      };
+    });
+  }
+
+  // Last 4 years (MLS per year)
+  const currentYearStart = startOfYear(now);
   return Array.from({ length: 4 }, (_, i) => {
-    const ms = subMonths(currentMonthStart, 3 - i);
-    const me = endOfMonth(ms);
-    const monthMls = allRows
-      .filter((r) => r.sessionDate >= ms && r.sessionDate <= me)
+    const ys = startOfYear(subYears(currentYearStart, 3 - i));
+    const ye = endOfYear(ys);
+    const yearMls = allRows
+      .filter((r) => r.sessionDate >= ys && r.sessionDate <= ye)
       .reduce((s, r) => s + (r.loadIndex ?? 0), 0);
     return {
-      label: format(ms, "MMM yy", { locale: fr }),
-      mls: round1(monthMls),
+      label: format(ys, "yyyy", { locale: fr }),
+      mls: round1(yearMls),
     };
   });
 }
@@ -579,10 +648,12 @@ export function getAthleteKpiFetchRange(period: KpiPeriod, now = new Date()): Pe
   const currentWindow = getCurrentPeriodWindow(period, now);
   const previousWindow = getPreviousPeriodWindow(period, currentWindow);
   const weeklyStart = getOldestLoadWeekStart(now);
-  // For month mode, volume history needs 8 months of data
-  const comparisonStart = period === "month"
-    ? startOfMonth(subMonths(now, 7))
-    : weeklyStart;
+  const comparisonStart =
+    period === "month"
+      ? startOfMonth(subMonths(now, 7))
+      : period === "year"
+        ? startOfYear(subYears(now, 7))
+        : weeklyStart;
   const earliest = [previousWindow.start, weeklyStart, comparisonStart].reduce(
     (min, d) => (d < min ? d : min)
   );
@@ -593,23 +664,32 @@ export function getAthleteKpiFetchRange(period: KpiPeriod, now = new Date()): Pe
   };
 }
 
+export function getCurrentKpiPeriodWindow(period: KpiPeriod, now = new Date()): PeriodWindow {
+  return getCurrentPeriodWindow(period, now);
+}
+
 export function buildPeriodLabel(period: KpiPeriod, now: Date): string {
   const today = new Date();
-  const start = period === "week" ? startOfWeek(now, { weekStartsOn: 1 }) : startOfMonth(now);
-  const currentStart = period === "week" ? startOfWeek(today, { weekStartsOn: 1 }) : startOfMonth(today);
+  const start = getPeriodStart(period, now);
+  const currentStart = getPeriodStart(period, today);
   if (isSameDay(start, currentStart)) {
-    return period === "week" ? "Cette semaine" : "Ce mois-ci";
+    if (period === "week") return "Cette semaine";
+    if (period === "month") return "Ce mois-ci";
+    return "Cette année";
   }
   if (period === "week") {
     return format(start, "'Semaine du' d MMMM yyyy", { locale: fr });
   }
-  return format(start, "MMMM yyyy", { locale: fr });
+  if (period === "month") {
+    return format(start, "MMMM yyyy", { locale: fr });
+  }
+  return format(start, "yyyy", { locale: fr });
 }
 
 export function isCurrentPeriod(period: KpiPeriod, anchorDate: Date): boolean {
   const today = new Date();
-  const start = period === "week" ? startOfWeek(anchorDate, { weekStartsOn: 1 }) : startOfMonth(anchorDate);
-  const currentStart = period === "week" ? startOfWeek(today, { weekStartsOn: 1 }) : startOfMonth(today);
+  const start = getPeriodStart(period, anchorDate);
+  const currentStart = getPeriodStart(period, today);
   return isSameDay(start, currentStart);
 }
 
