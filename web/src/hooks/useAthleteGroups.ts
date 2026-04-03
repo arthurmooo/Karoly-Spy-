@@ -31,19 +31,21 @@ export function useAthleteGroups() {
   );
 
   const createGroup = useCallback(
-    async (name: string, color: string) => {
+    async (name: string, color: string): Promise<string | null> => {
       const nextOrder = groups.length > 0 ? Math.max(...groups.map((g) => g.sort_order)) + 1 : 0;
       // Optimistic
       const tempId = crypto.randomUUID();
       const tempGroup: AthleteGroup = { id: tempId, name, color, sort_order: nextOrder };
       setGroups((prev) => [...prev, tempGroup]);
       try {
-        await manageAthleteGroup({ action: "create", name, color });
+        const result = await manageAthleteGroup({ action: "create", name, color });
         toast.success("Groupe créé");
         refresh();
+        return result?.group?.id ?? null;
       } catch (err) {
         refresh();
         toast.error(err instanceof Error ? err.message : "Erreur lors de la création du groupe");
+        return null;
       }
     },
     [groups, refresh]

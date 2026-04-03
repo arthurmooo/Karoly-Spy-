@@ -28,10 +28,11 @@ interface GroupManagerProps {
   groups: AthleteGroup[];
   athletes: Athlete[];
   athleteCountByGroup: Record<string, number>;
-  onCreateGroup: (name: string, color: string) => Promise<void>;
+  onCreateGroup: (name: string, color: string) => Promise<string | null>;
   onUpdateGroup: (id: string, updates: { name?: string; color?: string }) => Promise<void>;
   onDeleteGroup: (id: string) => Promise<void>;
   onReorderGroups: (items: { id: string; sort_order: number }[]) => Promise<void>;
+  onUpdateAthleteGroup: (athleteId: string, groupId: string | null) => Promise<void>;
 }
 
 function ColorPicker({
@@ -67,6 +68,7 @@ export function GroupManager({
   onUpdateGroup,
   onDeleteGroup,
   onReorderGroups,
+  onUpdateAthleteGroup,
 }: GroupManagerProps) {
   // Expanded group
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
@@ -75,6 +77,8 @@ export function GroupManager({
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(COLOR_PALETTE[0]!);
+  const [selectedAthleteIds, setSelectedAthleteIds] = useState<Set<string>>(new Set());
+  const [isCreating, setIsCreating] = useState(false);
 
   // Edit dialog
   const [editGroup, setEditGroup] = useState<AthleteGroup | null>(null);
@@ -84,14 +88,21 @@ export function GroupManager({
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<AthleteGroup | null>(null);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newName.trim()) return;
-    setShowCreate(false);
+    setIsCreating(true);
     const name = newName.trim();
     const color = newColor;
+    const athleteIds = [...selectedAthleteIds];
+    setShowCreate(false);
     setNewName("");
     setNewColor(COLOR_PALETTE[0]!);
-    void onCreateGroup(name, color);
+    setSelectedAthleteIds(new Set());
+    const groupId = await onCreateGroup(name, color);
+    if (groupId && athleteIds.length > 0) {
+      await Promise.all(athleteIds.map((id) => onUpdateAthleteGroup(id, groupId)));
+    }
+    setIsCreating(false);
   };
 
   const handleEdit = () => {
@@ -287,10 +298,52 @@ export function GroupManager({
             </label>
             <ColorPicker value={newColor} onChange={setNewColor} />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Athlètes
+              {selectedAthleteIds.size > 0 && (
+                <span className="ml-2 text-xs text-primary font-normal">
+                  ({selectedAthleteIds.size} sélectionné{selectedAthleteIds.size > 1 ? "s" : ""})
+                </span>
+              )}
+            </label>
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
+              {athletes.filter((a) => a.is_active).length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-3 px-3">Aucun athlète actif</p>
+              ) : (
+                athletes
+                  .filter((a) => a.is_active)
+                  .map((a) => (
+                    <label
+                      key={a.id}
+                      className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedAthleteIds.has(a.id)}
+                        onChange={() => {
+                          setSelectedAthleteIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(a.id)) next.delete(a.id);
+                            else next.add(a.id);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary"
+                      />
+                      <AthleteAvatar firstName={a.first_name} lastName={a.last_name} avatarUrl={a.avatar_url} size="xs" shape="rounded" />
+                      <span className="text-sm text-slate-700 dark:text-slate-300">
+                        {a.first_name} {a.last_name}
+                      </span>
+                    </label>
+                  ))
+              )}
+            </div>
+          </div>
         </DialogBody>
         <DialogFooter>
-          <Button onClick={() => void handleCreate()} disabled={!newName.trim()}>
-            Créer
+          <Button onClick={() => void handleCreate()} disabled={!newName.trim() || isCreating}>
+            {isCreating ? "Création..." : "Créer"}
           </Button>
           <Button variant="secondary" onClick={() => setShowCreate(false)}>
             Annuler
