@@ -32,7 +32,7 @@ const TODAY_LABEL = new Date().toLocaleDateString("fr-FR", {
 
 const DASHBOARD_CARDS: KpiCard["key"][] = ["distance", "hours", "sessions", "rpe"];
 const PERIOD_OPTIONS: Array<{ key: KpiPeriod; label: string; shortLabel: string }> = [
-  { key: "week", label: "Semaine", shortLabel: "S" },
+  { key: "week", label: "7j", shortLabel: "7j" },
   { key: "month", label: "Mois", shortLabel: "M" },
   { key: "year", label: "Année", shortLabel: "A" },
 ];
