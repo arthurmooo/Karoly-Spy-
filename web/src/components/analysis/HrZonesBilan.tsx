@@ -19,6 +19,7 @@ function formatZoneDuration(sec: number): string {
 
 export function HrZonesBilan({ hrZones, hrZonesBySport }: HrZonesBilanProps) {
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  const [zoneMode, setZoneMode] = useState<"pct" | "dur">("pct");
 
   const sportsWithHrData = useMemo(
     () =>
@@ -41,9 +42,27 @@ export function HrZonesBilan({ hrZones, hrZonesBySport }: HrZonesBilanProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base text-slate-900 dark:text-white">
-          Zones FC — période sélectionnée
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base text-slate-900 dark:text-white">
+            Zones FC — période sélectionnée
+          </CardTitle>
+          <div className="inline-flex rounded-md bg-slate-100 dark:bg-slate-800 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setZoneMode("pct")}
+              className={`px-2 py-0.5 rounded-[4px] font-medium transition-colors ${zoneMode === "pct" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+            >
+              %
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoneMode("dur")}
+              className={`px-2 py-0.5 rounded-[4px] font-medium transition-colors ${zoneMode === "dur" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+            >
+              Durée
+            </button>
+          </div>
+        </div>
         {sportsWithHrData.length > 1 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             <SportChip
@@ -90,8 +109,8 @@ export function HrZonesBilan({ hrZones, hrZonesBySport }: HrZonesBilanProps) {
                     }}
                   />
                 </div>
-                <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">
-                  {formatZoneDuration(z.seconds)}
+                <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400 w-12 text-right">
+                  {zoneMode === "pct" ? `${z.percent.toFixed(1)}%` : formatZoneDuration(z.seconds)}
                 </span>
               </div>
             ))}
