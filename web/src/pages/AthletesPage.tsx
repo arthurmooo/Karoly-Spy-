@@ -228,6 +228,7 @@ export function AthletesPage() {
         onUpdateGroup={updateGroupDef}
         onDeleteGroup={deleteGroup}
         onReorderGroups={reorderGroups}
+        onUpdateAthleteGroup={updateGroup}
       />
 
       {/* Filters */}

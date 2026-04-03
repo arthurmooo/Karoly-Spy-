@@ -12,7 +12,6 @@ const ATHLETE_NAV = [
   { path: "/mon-espace/bilan", label: "Bilan", icon: "analytics", testId: "athlete-nav-report" },
   { path: "/mon-espace/seances", label: "Mes séances", icon: "fitness_center", testId: "athlete-nav-sessions" },
   { path: "/mon-espace/calendrier", label: "Calendrier", icon: "calendar_month", testId: "athlete-nav-calendar" },
-  { path: "/mon-espace/tendances", label: "Tendances", icon: "monitoring", testId: "athlete-nav-trends" },
 ];
 
 export function AthleteLayout() {
