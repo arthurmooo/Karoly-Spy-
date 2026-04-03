@@ -97,6 +97,10 @@ function detectPauseMask(records: RawRecord[], sportType?: string | null): boole
     for (let j = runStart; j < n; j++) mask[j] = true;
   }
 
+  // Indoor trainer safeguard: if ALL records are "paused", it's a false positive
+  // (e.g. home trainer with speed=0 throughout). Don't filter anything.
+  if (mask.every((v) => v)) return new Array<boolean>(n).fill(false);
+
   return mask;
 }
 

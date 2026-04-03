@@ -67,6 +67,11 @@ def detect_pause_mask(df: pd.DataFrame, sport: Optional[str] = None) -> np.ndarr
         if run_len >= min_duration:
             mask[run_start:n] = True
 
+    # Indoor trainer safeguard: if ALL records are "paused", it's a false positive
+    # (e.g. home trainer with speed=0 throughout). Don't filter anything.
+    if mask.all():
+        return np.zeros(n, dtype=bool)
+
     return mask
 
 
