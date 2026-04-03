@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { Activity, ActivitySourceJson } from "@/types/activity";
 import { sanitizeRpe } from "@/lib/rpe";
@@ -37,7 +36,6 @@ export function CoachFeedbackPanel({
 }: Props) {
   const [coachNote, setCoachNote] = useState(activity.coach_comment ?? "");
   const sourceJson = activity.source_json ?? null;
-  const segmentedMetrics = activity.segmented_metrics ?? null;
   const rpe = sanitizeRpe(activity.rpe) ?? sanitizeRpe(sourceJson?.rpe) ?? null;
   const athleteFeedback = activity.athlete_comment?.trim() || getFeedbackText(sourceJson);
   const feeling = sourceJson?.feeling ?? null;
@@ -81,25 +79,6 @@ export function CoachFeedbackPanel({
               </div>
             ) : (
               <p className="text-sm italic text-slate-400">Non renseigné</p>
-            )}
-            {segmentedMetrics?.per_index != null && rpe != null && rpe >= 1 && (
-              <div className="mt-2">
-                <Badge
-                  variant={
-                    segmentedMetrics.per_index > 1.05
-                      ? "orange"
-                      : segmentedMetrics.per_index < 0.95
-                        ? "emerald"
-                        : "slate"
-                  }
-                >
-                  {segmentedMetrics.per_index > 1.05
-                    ? "RPE > intensité objective"
-                    : segmentedMetrics.per_index < 0.95
-                      ? "RPE < intensité objective"
-                      : "RPE cohérent"}
-                </Badge>
-              </div>
             )}
           </div>
 
