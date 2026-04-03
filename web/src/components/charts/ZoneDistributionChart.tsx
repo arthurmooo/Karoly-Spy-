@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { HR_ZONE_COLORS } from "@/lib/constants";
 import type { StreamPoint } from "@/types/activity";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -39,6 +39,8 @@ function computeZoneBoundaries(lt1: number, lt2: number) {
 }
 
 export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Props & { hideTitle?: boolean }) {
+  const [zoneMode, setZoneMode] = useState<"pct" | "dur">("pct");
+
   const data = useMemo<ZoneData[]>(() => {
     if (!lt1Hr || !lt2Hr || lt1Hr >= lt2Hr) return [];
 
@@ -98,11 +100,29 @@ export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Prop
 
   return (
     <div className="space-y-2">
-      {!hideTitle && (
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-          Distribution zones FC
-        </h3>
-      )}
+      <div className="flex items-center justify-between">
+        {!hideTitle && (
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            Distribution zones FC
+          </h3>
+        )}
+        <div className="inline-flex rounded-md bg-slate-100 dark:bg-slate-800 p-0.5 text-xs ml-auto">
+          <button
+            type="button"
+            onClick={() => setZoneMode("pct")}
+            className={`px-2 py-0.5 rounded-[4px] font-medium transition-colors ${zoneMode === "pct" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+          >
+            %
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoneMode("dur")}
+            className={`px-2 py-0.5 rounded-[4px] font-medium transition-colors ${zoneMode === "dur" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+          >
+            Durée
+          </button>
+        </div>
+      </div>
 
       <div className="space-y-1.5">
         {data.map((z) => (
@@ -120,8 +140,8 @@ export function ZoneDistributionChart({ streams, lt1Hr, lt2Hr, hideTitle }: Prop
                 }}
               />
             </div>
-            <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">
-              {formatZoneDuration(z.seconds)}
+            <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400 w-12 text-right">
+              {zoneMode === "pct" ? `${z.percent}%` : formatZoneDuration(z.seconds)}
             </span>
           </div>
         ))}

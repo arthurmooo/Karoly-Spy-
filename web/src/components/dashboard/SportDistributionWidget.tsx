@@ -2,14 +2,21 @@ import { WidgetShell } from "@/components/dashboard/WidgetShell";
 import { getSportConfig } from "@/lib/constants";
 import { Icon } from "@/components/ui/Icon";
 import { formatHoursHuman } from "@/services/format.service";
-import type { SportDistributionItem } from "@/services/stats.service";
+import type { KpiPeriod, SportDistributionItem } from "@/services/stats.service";
 
 interface Props {
   distribution: SportDistributionItem[];
   isLoading: boolean;
+  period?: KpiPeriod;
 }
 
-export function SportDistributionWidget({ distribution, isLoading }: Props) {
+function getEmptyMessage(period: KpiPeriod): string {
+  if (period === "week") return "Aucune activité cette semaine";
+  if (period === "month") return "Aucune activité ce mois-ci";
+  return "Aucune activité cette année";
+}
+
+export function SportDistributionWidget({ distribution, isLoading, period = "week" }: Props) {
   const items = distribution.filter((d) => d.percent > 0);
 
   return (
@@ -18,7 +25,7 @@ export function SportDistributionWidget({ distribution, isLoading }: Props) {
       icon="donut_large"
       isLoading={isLoading}
       isEmpty={items.length === 0}
-      emptyMessage="Aucune activité cette semaine"
+      emptyMessage={getEmptyMessage(period)}
     >
       <div className="space-y-3">
         {items.map((item) => {
