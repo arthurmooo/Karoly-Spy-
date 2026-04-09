@@ -1200,12 +1200,12 @@ export function AthleteTrendsPage({ athleteId: propId }: AthleteTrendsPageProps 
             {alertes.map((alerte, index) => (
               <div
                 key={index}
-                className={`bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 border-l-4 rounded-md p-4 flex items-start gap-3 ${
+                className={`rounded-xl p-4 flex items-start gap-3 ${
                   alerte.type === "green"
-                    ? "border-l-emerald-500"
+                    ? "border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
                     : alerte.type === "orange"
-                      ? "border-l-accent-orange"
-                      : "border-l-slate-400"
+                      ? "border border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20"
+                      : "border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
                 }`}
               >
                 <Icon

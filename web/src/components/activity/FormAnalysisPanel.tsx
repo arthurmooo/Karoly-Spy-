@@ -236,12 +236,11 @@ function MiniRow({ label, value }: { label: string; value: string }) {
 
 // ─── Decision colors ─────────────────────────────────────────────────────────
 
-// Re-exported for backward-compat with SessionComparisonPage
 export const DECISION_BORDER_COLOR: Record<string, string> = {
-  emerald: "border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20",
-  amber:   "border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20",
-  red:     "border-l-red-500 bg-red-50/50 dark:bg-red-950/20",
-  slate:   "border-l-slate-400 bg-slate-50/50 dark:bg-slate-800/30",
+  emerald: "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20",
+  amber:   "border-amber-300 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20",
+  red:     "border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20",
+  slate:   "border-slate-300 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/30",
 };
 
 const DECISION_CALLOUT: Record<string, string> = {
@@ -343,7 +342,7 @@ export function FormAnalysisPanel({ activity, formAnalysis }: { activity: Activi
 
       {/* ── Reasons callout ─────────────────────────────────────────────── */}
       {reasons.length > 0 && (
-        <div className={`rounded-lg border-l-[3px] px-4 py-2.5 ${DECISION_CALLOUT[meta.variant]}`}>
+        <div className={`rounded-xl border px-4 py-2.5 ${DECISION_CALLOUT[meta.variant]}`}>
           <ul className="space-y-0.5">
             {reasons.map((r, i) => (
               <li key={`${r}-${i}`} className="flex items-start gap-2 text-[12px]">
