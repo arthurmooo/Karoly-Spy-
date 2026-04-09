@@ -61,8 +61,8 @@ describe("activity.service bike power helpers", () => {
       source_json: { avg_watt: "270.0", np: "288.0" },
     });
 
-    expect(row.pace).toBe("Sans les 0: 288 W");
-    expect(row.paceSecondary).toBe("Avec les 0: 270 W");
+    expect(row.pace).toBe("P: 288 W");
+    expect(row.paceSecondary).toBe("P0: 270 W");
     expect(row.pace_sort_value).toBe(287.5);
   });
 });

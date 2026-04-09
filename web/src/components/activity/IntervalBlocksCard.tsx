@@ -103,10 +103,10 @@ export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks
                 <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                   <SortableHeader label="Bloc" active={sortBy === "label"} direction={sortDir} onToggle={() => handleSort("label")} className="px-6 py-3" />
                   <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} className="px-6 py-3" />
-                  <SortableHeader label={isBike ? "P sans 0 moy" : "Allure Moy"} active={sortBy === "mean"} direction={sortDir} onToggle={() => handleSort("mean")} className="px-6 py-3 text-accent-orange" />
-                  {isBike && <th className="px-6 py-3 text-accent-orange">P avec 0 moy</th>}
-                  <SortableHeader label={isBike ? "P sans 0 last" : "Allure Last"} active={sortBy === "last"} direction={sortDir} onToggle={() => handleSort("last")} className="px-6 py-3" />
-                  {isBike && <th className="px-6 py-3">P avec 0 last</th>}
+                  <SortableHeader label={isBike ? "P moy" : "Allure Moy"} active={sortBy === "mean"} direction={sortDir} onToggle={() => handleSort("mean")} className="px-6 py-3 text-accent-orange" />
+                  {isBike && <th className="px-6 py-3 text-accent-orange">P0 moy</th>}
+                  <SortableHeader label={isBike ? "P last" : "Allure Last"} active={sortBy === "last"} direction={sortDir} onToggle={() => handleSort("last")} className="px-6 py-3" />
+                  {isBike && <th className="px-6 py-3">P0 last</th>}
                   <SortableHeader label="FC Moy" active={sortBy === "hr_mean"} direction={sortDir} onToggle={() => handleSort("hr_mean")} className="px-6 py-3 text-accent-orange" />
                   <SortableHeader label="FC Last" active={sortBy === "hr_last"} direction={sortDir} onToggle={() => handleSort("hr_last")} className="px-6 py-3" />
                   <SortableHeader label="Source" active={sortBy === "source"} direction={sortDir} onToggle={() => handleSort("source")} className="px-6 py-3" />

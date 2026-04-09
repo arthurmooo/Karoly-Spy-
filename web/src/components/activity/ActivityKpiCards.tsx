@@ -62,13 +62,13 @@ export function ActivityKpiCards({ activity }: Props) {
           {isBike ? (
             <div className="space-y-2">
               <div>
-                <p className="text-[11px] font-medium text-slate-500">Sans les 0</p>
+                <p className="text-[11px] font-medium text-slate-500">P</p>
                 <h3 className="font-mono text-2xl font-semibold text-accent-orange">
                   {formatPowerWatts(bikePowerMetrics.powerWithoutZeros)}
                 </h3>
               </div>
               <div>
-                <p className="text-[11px] font-medium text-slate-500">Avec les 0</p>
+                <p className="text-[11px] font-medium text-slate-500">P0</p>
                 <p className="font-mono text-lg font-semibold text-slate-700 dark:text-slate-300">
                   {formatPowerWatts(bikePowerMetrics.powerWithZeros)}
                 </p>

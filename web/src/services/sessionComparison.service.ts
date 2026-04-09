@@ -120,7 +120,7 @@ function resolveMainMetric(current: Activity, reference: Activity): MainMetricCo
 
   if (sport === "VELO") {
     if (hasUsablePower(current) && hasUsablePower(reference)) {
-      return { kind: "power", label: "Puissance sans les 0", unitLabel: "W", reversed: false };
+      return { kind: "power", label: "P", unitLabel: "W", reversed: false };
     }
     return { kind: "bike_speed", label: "Vitesse moyenne", unitLabel: "km/h", reversed: false };
   }

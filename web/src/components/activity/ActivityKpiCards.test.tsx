@@ -60,9 +60,9 @@ describe("ActivityKpiCards", () => {
       root.render(<ActivityKpiCards activity={makeActivity()} />);
     });
 
-    expect(document.body.textContent).toContain("Sans les 0");
+    expect(document.body.textContent).toContain("P");
     expect(document.body.textContent).toContain("288 W");
-    expect(document.body.textContent).toContain("Avec les 0");
+    expect(document.body.textContent).toContain("P0");
     expect(document.body.textContent).toContain("270 W");
   });
 
@@ -77,7 +77,7 @@ describe("ActivityKpiCards", () => {
       );
     });
 
-    expect(document.body.textContent).toContain("Avec les 0");
+    expect(document.body.textContent).toContain("P0");
     expect(document.body.textContent).toContain("--");
   });
 
@@ -98,7 +98,6 @@ describe("ActivityKpiCards", () => {
     });
 
     expect(document.body.textContent).toContain("Allure Moy");
-    expect(document.body.textContent).not.toContain("Sans les 0");
-    expect(document.body.textContent).not.toContain("Avec les 0");
+    expect(document.body.textContent).not.toContain("P0");
   });
 });

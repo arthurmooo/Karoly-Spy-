@@ -87,8 +87,8 @@ export function LapsTable({ laps, sportType }: Props) {
             <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} />
             <SortableHeader label="Distance" active={sortBy === "distance"} direction={sortDir} onToggle={() => handleSort("distance")} />
             <SortableHeader label={isBike ? "Vitesse" : "Allure"} active={sortBy === "speed"} direction={sortDir} onToggle={() => handleSort("speed")} />
-            {isBike && <SortableHeader label="P sans 0" active={sortBy === "power"} direction={sortDir} onToggle={() => handleSort("power")} />}
-            {isBike && <SortableHeader label="P avec 0" active={sortBy === "powerWithZeros"} direction={sortDir} onToggle={() => handleSort("powerWithZeros")} />}
+            {isBike && <SortableHeader label="P" active={sortBy === "power"} direction={sortDir} onToggle={() => handleSort("power")} />}
+            {isBike && <SortableHeader label="P0" active={sortBy === "powerWithZeros"} direction={sortDir} onToggle={() => handleSort("powerWithZeros")} />}
             <SortableHeader label="FC Moy" active={sortBy === "avg_hr"} direction={sortDir} onToggle={() => handleSort("avg_hr")} />
             <SortableHeader label="FC Max" active={sortBy === "max_hr"} direction={sortDir} onToggle={() => handleSort("max_hr")} />
             <SortableHeader label="Cadence" active={sortBy === "cadence"} direction={sortDir} onToggle={() => handleSort("cadence")} />

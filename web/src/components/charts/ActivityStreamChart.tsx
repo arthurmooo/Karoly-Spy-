@@ -297,10 +297,10 @@ export function ActivityStreamChart({
             <span>Allure moy : <span className="font-medium text-blue-500">{fmtPace(zoomStats.avgPace)}</span></span>
           )}
           {zoomStats.avgPowerWithoutZeros != null && (
-            <span>P sans 0 : <span className="font-medium text-green-500">{Math.round(zoomStats.avgPowerWithoutZeros)} W</span></span>
+            <span>P : <span className="font-medium text-green-500">{Math.round(zoomStats.avgPowerWithoutZeros)} W</span></span>
           )}
           {zoomStats.avgPowerWithZeros != null && (
-            <span>P avec 0 : <span className="font-medium text-emerald-600">{Math.round(zoomStats.avgPowerWithZeros)} W</span></span>
+            <span>P0 : <span className="font-medium text-emerald-600">{Math.round(zoomStats.avgPowerWithZeros)} W</span></span>
           )}
         </div>
       )}

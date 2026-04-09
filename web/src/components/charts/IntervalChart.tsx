@@ -193,8 +193,8 @@ export function IntervalChart({
                 if (name === "hrRaw") return [`${value} bpm`, "FC brute"];
                 if (name === "hrCorr") return [`${value} bpm`, "FC corrigée"];
                 if (name === "pace") return [fmtPace(value), "Allure"];
-                if (name === "powerWithoutZeros") return [`${Math.round(value)} W`, "P sans 0"];
-                if (name === "powerWithZeros") return [`${Math.round(value)} W`, "P avec 0"];
+                if (name === "powerWithoutZeros") return [`${Math.round(value)} W`, "P"];
+                if (name === "powerWithZeros") return [`${Math.round(value)} W`, "P0"];
                 if (name === "ea") return [value.toFixed(3), "EA"];
                 return [value, name];
               }}

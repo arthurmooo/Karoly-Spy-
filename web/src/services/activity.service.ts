@@ -204,7 +204,7 @@ export function formatActivityRow(row: Record<string, unknown>) {
   const isBike = isBikeSport(sportType);
 
   const pace = isBike
-    ? `Sans les 0: ${formatPowerWatts(bikePowerMetrics.powerWithoutZeros)}`
+    ? `P: ${formatPowerWatts(bikePowerMetrics.powerWithoutZeros)}`
     : formatPaceOrPower(
         sportType,
         avgSpeed,
@@ -212,7 +212,7 @@ export function formatActivityRow(row: Record<string, unknown>) {
       );
 
   const paceSecondary = isBike
-    ? `Avec les 0: ${formatPowerWatts(bikePowerMetrics.powerWithZeros)}`
+    ? `P0: ${formatPowerWatts(bikePowerMetrics.powerWithZeros)}`
     : null;
 
   return {

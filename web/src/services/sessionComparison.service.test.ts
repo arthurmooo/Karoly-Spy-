@@ -152,6 +152,6 @@ describe("sessionComparison.service", () => {
 
     const summary = buildComparisonSummary(current, reference);
 
-    expect(summary.metricLabel).toBe("Puissance sans les 0");
+    expect(summary.metricLabel).toBe("P");
   });
 });

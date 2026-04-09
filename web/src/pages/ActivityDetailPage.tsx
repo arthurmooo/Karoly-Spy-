@@ -336,8 +336,8 @@ export function ActivityDetailPage() {
                       formatter={(value: number, name: string) => {
                         if (name === "hr") return [`${value} bpm`, "FC"];
                         if (name === "pace") return [formatPaceDecimal(value), "Allure bloc"];
-                        if (name === "powerWithoutZeros") return [`${value} W`, "Puissance bloc sans les 0"];
-                        if (name === "powerWithZeros") return [`${value} W`, "Puissance bloc avec les 0"];
+                        if (name === "powerWithoutZeros") return [`${value} W`, "P bloc"];
+                        if (name === "powerWithZeros") return [`${value} W`, "P0 bloc"];
                         return [value, name];
                       }}
                       labelFormatter={(l) => `Bloc ${l}`}

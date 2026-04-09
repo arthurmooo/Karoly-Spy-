@@ -86,8 +86,8 @@ describe("IntervalDetailTable", () => {
       );
     });
 
-    expect(document.body.textContent).toContain("P sans 0");
-    expect(document.body.textContent).toContain("P avec 0");
+    expect(document.body.textContent).toContain("P");
+    expect(document.body.textContent).toContain("P0");
     expect(document.body.textContent).toContain("250 W");
     expect(document.body.textContent).toContain("125 W");
   });
@@ -107,8 +107,8 @@ describe("IntervalDetailTable", () => {
       );
     });
 
-    expect(document.body.textContent).toContain("P sans 0");
-    expect(document.body.textContent).toContain("P avec 0");
+    expect(document.body.textContent).toContain("P");
+    expect(document.body.textContent).toContain("P0");
     expect(document.body.textContent).toContain("250 W");
     expect(document.body.textContent).toContain("125 W");
   });

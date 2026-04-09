@@ -490,8 +490,8 @@ function IntervalBlockView({
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
           <SortableHeader label="#" active={sortBy === "index"} direction={sortDir} onToggle={() => handleSort("index")} className="px-3 py-2" />
           <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} className="px-3 py-2" />
-          <SortableHeader label={isBike ? "P sans 0" : "Allure Moy"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
-          <SortableHeader label={isBike ? "P avec 0" : "Allure Last"} active={sortBy === "paceOrPowerLast"} direction={sortDir} onToggle={() => handleSort("paceOrPowerLast")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P" : "Allure Moy"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P0" : "Allure Last"} active={sortBy === "paceOrPowerLast"} direction={sortDir} onToggle={() => handleSort("paceOrPowerLast")} className="px-3 py-2" />
           <SortableHeader label="FC Moy" active={sortBy === "hr"} direction={sortDir} onToggle={() => handleSort("hr")} className="px-3 py-2" />
           <SortableHeader label="FC Last" active={sortBy === "hrLast"} direction={sortDir} onToggle={() => handleSort("hrLast")} className="px-3 py-2" />
           <SortableHeader label="Pa:HR" active={sortBy === "paHr"} direction={sortDir} onToggle={() => handleSort("paHr")} className="px-3 py-2" />
@@ -640,10 +640,10 @@ function WindowBlockView({
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
           <SortableHeader label="#" active={sortBy === "index"} direction={sortDir} onToggle={() => handleSort("index")} className="px-3 py-2" />
           <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} className="px-3 py-2" />
-          <SortableHeader label={isBike ? "P sans 0" : "Allure"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P" : "Allure"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
           <SortableHeader label="FC" active={sortBy === "hr"} direction={sortDir} onToggle={() => handleSort("hr")} className="px-3 py-2" />
           <SortableHeader label="HR Corr" active={sortBy === "hrCorr"} direction={sortDir} onToggle={() => handleSort("hrCorr")} className="px-3 py-2" />
-          <SortableHeader label={isBike ? "P avec 0" : "Output"} active={sortBy === "output"} direction={sortDir} onToggle={() => handleSort("output")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P0" : "Output"} active={sortBy === "output"} direction={sortDir} onToggle={() => handleSort("output")} className="px-3 py-2" />
           <SortableHeader label="EA" active={sortBy === "ea"} direction={sortDir} onToggle={() => handleSort("ea")} className="px-3 py-2" />
           <SortableHeader label="Pa:HR" active={sortBy === "paHr"} direction={sortDir} onToggle={() => handleSort("paHr")} className="px-3 py-2" />
           <SortableHeader label="Dérive FC" active={sortBy === "drift"} direction={sortDir} onToggle={() => handleSort("drift")} className="px-3 py-2" />
