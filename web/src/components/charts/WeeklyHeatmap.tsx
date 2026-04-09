@@ -63,6 +63,15 @@ function formatTooltipDate(isoDate: string): string {
   return format(parseISO(isoDate), "EEEE d MMM yyyy", { locale: fr });
 }
 
+/** Compact duration: "2h08" instead of "2:08:40". Drops seconds to save space. */
+function formatDurationCompact(sec: number): string {
+  if (!sec || sec <= 0) return "0:00";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h${String(m).padStart(2, "0")}`;
+  return `${m}min`;
+}
+
 export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
   const location = useLocation();
   const { role } = useAuth();
@@ -121,27 +130,22 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
                 title={tooltip}
                 className={`group relative flex min-h-20 sm:min-h-28 flex-col justify-between rounded-lg sm:rounded-xl border px-1.5 py-1.5 sm:px-3 sm:py-3 transition-transform focus:outline-none focus:ring-2 focus:ring-primary/50 ${style.bgClass} ${style.borderClass}`}
               >
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      {day.label}
-                    </span>
-                    <span className={`hidden sm:inline text-[10px] font-semibold uppercase tracking-wide ${style.textClass}`}>
-                      {style.label}
-                    </span>
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
+                <div className="space-y-0.5 sm:space-y-1 overflow-hidden">
+                  <span className="block text-[9px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 truncate">
+                    {day.label}
+                  </span>
+                  <p className="text-[9px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
                     {format(parseISO(day.date), "d MMM", { locale: fr })}
                   </p>
                 </div>
 
-                <div className="space-y-1">
-                  <p className="text-base sm:text-xl font-semibold font-mono text-slate-900 dark:text-white">
+                <div className="space-y-0.5 sm:space-y-1 overflow-hidden">
+                  <p className="text-sm sm:text-xl font-semibold font-mono text-slate-900 dark:text-white truncate">
                     {Math.round(day.mls).toLocaleString("fr-FR")}
                   </p>
-                  <div className="flex items-center justify-between gap-1 text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-300">
-                    <span>{formatDuration(day.durationSec)}</span>
-                    <span className="hidden sm:inline">{day.sessionCount} seance{day.sessionCount > 1 ? "s" : ""}</span>
+                  <div className="flex items-center justify-between gap-1 text-[9px] sm:text-[11px] text-slate-600 dark:text-slate-300">
+                    <span className="truncate">{formatDurationCompact(day.durationSec)}</span>
+                    <span className="hidden sm:inline shrink-0">{day.sessionCount} seance{day.sessionCount > 1 ? "s" : ""}</span>
                   </div>
                 </div>
 
@@ -187,21 +191,21 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
           })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400">
-        <span>Faible charge</span>
-        <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400">
+        <span>Faible</span>
+        <div className="flex items-center gap-0.5 sm:gap-1">
           {(["rest", "low", "moderate", "high", "very_high"] as const).map((level) => {
             const style = LEVEL_STYLES[level];
             return (
               <div
                 key={level}
-                className={`h-4 w-6 rounded-lg border ${style.bgClass} ${style.borderClass}`}
+                className={`h-3.5 w-5 sm:h-4 sm:w-6 rounded-md sm:rounded-lg border ${style.bgClass} ${style.borderClass}`}
                 aria-hidden="true"
               />
             );
           })}
         </div>
-        <span>Charge elevee</span>
+        <span>Elevée</span>
       </div>
     </div>
   );

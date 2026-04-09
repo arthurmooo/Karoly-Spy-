@@ -35,27 +35,31 @@ export function CalendarGrid({ view, days, onDayClick }: CalendarGridProps) {
   if (view === "week") {
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex flex-col h-full">
-        <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 shrink-0">
-          {days.map((day, i) => (
-            <div
-              key={i}
-              className={`py-3 px-2 text-center border-r border-slate-200 dark:border-slate-800 last:border-r-0 ${
-                day.isToday ? "bg-accent-orange/10" : ""
-              }`}
-            >
-              <div className={`text-[10px] font-bold uppercase tracking-wider ${day.isToday ? "text-accent-orange" : "text-slate-500"}`}>
-                {format(day.date, "E", { locale: fr })}
-              </div>
-              <div className={`text-lg font-semibold ${day.isToday ? "text-accent-orange" : "text-slate-900 dark:text-white"}`}>
-                {format(day.date, "d")}
-              </div>
+        <div className="overflow-x-auto">
+          <div className="grid grid-cols-7 min-w-[700px]">
+            {/* Header row */}
+            <div className="contents">
+              {days.map((day, i) => (
+                <div
+                  key={`h-${i}`}
+                  className={`py-3 px-2 text-center border-b border-r border-slate-200 dark:border-slate-800 last:border-r-0 bg-slate-50 dark:bg-slate-800/50 ${
+                    day.isToday ? "bg-accent-orange/10" : ""
+                  }`}
+                >
+                  <div className={`text-[10px] font-bold uppercase tracking-wider ${day.isToday ? "text-accent-orange" : "text-slate-500"}`}>
+                    {format(day.date, "E", { locale: fr })}
+                  </div>
+                  <div className={`text-lg font-semibold ${day.isToday ? "text-accent-orange" : "text-slate-900 dark:text-white"}`}>
+                    {format(day.date, "d")}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 flex-1 overflow-y-auto">
-          {days.map((day, i) => (
-            <CalendarCell key={i} day={day} view="week" />
-          ))}
+            {/* Body row */}
+            {days.map((day, i) => (
+              <CalendarCell key={i} day={day} view="week" />
+            ))}
+          </div>
         </div>
       </div>
     );
