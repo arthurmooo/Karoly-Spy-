@@ -18,6 +18,17 @@ const ALLOWED_SECTION_KEYS = new Set([
   "phase_comparison",
 ]);
 
+const SECTION_LABELS: Record<string, string> = {
+  form_analysis: "Analyse de la forme",
+  zone_distribution: "Distribution des zones",
+  decoupling: "Découplage",
+  intervals_chart: "Graphique intervalles",
+  intervals_detail: "Détail intervalles",
+  target_vs_actual: "Planifié vs Réalisé",
+  segment_analysis: "Analyse par segments",
+  phase_comparison: "Comparaison de phases",
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -74,7 +85,7 @@ Deno.serve(async (req) => {
     // 4. Fetch activity + verify coach ownership
     const { data: activity, error: actErr } = await supabaseAdmin
       .from("activities")
-      .select("id, section_comments, athletes!inner(coach_id)")
+      .select("id, athlete_id, section_comments, athletes!inner(coach_id)")
       .eq("id", activity_id)
       .single();
 
@@ -110,6 +121,26 @@ Deno.serve(async (req) => {
       .eq("id", activity_id);
 
     if (updateErr) throw updateErr;
+
+    // Insert notification for athlete if comment is non-empty (fire-and-forget)
+    if (trimmed) {
+      try {
+        const label = SECTION_LABELS[section_key] ?? section_key;
+        // Remove stale unread notification for the same activity + section to avoid duplicates
+        await supabaseAdmin.from("notifications")
+          .delete()
+          .match({ activity_id, type: "section_comment", section_key, is_read: false });
+        await supabaseAdmin.from("notifications").insert({
+          athlete_id: activity.athlete_id,
+          activity_id,
+          type: "section_comment",
+          section_key,
+          message: `Commentaire coach : ${label}`,
+        });
+      } catch (notifErr) {
+        console.error("Notification insert failed (non-blocking):", notifErr);
+      }
+    }
 
     return new Response(
       JSON.stringify({ success: true }),

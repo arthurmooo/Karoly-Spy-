@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     // 3. Fetch activity to get nolio_id + athlete_id, verify coach ownership
     const { data: activity, error: actErr } = await supabaseAdmin
       .from("activities")
-      .select("id, nolio_id, athlete_id, source_json, athletes!inner(nolio_id, coach_id)")
+      .select("id, nolio_id, athlete_id, session_date, source_json, athletes!inner(nolio_id, coach_id)")
       .eq("id", activity_id)
       .single();
 
@@ -83,7 +83,27 @@ Deno.serve(async (req) => {
 
     if (updateErr) throw updateErr;
 
-    // 5. Sync to Nolio if nolio_id exists
+    // 5. Insert notification for athlete (fire-and-forget, non-blocking)
+    if (comment.trim()) {
+      try {
+        const d = activity.session_date ? new Date(activity.session_date) : null;
+        const dateStr = d ? d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
+        // Remove any stale unread notification for the same activity/type to avoid duplicates
+        await supabaseAdmin.from("notifications")
+          .delete()
+          .match({ activity_id, type: "coach_comment", is_read: false });
+        await supabaseAdmin.from("notifications").insert({
+          athlete_id: activity.athlete_id,
+          activity_id,
+          type: "coach_comment",
+          message: `Nouveau commentaire sur votre séance${dateStr ? ` du ${dateStr}` : ""}`,
+        });
+      } catch (notifErr) {
+        console.error("Notification insert failed (non-blocking):", notifErr);
+      }
+    }
+
+    // 6. Sync to Nolio if nolio_id exists
     let nolioSynced = false;
     let nolioDebug = "";
     const nolioId = activity.nolio_id;
