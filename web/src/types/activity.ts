@@ -202,6 +202,8 @@ export interface ActivitySourceJson {
   feeling?: number | null;
   name?: string | null;
   sport?: string | null;
+  avg_watt?: number | string | null;
+  np?: number | string | null;
   distance?: number | null;
   duration?: number | null;
   description?: string | null;

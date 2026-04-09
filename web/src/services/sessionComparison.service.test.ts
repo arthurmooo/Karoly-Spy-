@@ -75,13 +75,13 @@ describe("sessionComparison.service", () => {
     expect(chartModel).not.toBeNull();
     expect(chartModel!.data[0]).toMatchObject({
       percent: 0,
-      currentDistanceM: 0,
-      referenceDistanceM: 0,
+      currentDistanceM: 2000,
+      referenceDistanceM: 4000,
     });
     expect(chartModel!.data[100]).toMatchObject({
       percent: 100,
-      currentDistanceM: 10000,
-      referenceDistanceM: 10000,
+      currentDistanceM: 12000,
+      referenceDistanceM: 14000,
     });
   });
 
@@ -128,5 +128,30 @@ describe("sessionComparison.service", () => {
       referenceValue: "50:00",
       deltaValue: "-10:00",
     });
+  });
+
+  it("labels bike power comparisons as power without zeros", () => {
+    const current = makeActivity({
+      sport_type: "Bike",
+      avg_power: 287.5,
+      activity_streams: makeStreams(10, 300, 140).map((point) => ({
+        ...point,
+        pwr: 280,
+      })),
+    });
+    const reference = makeActivity({
+      id: "reference",
+      sport_type: "Bike",
+      avg_power: 270,
+      session_date: "2026-03-20T08:00:00.000Z",
+      activity_streams: makeStreams(10, 310, 144).map((point) => ({
+        ...point,
+        pwr: 265,
+      })),
+    });
+
+    const summary = buildComparisonSummary(current, reference);
+
+    expect(summary.metricLabel).toBe("Puissance sans les 0");
   });
 });
