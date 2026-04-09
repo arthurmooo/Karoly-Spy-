@@ -262,7 +262,7 @@ export function MyProfilePage() {
                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Course</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <PhysioStat label="VMA" value={activeRun.vma != null ? `${activeRun.vma} km/h` : null} />
+                    <PhysioStat label="Allure LT1" value={activeRun.lt1_power_pace != null ? speedToPace(activeRun.lt1_power_pace) : null} />
                     <PhysioStat label="Allure LT2" value={activeRun.lt2_power_pace != null ? speedToPace(activeRun.lt2_power_pace) : null} />
                     <PhysioStat label="FC LT1" value={activeRun.lt1_hr != null ? `${activeRun.lt1_hr} bpm` : null} />
                     <PhysioStat label="FC LT2" value={activeRun.lt2_hr != null ? `${activeRun.lt2_hr} bpm` : null} />

@@ -32,7 +32,7 @@ export function AthleteProfilePage() {
   const [bikeCpHt, setBikeCpHt] = useState("");
 
   // Run form
-  const [runVma, setRunVma] = useState("");
+  const [runLt1Pace, setRunLt1Pace] = useState("");
   const [runLt2Pace, setRunLt2Pace] = useState("");
   const [runLt1Hr, setRunLt1Hr] = useState("");
   const [runLt2Hr, setRunLt2Hr] = useState("");
@@ -86,11 +86,12 @@ export function AthleteProfilePage() {
 
   async function handleAddRunProfile() {
     if (!id) return;
+    const lt1Speed = runLt1Pace ? paceToSpeed(runLt1Pace) : null;
     const lt2Speed = runLt2Pace ? paceToSpeed(runLt2Pace) : null;
     const profile: Omit<PhysioProfile, "id"> = {
       athlete_id: id,
       sport: "Run",
-      vma: runVma ? parseFloat(runVma) : null,
+      vma: null,
       lt2_power_pace: lt2Speed,
       lt1_hr: runLt1Hr ? parseFloat(runLt1Hr) : null,
       lt2_hr: runLt2Hr ? parseFloat(runLt2Hr) : null,
@@ -98,12 +99,12 @@ export function AthleteProfilePage() {
       weight: null,
       cp_montee: null,
       cp_ht: null,
-      lt1_power_pace: null,
+      lt1_power_pace: lt1Speed,
       valid_from: new Date().toISOString(),
       valid_to: null,
     };
     await addProfile(profile);
-    setRunVma(""); setRunLt2Pace(""); setRunLt1Hr(""); setRunLt2Hr("");
+    setRunLt1Pace(""); setRunLt2Pace(""); setRunLt1Hr(""); setRunLt2Hr("");
   }
 
   return (
@@ -305,9 +306,9 @@ export function AthleteProfilePage() {
                   </div>
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">VMA</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Allure LT1</p>
                       <span className="text-2xl font-semibold font-mono text-slate-900 dark:text-white">
-                        {activeRun.vma != null ? `${activeRun.vma} km/h` : "--"}
+                        {activeRun.lt1_power_pace != null ? speedToPace(activeRun.lt1_power_pace) : "--"}
                       </span>
                     </div>
                     <div>
@@ -347,8 +348,8 @@ export function AthleteProfilePage() {
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1 block">VMA (km/h)</label>
-                    <Input type="number" placeholder="Ex: 18" value={runVma} onChange={(e) => setRunVma(e.target.value)} />
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1 block">Allure LT1 (mm:ss/km)</label>
+                    <Input type="text" placeholder="Ex: 4:30" value={runLt1Pace} onChange={(e) => setRunLt1Pace(e.target.value)} />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1 block">Allure LT2 (mm:ss/km)</label>
@@ -390,7 +391,7 @@ export function AthleteProfilePage() {
                           {formatDate(prof.valid_from)} → {formatDate(prof.valid_to)}
                         </p>
                         <span className="text-sm font-semibold font-mono text-slate-600 dark:text-slate-400">
-                          {prof.vma != null ? `${prof.vma} km/h` : "--"}
+                          {prof.lt1_power_pace != null ? speedToPace(prof.lt1_power_pace) : "--"}
                         </span>
                       </div>
                     ))}

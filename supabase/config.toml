@@ -370,6 +370,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Edge function with internal JWT verification (via getUser()).
+# Gateway-level verify_jwt is disabled to avoid double-validation issues
+# with rotating ES256 signing keys. Auth is enforced inside the handler.
+[functions.manage-athlete-group]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
