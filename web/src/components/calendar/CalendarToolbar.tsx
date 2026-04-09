@@ -8,17 +8,17 @@ import { SPORT_CONFIG, getSportConfig } from "@/lib/constants";
 type View = "week" | "month" | "year";
 
 const VIEWS: { key: View; label: string; short: string }[] = [
-  { key: "week", label: "Semaine", short: "S" },
-  { key: "month", label: "Mois", short: "M" },
-  { key: "year", label: "Année", short: "A" },
+  { key: "week", label: "Semaine", short: "Sem" },
+  { key: "month", label: "Mois", short: "Mois" },
+  { key: "year", label: "Année", short: "An" },
 ];
 
 type DisplayMode = "all" | "planned" | "realized";
 
 const DISPLAY_TABS: { key: DisplayMode; label: string; shortLabel: string }[] = [
-  { key: "all", label: "Tout", shortLabel: "T" },
-  { key: "planned", label: "Prévu", shortLabel: "P" },
-  { key: "realized", label: "Réalisé", shortLabel: "R" },
+  { key: "all", label: "Tout", shortLabel: "Tout" },
+  { key: "planned", label: "Prévu", shortLabel: "Prévu" },
+  { key: "realized", label: "Réalisé", shortLabel: "Réel" },
 ];
 
 interface CalendarToolbarProps {

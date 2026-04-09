@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 export interface SearchableSelectOption {
   value: string;
@@ -33,9 +34,11 @@ export function SearchableSelect({
   const [search, setSearch] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const isMobile = useIsMobile();
 
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   const selectedLabel = useMemo(
@@ -54,28 +57,28 @@ export function SearchableSelect({
     setHighlightedIndex(-1);
   }, [filtered.length]);
 
-  // Compute dropdown position from trigger rect
+  // Compute dropdown position from trigger rect (desktop only)
   const updatePos = useCallback(() => {
-    if (!rootRef.current) return;
+    if (!rootRef.current || isMobile) return;
     const rect = rootRef.current.getBoundingClientRect();
     setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-  }, []);
+  }, [isMobile]);
 
-  // Position + reposition on scroll/resize while open
+  // Position + reposition on scroll/resize while open (desktop only)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
     updatePos();
     window.addEventListener("resize", updatePos);
-    window.addEventListener("scroll", updatePos, true); // capture for inner scrollables
+    window.addEventListener("scroll", updatePos, true);
     return () => {
       window.removeEventListener("resize", updatePos);
       window.removeEventListener("scroll", updatePos, true);
     };
-  }, [isOpen, updatePos]);
+  }, [isOpen, updatePos, isMobile]);
 
-  // Click outside → close (check both root and portal list)
+  // Click outside → close (desktop only, mobile uses overlay)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
     function handleMouseDown(e: MouseEvent) {
       const target = e.target as Node;
       if (
@@ -88,12 +91,28 @@ export function SearchableSelect({
     }
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [isOpen]);
+  }, [isOpen, isMobile]);
 
-  // Auto-focus input when opening
+  // Auto-focus input when opening (desktop)
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
-  }, [isOpen]);
+    if (isOpen && !isMobile) inputRef.current?.focus();
+  }, [isOpen, isMobile]);
+
+  // Auto-focus input when opening (mobile — with delay for iOS)
+  useEffect(() => {
+    if (isOpen && isMobile) {
+      const timer = setTimeout(() => mobileInputRef.current?.focus(), 80);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isMobile]);
+
+  // Lock body scroll when mobile sheet is open
+  useEffect(() => {
+    if (!isOpen || !isMobile) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen, isMobile]);
 
   // Scroll highlighted item into view
   useEffect(() => {
@@ -138,8 +157,48 @@ export function SearchableSelect({
     [filtered, highlightedIndex, select]
   );
 
-  const dropdown =
-    isOpen && typeof document !== "undefined"
+  // ── Option list renderer (shared between desktop and mobile) ──
+  const renderOptions = (refProp: React.Ref<HTMLUListElement>, extraClass?: string) => (
+    <ul ref={refProp} className={cn("overflow-y-auto py-1", extraClass)}>
+      {filtered.length === 0 ? (
+        <li className="px-3 py-2.5 text-sm text-slate-400 italic">
+          Aucun résultat
+        </li>
+      ) : (
+        filtered.map((opt, i) => (
+          <li
+            key={opt.value}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              select(opt.value);
+            }}
+            onClick={() => {
+              select(opt.value);
+            }}
+            onMouseEnter={() => setHighlightedIndex(i)}
+            className={cn(
+              "flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer",
+              i === highlightedIndex
+                ? "bg-slate-100 dark:bg-slate-800"
+                : "hover:bg-slate-50 dark:hover:bg-slate-800/60",
+              opt.value === value
+                ? "text-accent-blue font-medium"
+                : "text-slate-700 dark:text-slate-300"
+            )}
+          >
+            <span className="truncate">{opt.label}</span>
+            {opt.value === value && (
+              <Icon name="check" className="text-base text-accent-blue shrink-0 ml-2" />
+            )}
+          </li>
+        ))
+      )}
+    </ul>
+  );
+
+  // ── Desktop dropdown (portal, fixed position) ──
+  const desktopDropdown =
+    isOpen && !isMobile && typeof document !== "undefined"
       ? createPortal(
           <ul
             ref={listRef}
@@ -181,10 +240,64 @@ export function SearchableSelect({
         )
       : null;
 
+  // ── Mobile bottom sheet (portal, fullscreen overlay) ──
+  const mobileSheet =
+    isOpen && isMobile && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex flex-col"
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Backdrop — tap to dismiss */}
+            <button
+              type="button"
+              className="flex-1 bg-black/40 backdrop-blur-[2px]"
+              onClick={() => { setIsOpen(false); setSearch(""); }}
+              aria-label="Fermer"
+            />
+            {/* Sheet */}
+            <div className="bg-white dark:bg-slate-900 rounded-t-2xl shadow-2xl flex flex-col max-h-[70vh] animate-in slide-in-from-bottom duration-200">
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+              </div>
+              {/* Title */}
+              <div className="px-4 pb-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  {placeholder}
+                </p>
+              </div>
+              {/* Search input */}
+              <div className="px-4 pb-3">
+                <div className="relative">
+                  <Icon
+                    name="search"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
+                  />
+                  <input
+                    ref={mobileInputRef}
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Rechercher…"
+                    className="w-full bg-slate-100 dark:bg-slate-800 border-0 rounded-xl pl-9 pr-4 py-3 text-base text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-accent-blue placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+              {/* Options list */}
+              {renderOptions(listRef, "flex-1 min-h-0 pb-6")}
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       {/* Trigger / Input */}
-      {isOpen ? (
+      {isOpen && !isMobile ? (
         <div className="relative">
           {icon && (
             <Icon
@@ -236,7 +349,8 @@ export function SearchableSelect({
         </button>
       )}
 
-      {dropdown}
+      {desktopDropdown}
+      {mobileSheet}
     </div>
   );
 }

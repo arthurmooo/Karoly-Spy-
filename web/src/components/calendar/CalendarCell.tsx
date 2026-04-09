@@ -58,8 +58,8 @@ export const CalendarCell: React.FC<CalendarCellProps> = ({ day, view }) => {
 
   if (view === "week") {
     return (
-      <div className="min-h-[400px] p-2 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-        <div className="space-y-2">
+      <div className="min-h-[300px] p-1.5 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="space-y-1">
           {day.events.map((event) => (
             <CalendarEvent key={event.id} event={event} view="week" />
           ))}

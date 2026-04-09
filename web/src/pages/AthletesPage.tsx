@@ -158,7 +158,8 @@ export function AthletesPage() {
         </h2>
         <Button onClick={() => setShowInviteDialog(true)}>
           <Icon name="person_add" />
-          Inviter un athlète
+          <span className="hidden sm:inline">Inviter un athlète</span>
+          <span className="sm:hidden">Inviter</span>
         </Button>
       </div>
 
@@ -234,13 +235,13 @@ export function AthletesPage() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-4 flex items-center gap-4">
+        <CardContent className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <Input
             icon="search"
             placeholder="Rechercher par nom ou email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="max-w-xs"
+            className="sm:max-w-xs"
           />
           <SearchableSelect
             value={groupFilter}
@@ -275,31 +276,31 @@ export function AthletesPage() {
                   active={sortBy === "name"}
                   direction={sortDir}
                   onToggle={() => handleSort("name")}
-                  className="px-6 py-3"
+                  className="px-3 sm:px-6 py-3"
                 />
-                <th className="px-6 py-3">Email</th>
+                <th className="px-3 sm:px-6 py-3 hidden sm:table-cell">Email</th>
                 <SortableHeader
                   label="Groupe"
                   active={sortBy === "group"}
                   direction={sortDir}
                   onToggle={() => handleSort("group")}
-                  className="px-6 py-3"
+                  className="px-3 sm:px-6 py-3"
                 />
                 <SortableHeader
                   label="Statut"
                   active={sortBy === "status"}
                   direction={sortDir}
                   onToggle={() => handleSort("status")}
-                  className="px-6 py-3"
+                  className="px-3 sm:px-6 py-3"
                 />
                 <SortableHeader
                   label="Depuis"
                   active={sortBy === "since"}
                   direction={sortDir}
                   onToggle={() => handleSort("since")}
-                  className="px-6 py-3"
+                  className="px-3 sm:px-6 py-3 hidden md:table-cell"
                 />
-                <th className="px-6 py-3">Actions</th>
+                <th className="px-3 sm:px-6 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -321,22 +322,22 @@ export function AthletesPage() {
                       className="hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-150 cursor-pointer"
                     >
                       {/* Name */}
-                      <td className="px-6 py-3 whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/bilan`} className="flex items-center gap-3">
+                      <td className="px-3 sm:px-6 py-3 whitespace-nowrap">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="flex items-center gap-2 sm:gap-3">
                           <AthleteAvatar firstName={athlete.first_name} lastName={athlete.last_name} avatarUrl={athlete.avatar_url} size="md" shape="rounded" />
                           <span className="text-sm font-semibold text-slate-900 dark:text-white">
                             {athlete.first_name} {athlete.last_name}
                           </span>
                         </Link>
                       </td>
-                      {/* Email */}
-                      <td className="whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
+                      {/* Email — hidden on mobile */}
+                      <td className="whitespace-nowrap hidden sm:table-cell">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-3 sm:px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
                           {athlete.email ?? "--"}
                         </Link>
                       </td>
                       {/* Group — inline select + badge */}
-                      <td className="px-6 py-3 whitespace-nowrap">
+                      <td className="px-3 sm:px-6 py-3 whitespace-nowrap">
                         <SearchableSelect
                           value={athlete.athlete_group_id ?? ""}
                           onChange={(val) => updateGroup(athlete.id, val || null)}
@@ -345,7 +346,7 @@ export function AthletesPage() {
                             ...groups.map((g) => ({ value: g.id, label: g.name })),
                           ]}
                           placeholder="Non assigné"
-                          className="min-w-[140px]"
+                          className="min-w-[100px] sm:min-w-[140px]"
                         />
                         {group && (
                           <span
@@ -356,7 +357,7 @@ export function AthletesPage() {
                       </td>
                       {/* Status */}
                       <td className="whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-6 py-3">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-3 sm:px-6 py-3">
                           <Badge
                             variant={athlete.is_active ? "emerald" : "red"}
                           >
@@ -364,14 +365,14 @@ export function AthletesPage() {
                           </Badge>
                         </Link>
                       </td>
-                      {/* Since */}
-                      <td className="whitespace-nowrap">
-                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
+                      {/* Since — hidden on mobile */}
+                      <td className="whitespace-nowrap hidden md:table-cell">
+                        <Link to={`/athletes/${athlete.id}/bilan`} className="block px-3 sm:px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
                           {formatDate(athlete.start_date)}
                         </Link>
                       </td>
                       {/* Actions */}
-                      <td className="px-6 py-3 whitespace-nowrap">
+                      <td className="px-3 sm:px-6 py-3 whitespace-nowrap">
                         {athlete.is_active ? (
                           <Button
                             variant="ghost"
@@ -380,7 +381,7 @@ export function AthletesPage() {
                             className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                           >
                             <Icon name="person_off" className="text-sm" />
-                            Désactiver
+                            <span className="hidden sm:inline">Désactiver</span>
                           </Button>
                         ) : (
                           <Button
@@ -390,7 +391,7 @@ export function AthletesPage() {
                             className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
                           >
                             <Icon name="person_add" className="text-sm" />
-                            Réactiver
+                            <span className="hidden sm:inline">Réactiver</span>
                           </Button>
                         )}
                       </td>

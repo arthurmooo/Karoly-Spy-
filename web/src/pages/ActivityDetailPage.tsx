@@ -276,15 +276,15 @@ export function ActivityDetailPage() {
 
       {/* Stream Chart */}
       <Card>
-        <CardContent className="space-y-5 p-6">
+        <CardContent className="space-y-5 p-4 sm:p-6">
           {isLoadingStreams ? (
             <>
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-                  <Icon name="show_chart" className="text-slate-400" />
-                  Analyse de la performance
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-slate-900 dark:text-white min-w-0">
+                  <Icon name="show_chart" className="text-slate-400 shrink-0" />
+                  <span className="truncate">Analyse de la performance</span>
                 </h2>
-                <Badge variant="amber">Chargement...</Badge>
+                <Badge variant="amber" className="shrink-0">Chargement...</Badge>
               </div>
               <div className="flex h-[300px] items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
@@ -301,26 +301,28 @@ export function ActivityDetailPage() {
               highlightedSegments={highlightedSegments}
               analysisHighlights={analysisHighlights}
               renderHeader={(toggles) => (
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-3">
-                    <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-                      <Icon name="show_chart" className="text-slate-400" />
-                      Analyse de la performance
+                <div className="mb-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-slate-900 dark:text-white min-w-0">
+                      <Icon name="show_chart" className="text-slate-400 shrink-0" />
+                      <span className="truncate">Analyse de la performance</span>
                     </h2>
+                    <Badge variant="emerald" className="hidden sm:inline-flex shrink-0">Courbe continue</Badge>
+                  </div>
+                  <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
                     {toggles}
                   </div>
-                  <Badge variant="emerald">Courbe continue</Badge>
                 </div>
               )}
             />
           ) : displayBlocks.length > 0 && !hasDerivedAnalysisPending ? (
             <>
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-                  <Icon name="show_chart" className="text-slate-400" />
-                  Analyse de la performance
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h2 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-slate-900 dark:text-white min-w-0">
+                  <Icon name="show_chart" className="text-slate-400 shrink-0" />
+                  <span className="truncate">Analyse de la performance</span>
                 </h2>
-                <Badge variant={hasResolvedBlocks ? "emerald" : "amber"}>
+                <Badge variant={hasResolvedBlocks ? "emerald" : "amber"} className="shrink-0">
                   {hasResolvedBlocks ? "Parité Retool" : "Fallback intervalles"}
                 </Badge>
               </div>
@@ -363,12 +365,12 @@ export function ActivityDetailPage() {
             />
           ) : (
             <>
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-                  <Icon name="show_chart" className="text-slate-400" />
-                  Analyse de la performance
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h2 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-slate-900 dark:text-white min-w-0">
+                  <Icon name="show_chart" className="text-slate-400 shrink-0" />
+                  <span className="truncate">Analyse de la performance</span>
                 </h2>
-                <Badge variant="amber">Aucune donnée</Badge>
+                <Badge variant="amber" className="shrink-0">Aucune donnée</Badge>
               </div>
               <div className="flex h-[240px] items-center justify-center text-sm text-slate-400">
                 <div className="flex flex-col items-center gap-2">

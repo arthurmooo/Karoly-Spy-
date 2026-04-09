@@ -6,6 +6,7 @@ import { useMyAthleteProfile } from "@/hooks/useMyAthleteProfile";
 import { AthleteAvatar } from "@/components/ui/AthleteAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const ATHLETE_NAV = [
   { path: "/mon-espace", label: "Mon espace", icon: "home", testId: "athlete-nav-home" },
@@ -28,8 +29,9 @@ export function AthleteLayout() {
   return (
     <div className="flex min-h-screen bg-bg-light text-slate-800 dark:bg-bg-dark dark:text-slate-100 font-sans">
       <aside className="sticky top-0 hidden h-screen w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:flex">
-        <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
           <img src="/ks-logo.png" alt="KS Endurance Training" className="h-10 w-auto dark:brightness-90" />
+          <NotificationBell />
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
@@ -200,13 +202,14 @@ export function AthleteLayout() {
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-xl bg-accent-blue px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm active:scale-95 transition-all duration-150"
             data-testid="athlete-mobile-menu-button"
           >
-            <Icon name="menu" className="text-lg" />
+            <Icon name="menu" className="text-xl" />
             Menu
           </button>
           <img src="/ks-logo.png" alt="KS Endurance Training" className="h-8 w-auto dark:brightness-90" />
+          <NotificationBell />
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">

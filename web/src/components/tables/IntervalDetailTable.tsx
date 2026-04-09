@@ -422,7 +422,7 @@ export function IntervalDetailTable({
 
   return (
     <Card>
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-3 sm:px-5 sm:py-4 dark:border-slate-800">
         <div className="flex items-center gap-2">
           <Icon name="table_chart" className="text-base text-slate-400" />
           <span className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -434,7 +434,7 @@ export function IntervalDetailTable({
 
       <CardContent className="overflow-hidden p-0">
         {view === "intervals" ? (
-          <div>
+          <div className="overflow-x-auto">
             {blockData.map((block) => {
               if (!block.summary) return null;
               const sorted = sortRows(block.rows, (row) => {
@@ -470,7 +470,7 @@ export function IntervalDetailTable({
             })}
           </div>
         ) : (
-          <div>
+          <div className="overflow-x-auto">
             {hasManualWindows && (
               <div className="flex items-center gap-2 border-b border-slate-200 bg-orange-50 px-4 py-2 dark:border-slate-800 dark:bg-orange-900/20">
                 <Icon name="info" className="text-orange-600 dark:text-orange-400 text-sm" />
@@ -566,7 +566,7 @@ function IntervalBlockView({
   multiBlock: boolean;
 }) {
   return (
-    <table className="w-full table-fixed border-collapse text-left">
+    <table className="w-full min-w-[700px] table-fixed border-collapse text-left">
       <IntervalColGroup />
       <thead>
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
@@ -716,7 +716,7 @@ function WindowBlockView({
   multiBlock: boolean;
 }) {
   return (
-    <table className="w-full table-fixed border-collapse text-left">
+    <table className="w-full min-w-[750px] table-fixed border-collapse text-left">
       <WindowColGroup />
       <thead>
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">

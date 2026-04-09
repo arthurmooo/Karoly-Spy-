@@ -64,7 +64,7 @@ export function SlidingTabs<K extends string = string>({
     <div
       ref={trackRef}
       className={cn(
-        "relative inline-flex items-center bg-slate-100 dark:bg-slate-800 p-1 gap-0.5",
+        "relative inline-flex items-center bg-slate-100 dark:bg-slate-800 p-1 gap-0.5 max-w-full",
         roundedClass,
         className,
       )}

@@ -286,7 +286,7 @@ export function ActivityStreamChart({
 
       {/* Zoom stats banner */}
       {zoomWindow && zoomStats && (
-        <div className="flex items-center gap-4 px-3 py-1.5 mt-1 rounded-md bg-blue-50 dark:bg-blue-950/40 text-[11px] text-slate-600 dark:text-slate-300 border border-blue-200 dark:border-blue-800/50">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 mt-1 rounded-md bg-blue-50 dark:bg-blue-950/40 text-[11px] text-slate-600 dark:text-slate-300 border border-blue-200 dark:border-blue-800/50">
           <span className="font-medium text-blue-700 dark:text-blue-400">
             Zoom : {formatTime(zoomStats.duration)}
           </span>

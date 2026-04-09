@@ -54,36 +54,31 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
   }
 
   if (view === "week") {
-    const weekClassName = `bg-white dark:bg-slate-900 rounded-xl border shadow-sm p-3 mb-2 ${
+    const weekClassName = `bg-white dark:bg-slate-900 rounded-lg border shadow-sm p-2 mb-1.5 ${
       event.type === "planned"
         ? "border-dashed border-slate-400 opacity-70 cursor-default"
         : `${config.border} cursor-pointer hover:border-slate-300 dark:hover:border-slate-700`
     } transition-all duration-150`;
     const weekContent = (
       <>
-        <div className={`text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 mb-1 ${config.textColor}`}>
-          <Icon name={config.icon} className="text-xs" />
-          {event.locationTag ? `${event.sport} ${event.locationTag}` : event.sport}
+        <div className={`text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 mb-0.5 ${config.textColor}`}>
+          <Icon name={config.icon} className="text-xs shrink-0" />
+          <span className="truncate">{event.locationTag ? `${event.sport} ${event.locationTag}` : event.sport}</span>
         </div>
-        <div className={`text-sm font-semibold truncate mb-1 ${event.type === "planned" ? "text-slate-400 italic" : "text-slate-900 dark:text-white"}`}>
+        <div className={`text-xs font-semibold truncate mb-0.5 ${event.type === "planned" ? "text-slate-400 italic" : "text-slate-900 dark:text-white"}`}>
           {event.name}
         </div>
-        {event.durationSec && (
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-            {Math.floor(event.durationSec / 3600)}h {Math.floor((event.durationSec % 3600) / 60)}m
-          </div>
-        )}
-        {event.distanceM && (
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-            {(event.distanceM / 1000).toFixed(1)} km
-          </div>
-        )}
-        {event.mls && (
-          <div className="mt-2 flex items-center gap-1">
-            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">MLS:</span>
-            <span className="text-xs font-bold font-mono text-slate-700 dark:text-slate-300">{event.mls.toFixed(1)}</span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+          {event.durationSec && (
+            <span>{Math.floor(event.durationSec / 3600)}h{String(Math.floor((event.durationSec % 3600) / 60)).padStart(2, "0")}</span>
+          )}
+          {event.distanceM && (
+            <span>{(event.distanceM / 1000).toFixed(1)}km</span>
+          )}
+          {event.mls && (
+            <span className="font-semibold text-slate-700 dark:text-slate-300">MLS {event.mls.toFixed(0)}</span>
+          )}
+        </div>
       </>
     );
 

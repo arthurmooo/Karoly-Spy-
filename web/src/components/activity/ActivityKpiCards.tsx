@@ -24,11 +24,11 @@ export function ActivityKpiCards({ activity }: Props) {
   const paceStr = formatPaceOrPower(activity.sport_type ?? "", avgSpeed, bikePowerMetrics.powerWithoutZeros);
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-5">
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-3 sm:p-5">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Durée</p>
-          <h3 className="font-mono text-2xl font-semibold text-slate-900 dark:text-white">{durationStr}</h3>
+          <h3 className="font-mono text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">{durationStr}</h3>
           {hasElapsedDiff && (
             <p className="text-xs text-slate-400 mt-0.5">
               (total : {formatDuration(activity.duration_sec!)})
@@ -37,25 +37,25 @@ export function ActivityKpiCards({ activity }: Props) {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-3 sm:p-5">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Distance</p>
-          <h3 className="font-mono text-2xl font-semibold text-slate-900 dark:text-white">{distanceStr}</h3>
+          <h3 className="font-mono text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">{distanceStr}</h3>
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-3 sm:p-5">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">MLS</p>
-          <h3 className="font-mono text-2xl font-semibold text-slate-900 dark:text-white">{mlsStr}</h3>
+          <h3 className="font-mono text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">{mlsStr}</h3>
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-3 sm:p-5">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">FC Moy</p>
-          <h3 className="font-mono text-2xl font-semibold text-slate-900 dark:text-white">{hrStr}</h3>
+          <h3 className="font-mono text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">{hrStr}</h3>
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="p-3 sm:p-5">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             {isBike ? "Puissance" : "Allure Moy"}
           </p>
@@ -63,7 +63,7 @@ export function ActivityKpiCards({ activity }: Props) {
             <div className="space-y-2">
               <div>
                 <p className="text-[11px] font-medium text-slate-500">P</p>
-                <h3 className="font-mono text-2xl font-semibold text-accent-orange">
+                <h3 className="font-mono text-xl sm:text-2xl font-semibold text-accent-orange">
                   {formatPowerWatts(bikePowerMetrics.powerWithoutZeros)}
                 </h3>
               </div>
@@ -75,7 +75,7 @@ export function ActivityKpiCards({ activity }: Props) {
               </div>
             </div>
           ) : (
-            <h3 className="font-mono text-2xl font-semibold text-accent-orange">{paceStr}</h3>
+            <h3 className="font-mono text-xl sm:text-2xl font-semibold text-accent-orange">{paceStr}</h3>
           )}
         </CardContent>
       </Card>
