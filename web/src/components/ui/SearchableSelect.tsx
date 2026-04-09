@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
 
@@ -31,6 +32,7 @@ export function SearchableSelect({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,14 +54,37 @@ export function SearchableSelect({
     setHighlightedIndex(-1);
   }, [filtered.length]);
 
-  // Click outside → close
+  // Compute dropdown position from trigger rect
+  const updatePos = useCallback(() => {
+    if (!rootRef.current) return;
+    const rect = rootRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+  }, []);
+
+  // Position + reposition on scroll/resize while open
+  useEffect(() => {
+    if (!isOpen) return;
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true); // capture for inner scrollables
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
+  }, [isOpen, updatePos]);
+
+  // Click outside → close (check both root and portal list)
   useEffect(() => {
     if (!isOpen) return;
     function handleMouseDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-        setSearch("");
-      }
+      const target = e.target as Node;
+      if (
+        rootRef.current?.contains(target) ||
+        listRef.current?.contains(target)
+      )
+        return;
+      setIsOpen(false);
+      setSearch("");
     }
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
@@ -112,6 +137,49 @@ export function SearchableSelect({
     },
     [filtered, highlightedIndex, select]
   );
+
+  const dropdown =
+    isOpen && typeof document !== "undefined"
+      ? createPortal(
+          <ul
+            ref={listRef}
+            style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width }}
+            className="z-[9999] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg max-h-60 overflow-y-auto py-1"
+          >
+            {filtered.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-slate-400 italic">
+                Aucun résultat
+              </li>
+            ) : (
+              filtered.map((opt, i) => (
+                <li
+                  key={opt.value}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    select(opt.value);
+                  }}
+                  onMouseEnter={() => setHighlightedIndex(i)}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-2 text-sm cursor-pointer",
+                    i === highlightedIndex
+                      ? "bg-slate-100 dark:bg-slate-800"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-800/60",
+                    opt.value === value
+                      ? "text-accent-blue font-medium"
+                      : "text-slate-700 dark:text-slate-300"
+                  )}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {opt.value === value && (
+                    <Icon name="check" className="text-base text-accent-blue shrink-0 ml-2" />
+                  )}
+                </li>
+              ))
+            )}
+          </ul>,
+          document.body
+        )
+      : null;
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -168,44 +236,7 @@ export function SearchableSelect({
         </button>
       )}
 
-      {/* Dropdown */}
-      {isOpen && (
-        <ul
-          ref={listRef}
-          className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg max-h-60 overflow-y-auto py-1"
-        >
-          {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-slate-400 italic">
-              Aucun résultat
-            </li>
-          ) : (
-            filtered.map((opt, i) => (
-              <li
-                key={opt.value}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  select(opt.value);
-                }}
-                onMouseEnter={() => setHighlightedIndex(i)}
-                className={cn(
-                  "flex items-center justify-between px-3 py-2 text-sm cursor-pointer",
-                  i === highlightedIndex
-                    ? "bg-slate-100 dark:bg-slate-800"
-                    : "hover:bg-slate-50 dark:hover:bg-slate-800/60",
-                  opt.value === value
-                    ? "text-accent-blue font-medium"
-                    : "text-slate-700 dark:text-slate-300"
-                )}
-              >
-                <span className="truncate">{opt.label}</span>
-                {opt.value === value && (
-                  <Icon name="check" className="text-base text-accent-blue shrink-0 ml-2" />
-                )}
-              </li>
-            ))
-          )}
-        </ul>
-      )}
+      {dropdown}
     </div>
   );
 }
