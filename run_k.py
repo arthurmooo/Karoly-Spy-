@@ -114,6 +114,7 @@ def cmd_audit(args):
     # We look for profiles where lt1_hr is 130 and lt2_hr is 160 (our current defaults)
     defaults = db.client.table("physio_profiles")\
         .select("athlete_id, sport, lt1_hr, lt2_hr, athletes(first_name, last_name)")\
+        .eq("profile_state", "fresh")\
         .or_("lt1_hr.eq.130,lt2_hr.eq.160")\
         .execute().data
     

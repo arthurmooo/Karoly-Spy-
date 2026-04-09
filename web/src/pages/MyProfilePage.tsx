@@ -21,7 +21,7 @@ import { fr } from "date-fns/locale";
 export function MyProfilePage() {
   const { user } = useAuth();
   const { profile, isLoading: profileLoading } = useMyAthleteProfile();
-  const { activeProfiles, isLoading: physioLoading } = usePhysio(profile?.id ?? null);
+  const { freshActiveProfiles, isLoading: physioLoading } = usePhysio(profile?.id ?? null);
   const { getGroupById } = useAthleteGroups();
   const { uploadAvatar, removeAvatar, isUploading } = useAvatarUpload(profile?.id ?? null);
   const { theme, toggleTheme } = useTheme();
@@ -38,8 +38,8 @@ export function MyProfilePage() {
   // Use local state for avatar (updated after upload), fallback to profile
   const displayAvatarUrl = avatarUrl ?? profile?.avatar_url ?? null;
 
-  const activeBike = activeProfiles.find((p) => isBikePhysioSport(p.sport));
-  const activeRun = activeProfiles.find((p) => isRunPhysioSport(p.sport));
+  const activeBike = freshActiveProfiles.find((p) => isBikePhysioSport(p.sport));
+  const activeRun = freshActiveProfiles.find((p) => isRunPhysioSport(p.sport));
   const group = profile?.athlete_group_id ? getGroupById(profile.athlete_group_id) : undefined;
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

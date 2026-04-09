@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { PhysioProfile } from "@/types/physio";
-import { normalizePhysioSport } from "@/services/physio.service";
+import { normalizePhysioProfileState, normalizePhysioSport } from "@/services/physio.service";
 
 export async function getProfiles(athleteId: string): Promise<PhysioProfile[]> {
   const { data, error } = await supabase
@@ -13,11 +13,13 @@ export async function getProfiles(athleteId: string): Promise<PhysioProfile[]> {
   return ((data ?? []) as PhysioProfile[]).map((profile) => ({
     ...profile,
     sport: normalizePhysioSport(profile.sport),
+    profile_state: normalizePhysioProfileState(profile.profile_state),
   }));
 }
 
 export async function insertProfile(profile: Omit<PhysioProfile, "id">) {
   const normalizedSport = normalizePhysioSport(profile.sport);
+  const normalizedState = normalizePhysioProfileState(profile.profile_state);
   const sportVariants =
     normalizedSport === "Bike"
       ? ["Bike", "bike", "VELO"]
@@ -29,6 +31,7 @@ export async function insertProfile(profile: Omit<PhysioProfile, "id">) {
     .select("id", { count: "exact", head: true })
     .eq("athlete_id", profile.athlete_id)
     .in("sport", sportVariants)
+    .eq("profile_state", normalizedState)
     .is("valid_to", null);
 
   const hadPreviousProfile = (count ?? 0) > 0;
@@ -39,11 +42,12 @@ export async function insertProfile(profile: Omit<PhysioProfile, "id">) {
     .update({ valid_to: new Date().toISOString() })
     .eq("athlete_id", profile.athlete_id)
     .in("sport", sportVariants)
+    .eq("profile_state", normalizedState)
     .is("valid_to", null);
 
   const { data, error } = await supabase
     .from("physio_profiles")
-    .insert({ ...profile, sport: normalizedSport })
+    .insert({ ...profile, sport: normalizedSport, profile_state: normalizedState })
     .select()
     .single();
 
@@ -52,6 +56,7 @@ export async function insertProfile(profile: Omit<PhysioProfile, "id">) {
     data: {
       ...(data as PhysioProfile),
       sport: normalizePhysioSport((data as PhysioProfile).sport),
+      profile_state: normalizePhysioProfileState((data as PhysioProfile).profile_state),
     },
     hadPreviousProfile,
   };

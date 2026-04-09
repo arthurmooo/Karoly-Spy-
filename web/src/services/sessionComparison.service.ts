@@ -4,6 +4,7 @@ import type {
   Activity,
   ComparisonAlert,
   ComparisonDeltaRow,
+  ComparisonRangeSelection,
   ComparisonSummary,
   FormAnalysis,
   StreamPoint,
@@ -46,9 +47,32 @@ interface MainMetricConfig {
 
 interface DistanceStreamPoint {
   distM: number;
+  timeSec: number | null;
+  speedMps: number | null;
+  power: number | null;
   hr: number | null;
   mainMetric: number | null;
   alt: number | null;
+}
+
+interface ComparisonSegment {
+  points: DistanceStreamPoint[];
+  startM: number;
+  endM: number;
+  totalDistanceM: number;
+  isFullRange: boolean;
+}
+
+interface SegmentSnapshot {
+  distanceM: number | null;
+  durationSec: number | null;
+  avgHr: number | null;
+  avgPower: number | null;
+  avgSpeed: number | null;
+  elevationGain: number | null;
+  decoupling: number | null;
+  rangeLabel: string;
+  isFullRange: boolean;
 }
 
 function toSupportedSport(sportType: string | null | undefined): SupportedComparisonSport | null {
@@ -108,17 +132,25 @@ function resolveMainMetric(current: Activity, reference: Activity): MainMetricCo
   return { kind: "run_pace", label: "Allure moyenne", unitLabel: "/km", reversed: true };
 }
 
-function getMetricRawValue(activity: Activity, config: MainMetricConfig): number | null {
-  switch (config.kind) {
-    case "power":
-      return activity.avg_power != null && activity.avg_power > 0 ? activity.avg_power : null;
-    case "bike_speed":
-    case "run_pace":
-    case "swim_pace":
-      return getAverageSpeed(activity);
-    default:
-      return null;
+function formatRangeValueKm(valueKm: number): string {
+  return valueKm.toLocaleString("fr-FR", {
+    minimumFractionDigits: valueKm >= 10 ? 0 : 1,
+    maximumFractionDigits: 1,
+  });
+}
+
+function buildRangeLabel(startM: number, endM: number, totalM: number, isFullRange: boolean): string {
+  if (totalM <= 0) return "Séance complète";
+
+  const startKm = startM / 1000;
+  const endKm = endM / 1000;
+  const totalKm = totalM / 1000;
+
+  if (isFullRange) {
+    return `Séance complète · ${formatRangeValueKm(totalKm)} km`;
   }
+
+  return `KM ${formatRangeValueKm(startKm)} à ${formatRangeValueKm(endKm)}`;
 }
 
 function formatMetricValue(value: number | null, config: MainMetricConfig): string {
@@ -141,16 +173,6 @@ function formatMetricValue(value: number | null, config: MainMetricConfig): stri
 function getPerformanceDeltaPct(currentRaw: number | null, referenceRaw: number | null): number | null {
   if (currentRaw == null || referenceRaw == null || referenceRaw <= 0) return null;
   return ((currentRaw - referenceRaw) / referenceRaw) * 100;
-}
-
-function getHrDeltaPct(current: Activity, reference: Activity): number | null {
-  if (current.avg_hr == null || reference.avg_hr == null || reference.avg_hr <= 0) return null;
-  return ((current.avg_hr - reference.avg_hr) / reference.avg_hr) * 100;
-}
-
-function getDecouplingDelta(current: Activity, reference: Activity): number | null {
-  if (current.decoupling_index == null || reference.decoupling_index == null) return null;
-  return current.decoupling_index - reference.decoupling_index;
 }
 
 function getRowTrend(delta: number | null, lowerIsBetter = false, threshold = 0): "positive" | "negative" | "neutral" {
@@ -210,99 +232,6 @@ function buildAlert(
   return { kind: "none", title: "", message: "" };
 }
 
-export function buildComparisonSummary(current: Activity, reference: Activity): ComparisonSummary {
-  const mainMetric = resolveMainMetric(current, reference);
-  const currentMetricRaw = getMetricRawValue(current, mainMetric);
-  const referenceMetricRaw = getMetricRawValue(reference, mainMetric);
-  const performanceDeltaPct = getPerformanceDeltaPct(currentMetricRaw, referenceMetricRaw);
-  const hrDeltaPct = getHrDeltaPct(current, reference);
-  const decouplingDelta = getDecouplingDelta(current, reference);
-  const currentDuration = getEffectiveDuration(current);
-  const referenceDuration = getEffectiveDuration(reference);
-  const referenceDate = new Date(reference.session_date).toLocaleDateString("fr-FR");
-
-  const rows: ComparisonDeltaRow[] = [
-    {
-      key: "volume",
-      label: "Volume",
-      currentValue: current.distance_m != null ? formatDistance(current.distance_m) : "--",
-      referenceValue: reference.distance_m != null ? formatDistance(reference.distance_m) : "--",
-      deltaValue:
-        current.distance_m != null && reference.distance_m != null
-          ? formatSignedNumber((current.distance_m - reference.distance_m) / 1000, 1, " km")
-          : "--",
-      trend: "neutral",
-    },
-    {
-      key: "duration",
-      label: "Durée",
-      currentValue: currentDuration != null ? formatDuration(currentDuration) : "--",
-      referenceValue: referenceDuration != null ? formatDuration(referenceDuration) : "--",
-      deltaValue:
-        currentDuration != null && referenceDuration != null
-          ? formatSignedSeconds(currentDuration - referenceDuration)
-          : "--",
-      trend: "neutral",
-    },
-    {
-      key: "main_metric",
-      label: mainMetric.label,
-      currentValue: formatMetricValue(currentMetricRaw, mainMetric),
-      referenceValue: formatMetricValue(referenceMetricRaw, mainMetric),
-      deltaValue: performanceDeltaPct != null ? formatSignedNumber(performanceDeltaPct, 1, "%") : "--",
-      trend: getRowTrend(performanceDeltaPct, false, PRIMARY_METRIC_THRESHOLD),
-    },
-    {
-      key: "hr",
-      label: "FC moyenne",
-      currentValue: current.avg_hr != null ? `${Math.round(current.avg_hr)} bpm` : "--",
-      referenceValue: reference.avg_hr != null ? `${Math.round(reference.avg_hr)} bpm` : "--",
-      deltaValue:
-        current.avg_hr != null && reference.avg_hr != null
-          ? formatSignedNumber(current.avg_hr - reference.avg_hr, 0, " bpm")
-          : "--",
-      trend: getRowTrend(hrDeltaPct, true, HR_THRESHOLD),
-    },
-    {
-      key: "decoupling",
-      label: "Découplage",
-      currentValue: current.decoupling_index != null ? `${current.decoupling_index.toFixed(1)}%` : "--",
-      referenceValue: reference.decoupling_index != null ? `${reference.decoupling_index.toFixed(1)}%` : "--",
-      deltaValue: decouplingDelta != null ? formatSignedNumber(decouplingDelta, 1, " pts") : "--",
-      trend: getRowTrend(decouplingDelta, true, DECOUPLING_THRESHOLD),
-    },
-    {
-      key: "temperature",
-      label: "Température",
-      currentValue: current.temp_avg != null ? `${current.temp_avg.toFixed(1)} °C` : "--",
-      referenceValue: reference.temp_avg != null ? `${reference.temp_avg.toFixed(1)} °C` : "--",
-      deltaValue:
-        current.temp_avg != null && reference.temp_avg != null
-          ? formatSignedNumber(current.temp_avg - reference.temp_avg, 1, " °C")
-          : "--",
-      trend: "neutral",
-    },
-    {
-      key: "elevation",
-      label: "D+",
-      currentValue: current.elevation_gain != null ? `${Math.round(current.elevation_gain)} m` : "--",
-      referenceValue: reference.elevation_gain != null ? `${Math.round(reference.elevation_gain)} m` : "--",
-      deltaValue:
-        current.elevation_gain != null && reference.elevation_gain != null
-          ? formatSignedNumber(current.elevation_gain - reference.elevation_gain, 0, " m")
-          : "--",
-      trend: "neutral",
-    },
-  ];
-
-  return {
-    metricLabel: mainMetric.label,
-    metricUnitLabel: mainMetric.unitLabel,
-    rows,
-    alert: buildAlert(performanceDeltaPct, hrDeltaPct, decouplingDelta, mainMetric.label, referenceDate),
-  };
-}
-
 function sanitizeDistanceStreams(streams: StreamPoint[] | null | undefined, metric: MainMetricConfig): DistanceStreamPoint[] {
   if (!streams?.length) return [];
 
@@ -313,6 +242,14 @@ function sanitizeDistanceStreams(streams: StreamPoint[] | null | undefined, metr
     )
     .map((point) => ({
       distM: point.dist_m,
+      timeSec:
+        point.elapsed_t != null && Number.isFinite(point.elapsed_t)
+          ? point.elapsed_t
+          : point.t != null && Number.isFinite(point.t)
+          ? point.t
+          : null,
+      speedMps: point.spd != null && point.spd > 0 ? point.spd : null,
+      power: point.pwr != null && point.pwr > 0 ? point.pwr : null,
       hr: point.hr != null && Number.isFinite(point.hr) ? point.hr : null,
       mainMetric:
         metric.kind === "power"
@@ -342,6 +279,29 @@ function sanitizeDistanceStreams(streams: StreamPoint[] | null | undefined, metr
   return normalizedPoints;
 }
 
+function normalizeComparisonRange(
+  totalDistanceM: number,
+  range: ComparisonRangeSelection | null | undefined
+): { startM: number; endM: number; isFullRange: boolean } {
+  if (totalDistanceM <= 0) {
+    return { startM: 0, endM: 0, isFullRange: true };
+  }
+
+  const requestedStartM = Math.max(0, (range?.startKm ?? 0) * 1000);
+  const requestedEndM = Math.max(0, (range?.endKm ?? totalDistanceM / 1000) * 1000);
+  const safeStart = Math.min(requestedStartM, totalDistanceM);
+  const safeEnd = Math.min(Math.max(requestedEndM, safeStart), totalDistanceM);
+  const minRangeM = Math.min(100, totalDistanceM);
+  const adjustedEnd = safeEnd - safeStart < minRangeM ? Math.min(totalDistanceM, safeStart + minRangeM) : safeEnd;
+  const adjustedStart = adjustedEnd - safeStart < minRangeM ? Math.max(0, adjustedEnd - minRangeM) : safeStart;
+
+  return {
+    startM: adjustedStart,
+    endM: adjustedEnd,
+    isFullRange: adjustedStart <= 1 && adjustedEnd >= totalDistanceM - 1,
+  };
+}
+
 function interpolateAtDistance(points: DistanceStreamPoint[], targetDistM: number): DistanceStreamPoint | null {
   if (!points.length) return null;
   if (targetDistM <= points[0]!.distM) return points[0]!;
@@ -366,22 +326,319 @@ function interpolateAtDistance(points: DistanceStreamPoint[], targetDistM: numbe
 
   return {
     distM: targetDistM,
+    timeSec: interpolate(left.timeSec, right.timeSec),
+    speedMps: interpolate(left.speedMps, right.speedMps),
+    power: interpolate(left.power, right.power),
     hr: interpolate(left.hr, right.hr),
     mainMetric: interpolate(left.mainMetric, right.mainMetric),
     alt: interpolate(left.alt, right.alt),
   };
 }
 
+function extractSegment(
+  points: DistanceStreamPoint[],
+  range: ComparisonRangeSelection | null | undefined
+): ComparisonSegment | null {
+  if (points.length < 2) return null;
+
+  const totalDistanceM = points[points.length - 1]!.distM;
+  const { startM, endM, isFullRange } = normalizeComparisonRange(totalDistanceM, range);
+  if (endM <= startM) return null;
+
+  const startPoint = interpolateAtDistance(points, startM);
+  const endPoint = interpolateAtDistance(points, endM);
+  if (!startPoint || !endPoint) return null;
+
+  const innerPoints = points
+    .filter((point) => point.distM > startM && point.distM < endM)
+    .map((point) => ({ ...point, distM: point.distM - startM }));
+
+  return {
+    points: [
+      { ...startPoint, distM: 0 },
+      ...innerPoints,
+      { ...endPoint, distM: endM - startM },
+    ],
+    startM,
+    endM,
+    totalDistanceM,
+    isFullRange,
+  };
+}
+
+function averageFromValues(values: Array<number | null | undefined>): number | null {
+  const valid = values.filter((value): value is number => value != null && Number.isFinite(value));
+  if (!valid.length) return null;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function computeWeightedAverage(
+  points: DistanceStreamPoint[],
+  accessor: (point: DistanceStreamPoint) => number | null
+): number | null {
+  let weightedSum = 0;
+  let totalWeight = 0;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1]!;
+    const current = points[index]!;
+    if (previous.timeSec == null || current.timeSec == null) continue;
+
+    const weight = current.timeSec - previous.timeSec;
+    if (weight <= 0) continue;
+
+    const previousValue = accessor(previous);
+    const currentValue = accessor(current);
+    if (previousValue == null && currentValue == null) continue;
+
+    const averagedValue =
+      previousValue != null && currentValue != null
+        ? (previousValue + currentValue) / 2
+        : previousValue ?? currentValue ?? null;
+
+    if (averagedValue == null) continue;
+
+    weightedSum += averagedValue * weight;
+    totalWeight += weight;
+  }
+
+  if (totalWeight > 0) return weightedSum / totalWeight;
+  return averageFromValues(points.map(accessor));
+}
+
+function computeDurationFromSegment(points: DistanceStreamPoint[]): number | null {
+  const startTime = points[0]?.timeSec;
+  const endTime = points[points.length - 1]?.timeSec;
+  if (startTime == null || endTime == null || endTime <= startTime) return null;
+  return endTime - startTime;
+}
+
+function computeElevationGain(points: DistanceStreamPoint[]): number | null {
+  let gain = 0;
+  let hasAltitude = false;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previousAlt = points[index - 1]!.alt;
+    const currentAlt = points[index]!.alt;
+    if (previousAlt == null || currentAlt == null) continue;
+
+    hasAltitude = true;
+    if (currentAlt > previousAlt) {
+      gain += currentAlt - previousAlt;
+    }
+  }
+
+  return hasAltitude ? gain : null;
+}
+
+function computeSegmentDecoupling(segment: ComparisonSegment, metric: MainMetricConfig): number | null {
+  if (segment.points.length < 4) return null;
+
+  const absolutePoints = segment.points.map((point) => ({
+    ...point,
+    distM: point.distM + segment.startM,
+  }));
+  const midM = segment.startM + (segment.endM - segment.startM) / 2;
+  const firstHalf = extractSegment(absolutePoints, { startKm: segment.startM / 1000, endKm: midM / 1000 });
+  const secondHalf = extractSegment(absolutePoints, { startKm: midM / 1000, endKm: segment.endM / 1000 });
+
+  if (!firstHalf || !secondHalf) return null;
+
+  const firstHr = computeWeightedAverage(firstHalf.points, (point) => point.hr);
+  const secondHr = computeWeightedAverage(secondHalf.points, (point) => point.hr);
+  if (firstHr == null || secondHr == null || firstHr <= 0 || secondHr <= 0) return null;
+
+  const firstOutput =
+    metric.kind === "power"
+      ? computeWeightedAverage(firstHalf.points, (point) => point.power)
+      : (() => {
+          const duration = computeDurationFromSegment(firstHalf.points);
+          return duration != null && duration > 0 ? (firstHalf.endM - firstHalf.startM) / duration : null;
+        })();
+  const secondOutput =
+    metric.kind === "power"
+      ? computeWeightedAverage(secondHalf.points, (point) => point.power)
+      : (() => {
+          const duration = computeDurationFromSegment(secondHalf.points);
+          return duration != null && duration > 0 ? (secondHalf.endM - secondHalf.startM) / duration : null;
+        })();
+
+  if (firstOutput == null || secondOutput == null || firstOutput <= 0 || secondOutput <= 0) return null;
+
+  const firstEfficiency = firstOutput / firstHr;
+  const secondEfficiency = secondOutput / secondHr;
+  if (firstEfficiency <= 0 || secondEfficiency <= 0) return null;
+
+  return ((firstEfficiency - secondEfficiency) / firstEfficiency) * 100;
+}
+
+function buildSegmentSnapshot(
+  activity: Activity,
+  metric: MainMetricConfig,
+  range: ComparisonRangeSelection | null | undefined
+): SegmentSnapshot {
+  const points = sanitizeDistanceStreams(activity.activity_streams, metric);
+  const totalDistanceM = points[points.length - 1]?.distM ?? activity.distance_m ?? 0;
+  const normalizedRange = normalizeComparisonRange(totalDistanceM, range);
+  const segment = extractSegment(points, range);
+
+  if (!segment) {
+    return {
+      distanceM: activity.distance_m ?? null,
+      durationSec: getEffectiveDuration(activity),
+      avgHr: activity.avg_hr ?? null,
+      avgPower: activity.avg_power ?? null,
+      avgSpeed: getAverageSpeed(activity),
+      elevationGain: activity.elevation_gain ?? null,
+      decoupling: activity.decoupling_index ?? null,
+      rangeLabel: buildRangeLabel(
+        normalizedRange.startM,
+        normalizedRange.endM,
+        totalDistanceM,
+        normalizedRange.isFullRange
+      ),
+      isFullRange: normalizedRange.isFullRange,
+    };
+  }
+
+  const durationSec = computeDurationFromSegment(segment.points);
+  const distanceM = segment.endM - segment.startM;
+
+  return {
+    distanceM,
+    durationSec,
+    avgHr: computeWeightedAverage(segment.points, (point) => point.hr),
+    avgPower: computeWeightedAverage(segment.points, (point) => point.power),
+    avgSpeed: durationSec != null && durationSec > 0 ? distanceM / durationSec : null,
+    elevationGain: computeElevationGain(segment.points),
+    decoupling: computeSegmentDecoupling(segment, metric),
+    rangeLabel: buildRangeLabel(segment.startM, segment.endM, segment.totalDistanceM, segment.isFullRange),
+    isFullRange: segment.isFullRange,
+  };
+}
+
+export function buildComparisonSummary(
+  current: Activity,
+  reference: Activity,
+  currentRange?: ComparisonRangeSelection | null,
+  referenceRange?: ComparisonRangeSelection | null
+): ComparisonSummary {
+  const mainMetric = resolveMainMetric(current, reference);
+  const currentSegment = buildSegmentSnapshot(current, mainMetric, currentRange);
+  const referenceSegment = buildSegmentSnapshot(reference, mainMetric, referenceRange);
+  const currentMetricRaw = mainMetric.kind === "power" ? currentSegment.avgPower : currentSegment.avgSpeed;
+  const referenceMetricRaw = mainMetric.kind === "power" ? referenceSegment.avgPower : referenceSegment.avgSpeed;
+  const performanceDeltaPct = getPerformanceDeltaPct(currentMetricRaw, referenceMetricRaw);
+  const hrDeltaPct =
+    currentSegment.avgHr != null && referenceSegment.avgHr != null && referenceSegment.avgHr > 0
+      ? ((currentSegment.avgHr - referenceSegment.avgHr) / referenceSegment.avgHr) * 100
+      : null;
+  const decouplingDelta =
+    currentSegment.decoupling != null && referenceSegment.decoupling != null
+      ? currentSegment.decoupling - referenceSegment.decoupling
+      : null;
+  const referenceDate = new Date(reference.session_date).toLocaleDateString("fr-FR");
+  const isSegmentComparison = !currentSegment.isFullRange || !referenceSegment.isFullRange;
+
+  const rows: ComparisonDeltaRow[] = [
+    {
+      key: "volume",
+      label: isSegmentComparison ? "Distance segment" : "Volume",
+      currentValue: currentSegment.distanceM != null ? formatDistance(currentSegment.distanceM) : "--",
+      referenceValue: referenceSegment.distanceM != null ? formatDistance(referenceSegment.distanceM) : "--",
+      deltaValue:
+        currentSegment.distanceM != null && referenceSegment.distanceM != null
+          ? formatSignedNumber((currentSegment.distanceM - referenceSegment.distanceM) / 1000, 1, " km")
+          : "--",
+      trend: "neutral",
+    },
+    {
+      key: "duration",
+      label: isSegmentComparison ? "Durée segment" : "Durée",
+      currentValue: currentSegment.durationSec != null ? formatDuration(currentSegment.durationSec) : "--",
+      referenceValue: referenceSegment.durationSec != null ? formatDuration(referenceSegment.durationSec) : "--",
+      deltaValue:
+        currentSegment.durationSec != null && referenceSegment.durationSec != null
+          ? formatSignedSeconds(currentSegment.durationSec - referenceSegment.durationSec)
+          : "--",
+      trend: "neutral",
+    },
+    {
+      key: "main_metric",
+      label: mainMetric.label,
+      currentValue: formatMetricValue(currentMetricRaw, mainMetric),
+      referenceValue: formatMetricValue(referenceMetricRaw, mainMetric),
+      deltaValue: performanceDeltaPct != null ? formatSignedNumber(performanceDeltaPct, 1, "%") : "--",
+      trend: getRowTrend(performanceDeltaPct, false, PRIMARY_METRIC_THRESHOLD),
+    },
+    {
+      key: "hr",
+      label: "FC moyenne",
+      currentValue: currentSegment.avgHr != null ? `${Math.round(currentSegment.avgHr)} bpm` : "--",
+      referenceValue: referenceSegment.avgHr != null ? `${Math.round(referenceSegment.avgHr)} bpm` : "--",
+      deltaValue:
+        currentSegment.avgHr != null && referenceSegment.avgHr != null
+          ? formatSignedNumber(currentSegment.avgHr - referenceSegment.avgHr, 0, " bpm")
+          : "--",
+      trend: getRowTrend(hrDeltaPct, true, HR_THRESHOLD),
+    },
+    {
+      key: "decoupling",
+      label: isSegmentComparison ? "Découplage segment" : "Découplage",
+      currentValue: currentSegment.decoupling != null ? `${currentSegment.decoupling.toFixed(1)}%` : "--",
+      referenceValue: referenceSegment.decoupling != null ? `${referenceSegment.decoupling.toFixed(1)}%` : "--",
+      deltaValue: decouplingDelta != null ? formatSignedNumber(decouplingDelta, 1, " pts") : "--",
+      trend: getRowTrend(decouplingDelta, true, DECOUPLING_THRESHOLD),
+    },
+    {
+      key: "temperature",
+      label: "Température",
+      currentValue: current.temp_avg != null ? `${current.temp_avg.toFixed(1)} °C` : "--",
+      referenceValue: reference.temp_avg != null ? `${reference.temp_avg.toFixed(1)} °C` : "--",
+      deltaValue:
+        current.temp_avg != null && reference.temp_avg != null
+          ? formatSignedNumber(current.temp_avg - reference.temp_avg, 1, " °C")
+          : "--",
+      trend: "neutral",
+    },
+    {
+      key: "elevation",
+      label: isSegmentComparison ? "D+ segment" : "D+",
+      currentValue: currentSegment.elevationGain != null ? `${Math.round(currentSegment.elevationGain)} m` : "--",
+      referenceValue: referenceSegment.elevationGain != null ? `${Math.round(referenceSegment.elevationGain)} m` : "--",
+      deltaValue:
+        currentSegment.elevationGain != null && referenceSegment.elevationGain != null
+          ? formatSignedNumber(currentSegment.elevationGain - referenceSegment.elevationGain, 0, " m")
+          : "--",
+      trend: "neutral",
+    },
+  ];
+
+  return {
+    metricLabel: mainMetric.label,
+    metricUnitLabel: mainMetric.unitLabel,
+    rows,
+    alert: buildAlert(performanceDeltaPct, hrDeltaPct, decouplingDelta, mainMetric.label, referenceDate),
+    isSegmentComparison,
+    currentRangeLabel: currentSegment.rangeLabel,
+    referenceRangeLabel: referenceSegment.rangeLabel,
+  };
+}
+
 export function buildComparisonChartModel(
   current: Activity,
-  reference: Activity
+  reference: Activity,
+  currentRange?: ComparisonRangeSelection | null,
+  referenceRange?: ComparisonRangeSelection | null
 ): SessionComparisonChartModel | null {
   const metric = resolveMainMetric(current, reference);
-  const currentPoints = sanitizeDistanceStreams(current.activity_streams, metric);
-  const referencePoints = sanitizeDistanceStreams(reference.activity_streams, metric);
+  const currentSegment = extractSegment(sanitizeDistanceStreams(current.activity_streams, metric), currentRange);
+  const referenceSegment = extractSegment(sanitizeDistanceStreams(reference.activity_streams, metric), referenceRange);
 
-  if (currentPoints.length < 2 || referencePoints.length < 2) return null;
+  if (!currentSegment || !referenceSegment) return null;
 
+  const currentPoints = currentSegment.points;
+  const referencePoints = referenceSegment.points;
   const currentTotal = currentPoints[currentPoints.length - 1]!.distM;
   const referenceTotal = referencePoints[referencePoints.length - 1]!.distM;
   if (currentTotal <= 0 || referenceTotal <= 0) return null;
@@ -402,8 +659,8 @@ export function buildComparisonChartModel(
       referenceHr: referenceInterpolated?.hr ?? null,
       currentAlt: currentInterpolated?.alt ?? null,
       referenceAlt: referenceInterpolated?.alt ?? null,
-      currentDistanceM: currentTarget,
-      referenceDistanceM: referenceTarget,
+      currentDistanceM: currentSegment.startM + currentTarget,
+      referenceDistanceM: referenceSegment.startM + referenceTarget,
     });
   }
 

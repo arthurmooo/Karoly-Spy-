@@ -288,9 +288,11 @@ export function SessionComparisonChart({
                 const point = payload[0]?.payload as (typeof chartModel.data)[number];
                 return (
                   <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                    <p className="font-semibold text-slate-900 dark:text-white">{`Distance normalisée ${Math.round(label as number)}%`}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">
+                      {`${currentLabel}: ${formatTooltipDistance(point.currentDistanceM)} | ${referenceLabel}: ${formatTooltipDistance(point.referenceDistanceM)}`}
+                    </p>
                     <p className="mt-1 text-slate-500 dark:text-slate-400">
-                      {currentLabel}: {formatTooltipDistance(point.currentDistanceM)} | {referenceLabel}: {formatTooltipDistance(point.referenceDistanceM)}
+                      Repère de superposition: {Math.round(label as number)}%
                     </p>
                     <div className="mt-3 space-y-1.5">
                       {visibleCurves.has("currentMetric") && (

@@ -293,6 +293,7 @@ class IngestionRobot:
             .select("*")\
             .eq("athlete_id", athlete_id)\
             .eq("sport", sport)\
+            .eq("profile_state", "fresh")\
             .is_("valid_to", "null")\
             .order("valid_from", desc=True)\
             .limit(1)\
@@ -335,6 +336,7 @@ class IngestionRobot:
             self.db.client.table("physio_profiles").insert({
                 "athlete_id": athlete_id,
                 "sport": sport,
+                "profile_state": "fresh",
                 "cp_cs": cp_cs,
                 "weight": weight,
                 "lt1_hr": lt1_hr,

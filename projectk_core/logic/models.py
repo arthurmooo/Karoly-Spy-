@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from enum import Enum
 from datetime import datetime, date
 from pydantic import BaseModel, Field, field_validator, ValidationInfo
@@ -24,6 +24,10 @@ class PhysioProfile(BaseModel):
     """
     valid_from: datetime
     sport: str = Field("bike", description="bike, run")
+    profile_state: Literal["fresh", "semi_fatigued", "fatigued"] = Field(
+        "fresh",
+        description="Fresh is the canonical profile used for MLS; other states are manual fatigue variants.",
+    )
     lt1_hr: Optional[float] = Field(None, gt=0, description="Heart Rate at Lactate Threshold 1")
     lt2_hr: Optional[float] = Field(None, gt=0, description="Heart Rate at Lactate Threshold 2")
     lt1_power_pace: Optional[float] = Field(None, gt=0, description="Power/Pace at LT1")
@@ -58,19 +62,25 @@ class Athlete:
         # Sort by date ascending
         self.profiles.sort(key=lambda x: x.valid_from)
 
-    def get_profile_for_date(self, date: datetime, sport: Optional[str] = None) -> Optional[PhysioProfile]:
+    def get_profile_for_date(
+        self,
+        date: datetime,
+        sport: Optional[str] = None,
+        profile_state: Optional[str] = "fresh",
+    ) -> Optional[PhysioProfile]:
         """
         Returns the active profile for a given date.
         If sport is provided, prioritizes exact sport match.
+        By default, returns the canonical `fresh` profile state.
         """
         # Iterate backwards to find the most recent profile valid at that date
         for profile in reversed(self.profiles):
             if profile.valid_from <= date:
-                if sport:
-                    if profile.sport == sport:
-                        return profile
-                else:
-                    return profile
+                if sport and profile.sport != sport:
+                    continue
+                if profile_state and profile.profile_state != profile_state:
+                    continue
+                return profile
         return None
 
 class ActivityMetadata(BaseModel):
