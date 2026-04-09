@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { SPORT_CONFIG, getSportConfig } from "@/lib/constants";
 
@@ -132,51 +133,29 @@ export function CalendarToolbar({
         <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0 mx-1" />
 
         {/* Sport select */}
-        <div className="relative">
-          <Icon
-            name={sportIcon}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
-          />
-          <select
-            value={selectedSport || "Tous les sports"}
-            onChange={(e) => onSportChange(e.target.value)}
-            className="appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-blue/30 focus:border-accent-blue transition-colors cursor-pointer"
-          >
-            <option value="Tous les sports">Tous les sports</option>
-            {SPORT_CONFIG.map((s) => (
-              <option key={s.key} value={s.dbKey}>{s.label}</option>
-            ))}
-          </select>
-          <Icon
-            name="expand_more"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
-          />
-        </div>
+        <SearchableSelect
+          value={selectedSport || "Tous les sports"}
+          onChange={onSportChange}
+          options={[
+            { value: "Tous les sports", label: "Tous les sports" },
+            ...SPORT_CONFIG.map((s) => ({ value: s.dbKey, label: s.label })),
+          ]}
+          placeholder="Tous les sports"
+          icon={sportIcon}
+        />
 
         {/* Athlete select */}
         {!hideAthleteFilter && (
-          <div className="relative">
-            <Icon
-              name="person"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
-            />
-            <select
-              value={selectedAthleteId || ""}
-              onChange={(e) => onAthleteChange(e.target.value || null)}
-              className="appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-accent-blue/30 focus:border-accent-blue transition-colors cursor-pointer"
-            >
-              <option value="">Tous les athlètes</option>
-              {athletes.map((ath) => (
-                <option key={ath.id} value={ath.id}>
-                  {ath.first_name} {ath.last_name}
-                </option>
-              ))}
-            </select>
-            <Icon
-              name="expand_more"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base text-slate-400 dark:text-slate-500 pointer-events-none"
-            />
-          </div>
+          <SearchableSelect
+            value={selectedAthleteId || ""}
+            onChange={(v) => onAthleteChange(v || null)}
+            options={[
+              { value: "", label: "Tous les athlètes" },
+              ...athletes.map((ath) => ({ value: ath.id, label: `${ath.first_name} ${ath.last_name}` })),
+            ]}
+            placeholder="Tous les athlètes"
+            icon="person"
+          />
         )}
       </div>
     </div>

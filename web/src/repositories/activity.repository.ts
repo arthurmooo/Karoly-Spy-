@@ -58,7 +58,7 @@ export async function getActivities(filters: ActivityFilters = {}) {
     .from("activities")
     .select(
       `id, athlete_id, session_date, sport_type, source_sport, work_type, activity_name,
-       manual_activity_name, duration_sec, moving_time_sec, distance_m, load_index, avg_hr, avg_power, rpe,
+       manual_activity_name, duration_sec, moving_time_sec, distance_m, load_index, avg_hr, avg_power, rpe, source_json,
        interval_pace_mean, interval_power_mean, interval_hr_mean,
        interval_detection_source, decoupling_index,
        athletes!inner(first_name, last_name)`,

@@ -23,6 +23,7 @@ function jsonResponse(body: unknown, status = 200) {
 // Mean for hr/power/cadence, last for speed/altitude.
 // ---------------------------------------------------------------------------
 interface RawRecord {
+  timestamp?: Date | string | number;
   elapsed_time?: number;
   timer_time?: number;
   distance?: number;
@@ -247,15 +248,103 @@ interface SerializedLap {
   avg_hr?: number;
   avg_speed?: number;
   avg_power?: number;
+  avg_power_with_zeros?: number;
   avg_cadence?: number;
   max_hr?: number;
   max_speed?: number;
 }
 
+function toTimestampMs(value: unknown): number | null {
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : null;
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function mean(values: number[]): number | null {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function computeLapPowerMetrics(
+  records: RawRecord[],
+  lap: RawLap,
+  activityStartTime?: Date | null
+): { avgPower?: number; avgPowerWithZeros?: number } {
+  const durationSec = lap.total_timer_time ?? lap.total_elapsed_time;
+  if (!Number.isFinite(durationSec) || durationSec == null || durationSec <= 0) return {};
+
+  let startIndex = -1;
+  const lapStartMs = toTimestampMs(lap.start_time);
+  if (lapStartMs != null) {
+    startIndex = records.findIndex((record) => {
+      const recordTs = toTimestampMs(record.timestamp);
+      return recordTs != null && recordTs >= lapStartMs;
+    });
+  }
+
+  let segment: RawRecord[] = [];
+  if (startIndex >= 0) {
+    const startTimer = records[startIndex]?.timer_time;
+    if (Number.isFinite(startTimer)) {
+      const endTimer = Number(startTimer) + durationSec;
+      segment = records.filter(
+        (record) =>
+          Number.isFinite(record.timer_time) &&
+          Number(record.timer_time) >= Number(startTimer) &&
+          Number(record.timer_time) < endTimer
+      );
+    } else if (Number.isFinite(records[startIndex]?.elapsed_time)) {
+      const startElapsed = Number(records[startIndex]!.elapsed_time);
+      const endElapsed = startElapsed + durationSec;
+      segment = records.filter(
+        (record) =>
+          Number.isFinite(record.elapsed_time) &&
+          Number(record.elapsed_time) >= startElapsed &&
+          Number(record.elapsed_time) < endElapsed
+      );
+    }
+  }
+
+  if (!segment.length && lapStartMs != null && activityStartTime) {
+    const activityStartMs = activityStartTime.getTime();
+    const startElapsed = (lapStartMs - activityStartMs) / 1000;
+    const endElapsed = startElapsed + durationSec;
+    segment = records.filter(
+      (record) =>
+        Number.isFinite(record.elapsed_time) &&
+        Number(record.elapsed_time) >= startElapsed &&
+        Number(record.elapsed_time) < endElapsed
+    );
+  }
+
+  if (!segment.length && startIndex >= 0) {
+    segment = records.slice(startIndex, startIndex + Math.max(1, Math.round(durationSec)));
+  }
+
+  const powers = segment
+    .map((record) => record.power)
+    .filter((value): value is number => Number.isFinite(value));
+
+  if (!powers.length) return {};
+
+  const avgPowerWithZeros = mean(powers);
+  const positivePowers = powers.filter((value) => value > 0);
+  const avgPower = mean(positivePowers);
+
+  return {
+    avgPower: avgPower != null ? Math.round(avgPower) : undefined,
+    avgPowerWithZeros: avgPowerWithZeros != null ? Math.round(avgPowerWithZeros) : undefined,
+  };
+}
+
 function serializeLaps(
   laps: RawLap[],
   activityStartTime?: Date | null,
-  sportType?: string | null
+  sportType?: string | null,
+  records: RawRecord[] = []
 ): SerializedLap[] {
   if (!laps?.length) return [];
 
@@ -292,8 +381,15 @@ function serializeLaps(
     if (avgSpd != null && avgSpd > 0) entry.avg_speed = round3(avgSpd);
 
     // Avg Power
-    if (lap.avg_power != null && lap.avg_power > 0)
+    const lapPowerMetrics = computeLapPowerMetrics(records, lap, activityStartTime);
+    if (lapPowerMetrics.avgPower != null && lapPowerMetrics.avgPower > 0) {
+      entry.avg_power = lapPowerMetrics.avgPower;
+    } else if (lap.avg_power != null && lap.avg_power > 0) {
       entry.avg_power = Math.round(lap.avg_power);
+    }
+    if (lapPowerMetrics.avgPowerWithZeros != null && lapPowerMetrics.avgPowerWithZeros >= 0) {
+      entry.avg_power_with_zeros = lapPowerMetrics.avgPowerWithZeros;
+    }
 
     // Avg Cadence
     const avgCad = normalizeCadence(lap.avg_cadence ?? lap.cadence, sportType);
@@ -413,8 +509,18 @@ Deno.serve(async (req) => {
       (point: StreamPoint) =>
         typeof point.dist_m === "number" && Number.isFinite(point.dist_m)
     );
+    const isBikeSport = ["bike", "cycling", "vtt", "vélo", "velo"].includes((activity.sport_type ?? "").toLowerCase());
+    const hasLapPowerWithZeros = (activity.garmin_laps ?? []).every(
+      (lap: SerializedLap) =>
+        typeof lap.avg_power_with_zeros === "number" && Number.isFinite(lap.avg_power_with_zeros)
+    );
 
-    if (activity.activity_streams?.length && hasElapsedMapping && hasDistanceMapping) {
+    if (
+      activity.activity_streams?.length &&
+      hasElapsedMapping &&
+      hasDistanceMapping &&
+      (!isBikeSport || !(activity.garmin_laps?.length) || hasLapPowerWithZeros)
+    ) {
       return jsonResponse({
         streams: activity.activity_streams,
         laps: activity.garmin_laps ?? null,
@@ -490,7 +596,7 @@ Deno.serve(async (req) => {
         startTime = new Date(firstRec.timestamp as string | number);
       }
     }
-    const laps = serializeLaps(parsed.laps, startTime, activity.sport_type);
+    const laps = serializeLaps(parsed.laps, startTime, activity.sport_type, parsed.records);
 
     // 11. Cache in DB (fire-and-forget, don't block response)
     // Also opportunistically backfill moving_time_sec if NULL

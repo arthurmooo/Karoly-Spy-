@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Dialog, DialogHeader, DialogBody, DialogFooter } from "@/components/ui/Dialog";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { GroupManager } from "@/components/groups/GroupManager";
@@ -241,27 +242,25 @@ export function AthletesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-xs"
           />
-          <select
+          <SearchableSelect
             value={groupFilter}
-            onChange={(e) => setGroupFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            <option value="all">Tous les groupes</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={setGroupFilter}
+            options={[
+              { value: "all", label: "Tous les groupes" },
+              ...groups.map((g) => ({ value: g.id, label: g.name })),
+            ]}
+            placeholder="Tous les groupes"
+          />
+          <SearchableSelect
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="active">Actifs</option>
-            <option value="inactive">Inactifs</option>
-          </select>
+            onChange={(v) => setStatusFilter(v as StatusFilter)}
+            options={[
+              { value: "all", label: "Tous les statuts" },
+              { value: "active", label: "Actifs" },
+              { value: "inactive", label: "Inactifs" },
+            ]}
+            placeholder="Tous les statuts"
+          />
         </CardContent>
       </Card>
 
@@ -338,21 +337,16 @@ export function AthletesPage() {
                       </td>
                       {/* Group — inline select + badge */}
                       <td className="px-6 py-3 whitespace-nowrap">
-                        <select
+                        <SearchableSelect
                           value={athlete.athlete_group_id ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            updateGroup(athlete.id, val || null);
-                          }}
-                          className="bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                        >
-                          <option value="">Non assigné</option>
-                          {groups.map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.name}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => updateGroup(athlete.id, val || null)}
+                          options={[
+                            { value: "", label: "Non assigné" },
+                            ...groups.map((g) => ({ value: g.id, label: g.name })),
+                          ]}
+                          placeholder="Non assigné"
+                          className="min-w-[140px]"
+                        />
                         {group && (
                           <span
                             className="ml-2 inline-block w-2.5 h-2.5 rounded-full shrink-0"
@@ -511,16 +505,16 @@ export function AthletesPage() {
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Groupe
               </label>
-              <select
+              <SearchableSelect
                 value={inviteForm.athlete_group_id}
-                onChange={(e) => setInviteForm((f) => ({ ...f, athlete_group_id: e.target.value }))}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="">Aucun groupe</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
+                onChange={(v) => setInviteForm((f) => ({ ...f, athlete_group_id: v }))}
+                options={[
+                  { value: "", label: "Aucun groupe" },
+                  ...groups.map((g) => ({ value: g.id, label: g.name })),
+                ]}
+                placeholder="Aucun groupe"
+                className="w-full"
+              />
             </div>
           </div>
         </DialogBody>

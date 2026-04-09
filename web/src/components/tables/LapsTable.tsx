@@ -3,7 +3,7 @@ import { useState } from "react";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { formatDuration, speedToPace, speedToSwimPace } from "@/services/format.service";
-import { isSwimSport } from "@/services/activity.service";
+import { formatPowerWatts, isBikeSport, isSwimSport } from "@/services/activity.service";
 
 const DEFAULT_SORT_BY = "lap";
 const DEFAULT_SORT_DIR: SortDirection = "asc";
@@ -12,8 +12,6 @@ interface Props {
   laps: GarminLap[];
   sportType: string;
 }
-
-const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
 function normalizeDisplayedCadence(cadence: number | null | undefined, isBike: boolean): number | null {
   if (cadence == null) return null;
@@ -31,9 +29,9 @@ function formatSpeed(ms: number): string {
 }
 
 export function LapsTable({ laps, sportType }: Props) {
-  const isBike = BIKE_SPORTS.has(sportType);
+  const isBike = isBikeSport(sportType);
   const isSwim = isSwimSport(sportType);
-  const [sortBy, setSortBy] = useState<"lap" | "duration" | "distance" | "speed" | "power" | "avg_hr" | "max_hr" | "cadence">(DEFAULT_SORT_BY);
+  const [sortBy, setSortBy] = useState<"lap" | "duration" | "distance" | "speed" | "power" | "powerWithZeros" | "avg_hr" | "max_hr" | "cadence">(DEFAULT_SORT_BY);
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_SORT_DIR);
 
   const sortedLaps = sortRows(
@@ -48,6 +46,8 @@ export function LapsTable({ laps, sportType }: Props) {
           return lap.avg_speed;
         case "power":
           return lap.avg_power;
+        case "powerWithZeros":
+          return lap.avg_power_with_zeros ?? null;
         case "avg_hr":
           return lap.avg_hr;
         case "max_hr":
@@ -87,7 +87,8 @@ export function LapsTable({ laps, sportType }: Props) {
             <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} />
             <SortableHeader label="Distance" active={sortBy === "distance"} direction={sortDir} onToggle={() => handleSort("distance")} />
             <SortableHeader label={isBike ? "Vitesse" : "Allure"} active={sortBy === "speed"} direction={sortDir} onToggle={() => handleSort("speed")} />
-            {isBike && <SortableHeader label="Puissance" active={sortBy === "power"} direction={sortDir} onToggle={() => handleSort("power")} />}
+            {isBike && <SortableHeader label="P" active={sortBy === "power"} direction={sortDir} onToggle={() => handleSort("power")} />}
+            {isBike && <SortableHeader label="P0" active={sortBy === "powerWithZeros"} direction={sortDir} onToggle={() => handleSort("powerWithZeros")} />}
             <SortableHeader label="FC Moy" active={sortBy === "avg_hr"} direction={sortDir} onToggle={() => handleSort("avg_hr")} />
             <SortableHeader label="FC Max" active={sortBy === "max_hr"} direction={sortDir} onToggle={() => handleSort("max_hr")} />
             <SortableHeader label="Cadence" active={sortBy === "cadence"} direction={sortDir} onToggle={() => handleSort("cadence")} />
@@ -116,7 +117,12 @@ export function LapsTable({ laps, sportType }: Props) {
               </td>
               {isBike && (
                 <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
-                  {lap.avg_power ? `${lap.avg_power} W` : "--"}
+                  {formatPowerWatts(lap.avg_power ?? null)}
+                </td>
+              )}
+              {isBike && (
+                <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
+                  {formatPowerWatts(lap.avg_power_with_zeros ?? null)}
                 </td>
               )}
               <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">

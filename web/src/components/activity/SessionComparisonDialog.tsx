@@ -1,4 +1,5 @@
 import { Icon } from "@/components/ui/Icon";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
@@ -111,18 +112,16 @@ export function SessionComparisonDialog({ open, onClose, activity }: Props) {
                   Recherche des séances comparables...
                 </div>
               ) : candidates.length > 0 ? (
-                <select
-                  id="comparison-reference"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                <SearchableSelect
                   value={selectedId}
-                  onChange={(event) => setSelectedId(event.target.value)}
-                >
-                  {candidates.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {formatCandidateLabel(candidate)}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedId}
+                  options={candidates.map((candidate) => ({
+                    value: candidate.id,
+                    label: formatCandidateLabel(candidate),
+                  }))}
+                  placeholder="Sélectionner une séance"
+                  className="w-full"
+                />
               ) : (
                 <FeatureNotice
                   title="Aucune séance comparable"

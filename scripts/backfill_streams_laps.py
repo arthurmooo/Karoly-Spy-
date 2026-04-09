@@ -125,7 +125,7 @@ def main():
                 df, meta, laps = UniversalParser.parse(tmp_path)
 
                 streams_json = downsample_streams(df, interval_sec=5, sport=sport) if not df.empty and "heart_rate" in df.columns else None
-                laps_json = serialize_laps(laps, meta.get("start_time"), sport=sport) if laps else None
+                laps_json = serialize_laps(laps, meta.get("start_time"), sport=sport, stream_df=df) if laps else None
 
                 n_pts = len(streams_json) if streams_json else 0
                 n_laps = len(laps_json) if laps_json else 0

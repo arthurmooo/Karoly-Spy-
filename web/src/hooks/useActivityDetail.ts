@@ -12,6 +12,7 @@ import {
 } from "@/repositories/activity.repository";
 import type { Activity, ActivityInterval, WorkTypeValue } from "@/types/activity";
 import type { ManualIntervalsUpdatePayload } from "@/services/manualIntervals.service";
+import { isBikeSport } from "@/services/activity.service";
 
 function hasElapsedStreamMapping(activity: Activity | null | undefined) {
   return (
@@ -31,6 +32,40 @@ function hasDistanceStreamMapping(activity: Activity | null | undefined) {
 
 function hasRequiredStreamMappings(activity: Activity | null | undefined) {
   return hasElapsedStreamMapping(activity) && hasDistanceStreamMapping(activity);
+}
+
+function hasRequiredLapPowerMappings(activity: Activity | null | undefined) {
+  if (!activity || !isBikeSport(activity.sport_type) || !activity.garmin_laps?.length) return true;
+  return activity.garmin_laps.every(
+    (lap) =>
+      typeof lap.avg_power_with_zeros === "number" &&
+      Number.isFinite(lap.avg_power_with_zeros)
+  );
+}
+
+function hasCompleteStreamAndLapMappings(activity: Activity | null | undefined) {
+  return hasRequiredStreamMappings(activity) && hasRequiredLapPowerMappings(activity);
+}
+
+export function mergeActivityDetailState(prev: Activity | null, next: Activity): Activity {
+  if (!prev) return next;
+
+  const merged = { ...next };
+
+  // Keep the richer in-memory payload when the DB refresh is still stale.
+  if (!merged.activity_streams?.length && prev.activity_streams?.length) {
+    merged.activity_streams = prev.activity_streams;
+  } else if (!hasRequiredStreamMappings(merged) && hasRequiredStreamMappings(prev)) {
+    merged.activity_streams = prev.activity_streams;
+  }
+
+  if (!merged.garmin_laps?.length && prev.garmin_laps?.length) {
+    merged.garmin_laps = prev.garmin_laps;
+  } else if (!hasRequiredLapPowerMappings(merged) && hasRequiredLapPowerMappings(prev)) {
+    merged.garmin_laps = prev.garmin_laps;
+  }
+
+  return merged;
 }
 
 export function useActivityDetail(id: string | undefined) {
@@ -54,17 +89,8 @@ export function useActivityDetail(id: string | undefined) {
     if (!id) return;
     const { activity: act, intervals: ints } = await getActivityDetail(id);
     setActivity((prev) => {
-      const merged = act as unknown as Activity;
-      // Preserve streams/laps if DB hasn't cached them yet (fire-and-forget write)
-      if (!merged.activity_streams?.length && prev?.activity_streams?.length) {
-        merged.activity_streams = prev.activity_streams;
-      } else if (!hasRequiredStreamMappings(merged) && hasRequiredStreamMappings(prev)) {
-        merged.activity_streams = prev?.activity_streams;
-      }
-      if (!merged.garmin_laps?.length && prev?.garmin_laps?.length) {
-        merged.garmin_laps = prev.garmin_laps;
-      }
-      if (merged.id && hasRequiredStreamMappings(merged)) {
+      const merged = mergeActivityDetailState(prev, act as unknown as Activity);
+      if (merged.id && hasCompleteStreamAndLapMappings(merged)) {
         delete streamFetchAttemptsRef.current[merged.id];
       }
       return merged;
@@ -107,7 +133,8 @@ export function useActivityDetail(id: string | undefined) {
 
     const activityId = activity.id;
     const hasRequiredMappings = hasRequiredStreamMappings(activity);
-    const needsStreamFetch = !activity.activity_streams?.length || !hasRequiredMappings;
+    const hasRequiredLaps = hasRequiredLapPowerMappings(activity);
+    const needsStreamFetch = !activity.activity_streams?.length || !hasRequiredMappings || !hasRequiredLaps;
     if (!needsStreamFetch) return;
     if (streamFetchAttemptsRef.current[activityId]) return;
 
@@ -119,26 +146,22 @@ export function useActivityDetail(id: string | undefined) {
       .then((result) => {
         if (cancelled) return;
         if (result.streams || result.laps) {
-          const nextHasRequiredMappings =
-            result.streams?.some(
-              (point) =>
-                typeof point.elapsed_t === "number" &&
-                Number.isFinite(point.elapsed_t) &&
-                typeof point.dist_m === "number" &&
-                Number.isFinite(point.dist_m)
-            ) ?? false;
+          let nextIsComplete = false;
 
-          setActivity((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  activity_streams: result.streams ?? prev.activity_streams,
-                  garmin_laps: result.laps ?? prev.garmin_laps,
-                }
-              : prev
-          );
+          setActivity((prev) => {
+            if (!prev) return prev;
 
-          if (nextHasRequiredMappings) {
+            const merged = mergeActivityDetailState(prev, {
+              ...prev,
+              activity_streams: result.streams ?? prev.activity_streams,
+              garmin_laps: result.laps ?? prev.garmin_laps,
+            });
+
+            nextIsComplete = hasCompleteStreamAndLapMappings(merged);
+            return merged;
+          });
+
+          if (nextIsComplete) {
             delete streamFetchAttemptsRef.current[activityId];
           }
         }
@@ -158,7 +181,9 @@ export function useActivityDetail(id: string | undefined) {
     activity?.id,
     activity?.fit_file_path,
     activity?.activity_streams?.length,
+    activity?.garmin_laps?.length,
     activity ? hasRequiredStreamMappings(activity) : false,
+    activity ? hasRequiredLapPowerMappings(activity) : false,
   ]);
 
   const saveCoachComment = useCallback(

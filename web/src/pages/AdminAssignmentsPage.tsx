@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { Icon } from "@/components/ui/Icon";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -137,19 +138,19 @@ export function AdminAssignmentsPage() {
             placeholder="Rechercher un athlete ou un coach..."
             className="md:max-w-sm"
           />
-          <select
+          <SearchableSelect
             value={filterCoachId}
-            onChange={(event) => setFilterCoachId(event.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:text-slate-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-400 dark:border-slate-700 dark:bg-slate-800"
-          >
-            <option value={FILTER_ALL}>Tous les coachs</option>
-            <option value={FILTER_UNASSIGNED}>Non assignes</option>
-            {coaches.map((coach) => (
-              <option key={coach.id} value={coach.id}>
-                {coach.display_name} {coach.role === "admin" ? "(Admin)" : ""}
-              </option>
-            ))}
-          </select>
+            onChange={setFilterCoachId}
+            options={[
+              { value: FILTER_ALL, label: "Tous les coachs" },
+              { value: FILTER_UNASSIGNED, label: "Non assignes" },
+              ...coaches.map((coach) => ({
+                value: coach.id,
+                label: `${coach.display_name}${coach.role === "admin" ? " (Admin)" : ""}`,
+              })),
+            ]}
+            placeholder="Tous les coachs"
+          />
         </CardContent>
       </Card>
 
@@ -201,19 +202,20 @@ export function AdminAssignmentsPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{formatDate(athlete.start_date)}</td>
                       <td className="px-6 py-4">
-                        <select
+                        <SearchableSelect
                           value={athlete.coach_id ?? ""}
-                          onChange={(event) => void handleAssignmentChange(athlete.id, event.target.value)}
+                          onChange={(v) => void handleAssignmentChange(athlete.id, v)}
                           disabled={pendingAthleteId === athlete.id}
-                          className="min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:text-slate-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-400 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900"
-                        >
-                          <option value="">Non assigne</option>
-                          {coachOptions.map((coachOption) => (
-                            <option key={coachOption.id} value={coachOption.id}>
-                              {coachOption.display_name} {coachOption.role === "admin" ? "(Admin)" : ""}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: "", label: "Non assigne" },
+                            ...coachOptions.map((coachOption) => ({
+                              value: coachOption.id,
+                              label: `${coachOption.display_name}${coachOption.role === "admin" ? " (Admin)" : ""}`,
+                            })),
+                          ]}
+                          placeholder="Non assigne"
+                          className="min-w-[220px]"
+                        />
                         <p className="mt-1 text-xs text-slate-400">
                           {coach ? `Actuel: ${coach.display_name}` : "Pool non assigne"}
                         </p>

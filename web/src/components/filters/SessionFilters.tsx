@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { cn } from "@/lib/cn";
 import { getSportConfig } from "@/lib/constants";
 import {
@@ -209,21 +210,16 @@ export function SessionFilters({
         <div className="overflow-hidden">
           <div className="flex flex-wrap gap-3 pt-1 pb-2">
             {showAthlete && (
-              <div className="relative">
-                <select
-                  value={athleteId ?? ""}
-                  onChange={(e) => onAthleteChange(e.target.value || null)}
-                  className="appearance-none bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 pr-8 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
-                >
-                  <option value="">Tous les athlètes</option>
-                  {athletes.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.first_name} {a.last_name}
-                    </option>
-                  ))}
-                </select>
-                <Icon name="expand_more" className="absolute right-2 top-1/2 -translate-y-1/2 text-base text-slate-400 pointer-events-none" />
-              </div>
+              <SearchableSelect
+                value={athleteId ?? ""}
+                onChange={(v) => onAthleteChange(v || null)}
+                options={[
+                  { value: "", label: "Tous les athlètes" },
+                  ...athletes.map((a) => ({ value: a.id, label: `${a.first_name} ${a.last_name}` })),
+                ]}
+                placeholder="Tous les athlètes"
+                icon="person"
+              />
             )}
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-500 font-medium">Du</label>

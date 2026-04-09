@@ -1,5 +1,6 @@
 import { speedToPace, speedToSwimPace, formatDuration, formatDistance } from "./format.service";
 import { sanitizeRpe } from "@/lib/rpe";
+import type { ActivitySourceJson, StreamPoint } from "@/types/activity";
 
 const SPORT_LABELS: Record<string, string> = {
   CAP: "Course",
@@ -91,6 +92,69 @@ export function isRunSport(sport: string | null | undefined): boolean {
   return normalizeSportKey(sport ?? "") === "CAP";
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+type BikePowerSource = {
+  avg_power?: number | null;
+  source_json?: ActivitySourceJson | Record<string, unknown> | null;
+};
+
+export interface BikePowerMetrics {
+  powerWithoutZeros: number | null;
+  powerWithZeros: number | null;
+  normalizedPower: number | null;
+}
+
+export function getBikePowerMetrics(source: BikePowerSource): BikePowerMetrics {
+  const sourceJson = source.source_json as Record<string, unknown> | null | undefined;
+
+  return {
+    powerWithoutZeros: source.avg_power ?? null,
+    powerWithZeros: toFiniteNumber(sourceJson?.avg_watt),
+    normalizedPower: toFiniteNumber(sourceJson?.np),
+  };
+}
+
+export function formatPowerWatts(value: number | null): string {
+  return value != null ? `${Math.round(value)} W` : "--";
+}
+
+type StreamTimeField = "t" | "elapsed_t";
+
+export function getStreamPowerForRange(
+  streams: StreamPoint[] | null | undefined,
+  startSec: number | null | undefined,
+  endSec: number | null | undefined,
+  timeField: StreamTimeField,
+  includeZeros: boolean
+): number | null {
+  if (startSec == null || endSec == null || endSec <= startSec) return null;
+
+  const powers = (streams ?? [])
+    .filter((point) => {
+      const time = point[timeField];
+      return typeof time === "number" && Number.isFinite(time) && time >= startSec && time < endSec;
+    })
+    .map((point) => point.pwr)
+    .filter((value): value is number =>
+      typeof value === "number" && Number.isFinite(value) && (includeZeros || value > 0)
+    );
+
+  if (powers.length === 0) return null;
+  return powers.reduce((sum, value) => sum + value, 0) / powers.length;
+}
+
 /**
  * Détecte si une séance est indoor et retourne un tag court.
  * - Vélo indoor (Home Trainer) → "(HT)"
@@ -126,13 +190,30 @@ export function formatActivityRow(row: Record<string, unknown>) {
   const durationSec = (row.duration_sec as number | null) ?? 0;
   const distanceM = (row.distance_m as number | null) ?? 0;
   const avgSpeed = distanceM && durationSec ? distanceM / durationSec : null;
-  const avgPower = row.avg_power as number | null;
   const sportType = (row.sport_type as string) ?? "";
   const normalizedSport = sportType.trim().toUpperCase();
   const sourceSport = (row.source_sport as string | null) ?? null;
   const activityName = (row.activity_name as string | null) ?? null;
+  const sourceJson = (row.source_json as ActivitySourceJson | null) ?? null;
+  const bikePowerMetrics = getBikePowerMetrics({
+    avg_power: (row.avg_power as number | null) ?? null,
+    source_json: sourceJson,
+  });
   const sportLabel = mapSportLabel(sportType);
   const indoorTag = getIndoorTag(sportType, sourceSport, activityName);
+  const isBike = isBikeSport(sportType);
+
+  const pace = isBike
+    ? `P: ${formatPowerWatts(bikePowerMetrics.powerWithoutZeros)}`
+    : formatPaceOrPower(
+        sportType,
+        avgSpeed,
+        bikePowerMetrics.powerWithoutZeros
+      );
+
+  const paceSecondary = isBike
+    ? `P0: ${formatPowerWatts(bikePowerMetrics.powerWithZeros)}`
+    : null;
 
   return {
     id: row.id as string,
@@ -150,15 +231,12 @@ export function formatActivityRow(row: Record<string, unknown>) {
     distance: formatDistance(distanceM),
     mls: row.load_index as number | null,
     hr: row.avg_hr ? `${Math.round(row.avg_hr as number)} bpm` : "--",
-    pace: formatPaceOrPower(
-      sportType,
-      avgSpeed,
-      avgPower
-    ),
+    pace,
+    paceSecondary,
     rpe: sanitizeRpe(row.rpe as number | null),
     pace_sort_value:
       normalizedSport === "VELO" || normalizedSport === "VTT" || normalizedSport === "BIKE"
-        ? avgPower
+        ? bikePowerMetrics.powerWithoutZeros
         : avgSpeed,
   };
 }

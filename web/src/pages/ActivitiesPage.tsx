@@ -249,9 +249,14 @@ export function ActivitiesPage() {
                           {act.hr}
                         </Link>
                       </td>
-                      <td className="px-4 py-3.5 text-sm font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      <td className="px-4 py-3.5 text-sm font-mono text-slate-600 dark:text-slate-400">
                         <Link to={detailHref} state={detailState} className={rowLinkClassName}>
-                          {act.pace}
+                          <div className="whitespace-nowrap">{act.pace}</div>
+                          {act.paceSecondary && (
+                            <div className="mt-0.5 whitespace-nowrap text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                              {act.paceSecondary}
+                            </div>
+                          )}
                         </Link>
                       </td>
                     </tr>
