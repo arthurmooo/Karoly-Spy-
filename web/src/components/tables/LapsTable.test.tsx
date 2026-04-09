@@ -38,16 +38,11 @@ describe("LapsTable", () => {
               distance_m: 10000,
               avg_speed: 10,
               avg_power: 250,
+              avg_power_with_zeros: 125,
               avg_hr: 150,
               max_hr: 160,
               avg_cadence: 90,
             },
-          ]}
-          streams={[
-            { t: 0, elapsed_t: 0, pwr: 250 },
-            { t: 5, elapsed_t: 5, pwr: 0 },
-            { t: 10, elapsed_t: 10, pwr: 250 },
-            { t: 15, elapsed_t: 15, pwr: 0 },
           ]}
         />
       );

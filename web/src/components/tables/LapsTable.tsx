@@ -1,9 +1,9 @@
-import type { GarminLap, StreamPoint } from "@/types/activity";
-import { useMemo, useState } from "react";
+import type { GarminLap } from "@/types/activity";
+import { useState } from "react";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { formatDuration, speedToPace, speedToSwimPace } from "@/services/format.service";
-import { formatPowerWatts, getStreamPowerForRange, isBikeSport, isSwimSport } from "@/services/activity.service";
+import { formatPowerWatts, isBikeSport, isSwimSport } from "@/services/activity.service";
 
 const DEFAULT_SORT_BY = "lap";
 const DEFAULT_SORT_DIR: SortDirection = "asc";
@@ -11,7 +11,6 @@ const DEFAULT_SORT_DIR: SortDirection = "asc";
 interface Props {
   laps: GarminLap[];
   sportType: string;
-  streams?: StreamPoint[] | null;
 }
 
 function normalizeDisplayedCadence(cadence: number | null | undefined, isBike: boolean): number | null {
@@ -29,28 +28,11 @@ function formatSpeed(ms: number): string {
   return `${(ms * 3.6).toFixed(1)} km/h`;
 }
 
-export function LapsTable({ laps, sportType, streams }: Props) {
+export function LapsTable({ laps, sportType }: Props) {
   const isBike = isBikeSport(sportType);
   const isSwim = isSwimSport(sportType);
   const [sortBy, setSortBy] = useState<"lap" | "duration" | "distance" | "speed" | "power" | "powerWithZeros" | "avg_hr" | "max_hr" | "cadence">(DEFAULT_SORT_BY);
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_SORT_DIR);
-
-  const powerWithZerosByLap = useMemo(
-    () =>
-      Object.fromEntries(
-        laps.map((lap) => [
-          lap.lap_n,
-          getStreamPowerForRange(
-            streams,
-            lap.start_sec,
-            lap.start_sec + lap.duration_sec,
-            "elapsed_t",
-            true
-          ),
-        ])
-      ),
-    [laps, streams]
-  );
 
   const sortedLaps = sortRows(
     laps,
@@ -65,7 +47,7 @@ export function LapsTable({ laps, sportType, streams }: Props) {
         case "power":
           return lap.avg_power;
         case "powerWithZeros":
-          return powerWithZerosByLap[lap.lap_n] ?? null;
+          return lap.avg_power_with_zeros ?? null;
         case "avg_hr":
           return lap.avg_hr;
         case "max_hr":
@@ -140,7 +122,7 @@ export function LapsTable({ laps, sportType, streams }: Props) {
               )}
               {isBike && (
                 <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">
-                  {formatPowerWatts(powerWithZerosByLap[lap.lap_n] ?? null)}
+                  {formatPowerWatts(lap.avg_power_with_zeros ?? null)}
                 </td>
               )}
               <td className="whitespace-nowrap px-4 py-2.5 font-mono text-sm text-slate-600 dark:text-slate-400">

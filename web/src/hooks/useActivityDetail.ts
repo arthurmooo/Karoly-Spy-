@@ -12,6 +12,7 @@ import {
 } from "@/repositories/activity.repository";
 import type { Activity, ActivityInterval, WorkTypeValue } from "@/types/activity";
 import type { ManualIntervalsUpdatePayload } from "@/services/manualIntervals.service";
+import { isBikeSport } from "@/services/activity.service";
 
 function hasElapsedStreamMapping(activity: Activity | null | undefined) {
   return (
@@ -31,6 +32,15 @@ function hasDistanceStreamMapping(activity: Activity | null | undefined) {
 
 function hasRequiredStreamMappings(activity: Activity | null | undefined) {
   return hasElapsedStreamMapping(activity) && hasDistanceStreamMapping(activity);
+}
+
+function hasRequiredLapPowerMappings(activity: Activity | null | undefined) {
+  if (!activity || !isBikeSport(activity.sport_type) || !activity.garmin_laps?.length) return true;
+  return activity.garmin_laps.every(
+    (lap) =>
+      typeof lap.avg_power_with_zeros === "number" &&
+      Number.isFinite(lap.avg_power_with_zeros)
+  );
 }
 
 export function useActivityDetail(id: string | undefined) {
@@ -107,7 +117,8 @@ export function useActivityDetail(id: string | undefined) {
 
     const activityId = activity.id;
     const hasRequiredMappings = hasRequiredStreamMappings(activity);
-    const needsStreamFetch = !activity.activity_streams?.length || !hasRequiredMappings;
+    const hasRequiredLaps = hasRequiredLapPowerMappings(activity);
+    const needsStreamFetch = !activity.activity_streams?.length || !hasRequiredMappings || !hasRequiredLaps;
     if (!needsStreamFetch) return;
     if (streamFetchAttemptsRef.current[activityId]) return;
 

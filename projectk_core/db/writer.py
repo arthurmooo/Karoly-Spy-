@@ -116,7 +116,7 @@ class ActivityWriter:
 
             # Streams (downsampled 5s, pauses excluded) & Garmin Laps
             "activity_streams": downsample_streams(df, interval_sec=5, sport=sport, exclude_pauses=True) if not df.empty and 'heart_rate' in df.columns else None,
-            "garmin_laps": serialize_laps(activity.laps, meta.start_time, sport=sport) if activity.laps else None,
+            "garmin_laps": serialize_laps(activity.laps, meta.start_time, sport=sport, stream_df=df) if activity.laps else None,
         }
         
         # DEBUG WEATHER

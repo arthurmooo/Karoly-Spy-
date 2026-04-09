@@ -436,7 +436,7 @@ export function ActivityDetailPage() {
                   </h2>
                   <Badge variant="emerald">{activity.garmin_laps!.length} laps</Badge>
                 </div>
-                <LapsTable laps={activity.garmin_laps!} sportType={activity.sport_type} streams={activity.activity_streams} />
+                <LapsTable laps={activity.garmin_laps!} sportType={activity.sport_type} />
               </CardContent>
             </Card>
           )}

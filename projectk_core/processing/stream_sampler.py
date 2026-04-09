@@ -2,10 +2,11 @@
 Downsample 1Hz activity streams to compact JSON for DB storage.
 Target: ~720 points per hour (5s interval) instead of 3600.
 """
+import math
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def _normalize_cadence(value: Optional[float], sport: Optional[str] = None) -> Optional[float]:
@@ -229,7 +230,87 @@ def downsample_streams(
     return points
 
 
-def serialize_laps(laps: List[Dict], start_timestamp: Optional[datetime] = None, sport: Optional[str] = None) -> List[Dict[str, Any]]:
+def _build_lap_power_mask(
+    stream_df: pd.DataFrame,
+    lap_start: Any,
+    duration_sec: float
+) -> Optional[pd.Series]:
+    if duration_sec <= 0 or stream_df.empty or 'power' not in stream_df.columns:
+        return None
+
+    timestamps = None
+    if 'timestamp' in stream_df.columns:
+        timestamps = pd.to_datetime(stream_df['timestamp'], errors='coerce')
+    elif isinstance(stream_df.index, pd.DatetimeIndex):
+        timestamps = pd.Series(stream_df.index, index=stream_df.index)
+
+    if timestamps is None:
+        return None
+
+    lap_start_ts = pd.to_datetime(lap_start, errors='coerce')
+    if pd.isna(lap_start_ts):
+        return None
+
+    start_idx = int(timestamps.searchsorted(lap_start_ts, side='left'))
+    if start_idx >= len(stream_df):
+        return None
+
+    if 'timer_time' in stream_df.columns:
+        timer_series = pd.to_numeric(stream_df['timer_time'], errors='coerce')
+        start_timer = timer_series.iloc[start_idx]
+        if pd.notna(start_timer):
+            end_timer = float(start_timer) + duration_sec
+            return (timer_series >= float(start_timer)) & (timer_series < end_timer)
+
+    end_ts = lap_start_ts + timedelta(seconds=duration_sec)
+    return (timestamps >= lap_start_ts) & (timestamps < end_ts)
+
+
+def _compute_lap_power_metrics(
+    lap: Dict[str, Any],
+    stream_df: Optional[pd.DataFrame]
+) -> Dict[str, Optional[int]]:
+    if stream_df is None or stream_df.empty or 'power' not in stream_df.columns:
+        return {}
+
+    lap_start = lap.get('start_time')
+    duration = lap.get('total_timer_time') or lap.get('total_elapsed_time') or lap.get('duration')
+    if lap_start is None or duration is None:
+        return {}
+
+    try:
+        duration_sec = float(duration)
+    except (TypeError, ValueError):
+        return {}
+
+    mask = _build_lap_power_mask(stream_df, lap_start, duration_sec)
+    if mask is None:
+        return {}
+
+    pwr_seg = pd.to_numeric(stream_df.loc[mask, 'power'], errors='coerce').dropna()
+    if pwr_seg.empty:
+        return {}
+
+    result: Dict[str, Optional[int]] = {}
+    avg_with_zeros = float(pwr_seg.mean())
+    if math.isfinite(avg_with_zeros):
+        result['avg_power_with_zeros'] = int(round(avg_with_zeros))
+
+    positive_seg = pwr_seg[pwr_seg > 0]
+    if not positive_seg.empty:
+        avg_without_zeros = float(positive_seg.mean())
+        if math.isfinite(avg_without_zeros):
+            result['avg_power'] = int(round(avg_without_zeros))
+
+    return result
+
+
+def serialize_laps(
+    laps: List[Dict],
+    start_timestamp: Optional[datetime] = None,
+    sport: Optional[str] = None,
+    stream_df: Optional[pd.DataFrame] = None
+) -> List[Dict[str, Any]]:
     """
     Convert raw Garmin LAP records into compact serializable dicts.
     `start_timestamp` is the activity start time, used to compute relative offsets.
@@ -277,9 +358,13 @@ def serialize_laps(laps: List[Dict], start_timestamp: Optional[datetime] = None,
             entry['avg_speed'] = round(float(avg_spd), 3)
 
         # Avg Power
-        avg_pwr = lap.get('avg_power')
+        lap_power_metrics = _compute_lap_power_metrics(lap, stream_df)
+        avg_pwr = lap_power_metrics.get('avg_power', lap.get('avg_power'))
         if avg_pwr is not None and float(avg_pwr) > 0:
             entry['avg_power'] = int(round(float(avg_pwr)))
+        avg_pwr_with_zeros = lap_power_metrics.get('avg_power_with_zeros')
+        if avg_pwr_with_zeros is not None and float(avg_pwr_with_zeros) >= 0:
+            entry['avg_power_with_zeros'] = int(round(float(avg_pwr_with_zeros)))
 
         # Avg Cadence
         avg_cad = lap.get('avg_cadence') or lap.get('cadence')

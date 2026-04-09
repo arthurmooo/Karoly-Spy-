@@ -142,3 +142,28 @@ class TestSerializeLapsTimerTime:
         }]
         result = serialize_laps(laps, datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc))
         assert result[0]["duration_sec"] == 360.0
+
+    def test_computes_lap_power_with_and_without_zeros_from_stream_df(self):
+        timestamps = [datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc) + timedelta(seconds=i) for i in range(6)]
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "timer_time": [0, 1, 2, 3, 4, 5],
+                "power": [0.0, 100.0, 0.0, 200.0, 0.0, 0.0],
+            }
+        )
+        laps = [{
+            "start_time": timestamps[0],
+            "total_timer_time": 6.0,
+            "avg_power": 999.0,  # should be replaced by stream-derived no-zero value
+        }]
+
+        result = serialize_laps(
+            laps,
+            datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            sport="bike",
+            stream_df=df,
+        )
+
+        assert result[0]["avg_power"] == 150
+        assert result[0]["avg_power_with_zeros"] == 50

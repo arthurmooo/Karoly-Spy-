@@ -29,6 +29,7 @@ export interface GarminLap {
   avg_hr?: number;
   avg_speed?: number;  // m/s
   avg_power?: number;
+  avg_power_with_zeros?: number;
   avg_cadence?: number;
   max_hr?: number;
   max_speed?: number;
