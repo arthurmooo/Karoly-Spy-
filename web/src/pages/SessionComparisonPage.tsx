@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Disclosure, DisclosureContent, DisclosureTrigger } from "@/components/ui/Disclosure";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { Icon } from "@/components/ui/Icon";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Input } from "@/components/ui/Input";
 import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { SessionComparisonChart } from "@/components/charts/SessionComparisonChart";
@@ -359,18 +360,16 @@ export function SessionComparisonPage() {
                       Recherche des séances comparables...
                     </div>
                   ) : recommendedCandidates.length > 0 ? (
-                    <select
-                      id="comparison-reference"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    <SearchableSelect
                       value={selectedId}
-                      onChange={(event) => setSelectedId(event.target.value)}
-                    >
-                      {recommendedCandidates.map((candidate) => (
-                        <option key={candidate.id} value={candidate.id}>
-                          {formatCandidateLabel(candidate)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setSelectedId}
+                      options={recommendedCandidates.map((candidate) => ({
+                        value: candidate.id,
+                        label: formatCandidateLabel(candidate),
+                      }))}
+                      placeholder="Sélectionner une séance"
+                      className="w-full"
+                    />
                   ) : (
                     <FeatureNotice
                       title="Aucune séance comparable"

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { PhysioSportSection } from "@/components/physio/PhysioSportSection";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useAthletes } from "@/hooks/useAthletes";
 import { usePhysio } from "@/hooks/usePhysio";
 import { isBikePhysioSport, isRunPhysioSport } from "@/services/physio.service";
@@ -36,20 +37,16 @@ export function ProfilesPage() {
           <p className="text-sm text-slate-500 mt-1">Suivi des seuils metaboliques, FTP et zones de frequence cardiaque.</p>
           <p className="mt-2 text-xs font-medium uppercase tracking-wider text-slate-400">La MLS utilise toujours le profil frais.</p>
         </div>
-        <div className="w-64">
-          <select
-            value={selectedAthleteId ?? ""}
-            onChange={(e) => setSelectedAthleteId(e.target.value || null)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            <option value="">-- Sélectionnez un athlète --</option>
-            {athletes.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.first_name} {a.last_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SearchableSelect
+          value={selectedAthleteId ?? ""}
+          onChange={(v) => setSelectedAthleteId(v || null)}
+          options={[
+            { value: "", label: "-- Sélectionnez un athlète --" },
+            ...athletes.map((a) => ({ value: a.id, label: `${a.first_name} ${a.last_name}` })),
+          ]}
+          placeholder="Sélectionnez un athlète"
+          className="w-64"
+        />
       </div>
 
       {!selectedAthleteId ? (

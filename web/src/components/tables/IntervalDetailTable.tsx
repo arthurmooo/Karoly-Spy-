@@ -98,9 +98,87 @@ interface WindowSummary {
 
 export type ViewMode = "intervals" | "windows";
 
+const MIN_SINGLE_INTERVAL_DRIFT_POINTS = 2;
+
+type IntervalStreamTimeField = "t" | "elapsed_t";
+
+function getStreamTime(point: StreamPoint, field: IntervalStreamTimeField): number | null {
+  const value = point[field];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function mean(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function resolveStreamTimeField(
+  streams: StreamPoint[] | null | undefined,
+  startSec: number,
+  endSec: number
+): IntervalStreamTimeField | null {
+  if (!streams?.length) return null;
+
+  for (const field of ["elapsed_t", "t"] as const) {
+    const hasPointsInRange = streams.some((point) => {
+      const time = getStreamTime(point, field);
+      return time != null && time >= startSec && time < endSec;
+    });
+    if (hasPointsInRange) return field;
+  }
+
+  return null;
+}
+
+function computeSingleIntervalDriftPercent(
+  interval: ActivityInterval,
+  streams?: StreamPoint[] | null
+): number | null {
+  if (!streams?.length) return null;
+
+  const startSec = interval.start_time;
+  const endSec = interval.end_time;
+  const durationSec = interval.duration ?? (endSec - startSec);
+  if (!(durationSec > 0) || !(endSec > startSec)) return null;
+
+  const quarterSec = durationSec * 0.25;
+  if (!(quarterSec > 0)) return null;
+
+  const timeField = resolveStreamTimeField(streams, startSec, endSec);
+  if (!timeField) return null;
+
+  const firstWindowEnd = startSec + quarterSec;
+  const lastWindowStart = endSec - quarterSec;
+
+  const firstHrValues: number[] = [];
+  const lastHrValues: number[] = [];
+
+  for (const point of streams) {
+    const time = getStreamTime(point, timeField);
+    const hr = point.hr;
+    if (time == null || typeof hr !== "number" || !Number.isFinite(hr)) continue;
+
+    if (time >= startSec && time < firstWindowEnd) firstHrValues.push(hr);
+    if (time >= lastWindowStart && time < endSec) lastHrValues.push(hr);
+  }
+
+  if (
+    firstHrValues.length < MIN_SINGLE_INTERVAL_DRIFT_POINTS ||
+    lastHrValues.length < MIN_SINGLE_INTERVAL_DRIFT_POINTS
+  ) {
+    return null;
+  }
+
+  const firstHr = mean(firstHrValues);
+  const lastHr = mean(lastHrValues);
+  if (firstHr == null || lastHr == null || firstHr <= 0) return null;
+
+  return ((lastHr - firstHr) / firstHr) * 100;
+}
+
 // ── Computation helpers ──
 
-function computeRows(
+export function computeRows(
   intervals: ActivityInterval[],
   isBike: boolean,
   isSwim: boolean,
@@ -109,6 +187,9 @@ function computeRows(
   const active = intervals.filter((i) => i.type === "work" || i.type === "active");
   if (active.length === 0) return [];
   const firstHr = active[0]!.avg_hr;
+  const singleIntervalDrift = active.length === 1
+    ? computeSingleIntervalDriftPercent(active[0]!, streams)
+    : null;
   return active.map((intv, i) => {
     const paceOrPower = isBike
       ? intv.avg_power ?? null
@@ -124,8 +205,9 @@ function computeRows(
           ? (intv.avg_power ?? 0) / intv.avg_hr
           : (intv.avg_speed ?? 0) / intv.avg_hr
         : null;
-    const driftPercent =
-      firstHr && intv.avg_hr
+    const driftPercent = active.length === 1
+      ? singleIntervalDrift
+      : firstHr && intv.avg_hr
         ? ((intv.avg_hr - firstHr) / firstHr) * 100
         : null;
     return {
@@ -136,7 +218,7 @@ function computeRows(
   });
 }
 
-function computeSummary(rows: RowData[], isBike: boolean): SummaryData | null {
+export function computeSummary(rows: RowData[], isBike: boolean): SummaryData | null {
   if (rows.length === 0) return null;
   const count = rows.length;
   const durValues = rows.filter((r) => r.duration != null).map((r) => r.duration!);

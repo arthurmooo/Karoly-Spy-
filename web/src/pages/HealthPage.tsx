@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Icon } from "@/components/ui/Icon";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -533,18 +534,19 @@ export function HealthPage() {
                     <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block mb-2">
                       Athlète de l'import
                     </label>
-                    <select
+                    <SearchableSelect
                       value={importAthleteId}
-                      onChange={(event) => setImportAthleteId(event.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                    >
-                      <option value="">Choisir un athlète</option>
-                      {athletes.map((athlete) => (
-                        <option key={athlete.id} value={athlete.id}>
-                          {athlete.first_name} {athlete.last_name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setImportAthleteId}
+                      options={[
+                        { value: "", label: "Choisir un athlète" },
+                        ...athletes.map((athlete) => ({
+                          value: athlete.id,
+                          label: `${athlete.first_name} ${athlete.last_name}`,
+                        })),
+                      ]}
+                      placeholder="Choisir un athlète"
+                      className="w-full"
+                    />
                   </div>
 
                   {importStatus === "error" && importMessage && (
@@ -745,18 +747,20 @@ export function HealthPage() {
                 <Icon name="close" className="text-[14px]" />
               </button>
             )}
-            <select
+            <SearchableSelect
               value={selectedAthleteId}
-              onChange={(event) => setSelectedAthleteId(event.target.value)}
-              className="w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-            >
-              <option value="all">Tous les athletes</option>
-              {athletes.map((athlete) => (
-                <option key={athlete.id} value={athlete.id}>
-                  {athlete.first_name} {athlete.last_name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedAthleteId}
+              options={[
+                { value: "all", label: "Tous les athletes" },
+                ...athletes.map((athlete) => ({
+                  value: athlete.id,
+                  label: `${athlete.first_name} ${athlete.last_name}`,
+                })),
+              ]}
+              placeholder="Tous les athletes"
+              className="w-56"
+              icon="person"
+            />
           </div>
         </div>
         <div className="overflow-x-auto">

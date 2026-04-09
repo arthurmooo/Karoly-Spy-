@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Icon } from "@/components/ui/Icon";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Dialog, DialogHeader, DialogBody } from "@/components/ui/Dialog";
@@ -636,18 +637,16 @@ export function DashboardPage() {
                   </button>
                 );
               })}
-              <select
+              <SearchableSelect
                 value={recentWorkType}
-                onChange={(e) => setRecentWorkType(e.target.value)}
-                className="ml-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="">Tous types</option>
-                {WORK_TYPE_OPTIONS.map((wt) => (
-                  <option key={wt.value} value={wt.value}>
-                    {wt.label}
-                  </option>
-                ))}
-              </select>
+                onChange={setRecentWorkType}
+                options={[
+                  { value: "", label: "Tous types" },
+                  ...WORK_TYPE_OPTIONS.map((wt) => ({ value: wt.value, label: wt.label })),
+                ]}
+                placeholder="Tous types"
+                className="ml-auto text-[11px] w-36"
+              />
             </div>
           </div>
           <CardContent className="p-3 flex-1 min-h-0 overflow-y-auto">
