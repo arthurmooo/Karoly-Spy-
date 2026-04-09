@@ -392,6 +392,7 @@ function IntervalsSection({
         <IntervalChart
           intervalsByBlock={filteredByBlock}
           repWindowsByBlock={filteredRepWindows}
+          streams={activity.activity_streams}
           viewMode={detailViewMode}
           physioProfile={physioProfile}
           sportType={activity.sport_type}
@@ -403,6 +404,7 @@ function IntervalsSection({
         intervalsByBlock={filteredByBlock}
         sportType={activity.sport_type}
         repWindowsByBlock={filteredRepWindows}
+        streams={activity.activity_streams}
         hasManualWindows={hasManualWindows}
         expandedBlocks={expandedBlocks}
         onToggleBlock={onToggleBlock}

@@ -30,6 +30,7 @@ import { useChartTheme } from "@/hooks/useChartTheme";
 import { extractActivityNavigationState, resolveActivityBackPath } from "@/lib/activityNavigation";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
 import { formatPaceDecimal } from "@/services/format.service";
+import { getStreamPowerForRange, isBikeSport } from "@/services/activity.service";
 import {
   getChartMaxSec,
   buildResolvedBlocks,
@@ -42,8 +43,6 @@ import { computeFrontendRepWindows } from "@/services/repWindows.service";
 import type { RepWindow } from "@/types/activity";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
-
-const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
 export function ActivityDetailPage() {
   const { id } = useParams();
@@ -131,7 +130,7 @@ export function ActivityDetailPage() {
     return result;
   }, [blockGroupedIntervals, activity]);
 
-  const isBike = BIKE_SPORTS.has(activity?.sport_type ?? "");
+  const isBike = isBikeSport(activity?.sport_type);
   const hasStreams = Boolean(activity?.activity_streams?.length);
   const hasLaps = Boolean(activity?.garmin_laps?.length);
   const hasFitFile = Boolean(activity?.fit_file_path);
@@ -145,12 +144,40 @@ export function ActivityDetailPage() {
     });
   };
 
-  const chartData = displayBlocks.map((block, i) => ({
-    index: i + 1, label: block.label,
-    hr: block.hrMean != null ? Math.round(block.hrMean) : null,
-    pace: block.paceMean,
-    power: block.powerMean != null ? Math.round(block.powerMean) : null,
-  }));
+  const chartData = useMemo(
+    () =>
+      displayBlocks.map((block, i) => {
+        let powerWithZeros: number | null = null;
+        if (isBike && activity?.activity_streams?.length) {
+          let weightedSum = 0;
+          let weight = 0;
+          for (const row of block.rows) {
+            const value = getStreamPowerForRange(
+              activity.activity_streams,
+              row.startSec,
+              row.endSec,
+              "t",
+              true
+            );
+            if (value != null && row.durationSec != null) {
+              weightedSum += value * row.durationSec;
+              weight += row.durationSec;
+            }
+          }
+          powerWithZeros = weight > 0 ? weightedSum / weight : null;
+        }
+
+        return {
+          index: i + 1,
+          label: block.label,
+          hr: block.hrMean != null ? Math.round(block.hrMean) : null,
+          pace: block.paceMean,
+          powerWithoutZeros: block.powerMean != null ? Math.round(block.powerMean) : null,
+          powerWithZeros: powerWithZeros != null ? Math.round(powerWithZeros) : null,
+        };
+      }),
+    [activity?.activity_streams, displayBlocks, isBike]
+  );
 
   // ── Loading / Not Found ─────────────────────────────────
 
@@ -309,13 +336,21 @@ export function ActivityDetailPage() {
                       formatter={(value: number, name: string) => {
                         if (name === "hr") return [`${value} bpm`, "FC"];
                         if (name === "pace") return [formatPaceDecimal(value), "Allure bloc"];
-                        if (name === "power") return [`${value} W`, "Puissance bloc"];
+                        if (name === "powerWithoutZeros") return [`${value} W`, "Puissance bloc sans les 0"];
+                        if (name === "powerWithZeros") return [`${value} W`, "Puissance bloc avec les 0"];
                         return [value, name];
                       }}
                       labelFormatter={(l) => `Bloc ${l}`}
                     />
                     <Line yAxisId="left" type="monotone" dataKey="hr" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} connectNulls />
-                    <Line yAxisId="right" type="stepAfter" dataKey={isBike ? "power" : "pace"} stroke="#f97316" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} connectNulls />
+                    {isBike ? (
+                      <>
+                        <Line yAxisId="right" type="stepAfter" dataKey="powerWithoutZeros" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                        <Line yAxisId="right" type="stepAfter" dataKey="powerWithZeros" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} connectNulls />
+                      </>
+                    ) : (
+                      <Line yAxisId="right" type="stepAfter" dataKey="pace" stroke="#f97316" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4 }} connectNulls />
+                    )}
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -388,6 +423,7 @@ export function ActivityDetailPage() {
               sportType={activity.sport_type ?? ""}
               hasResolvedBlocks={hasResolvedBlocks}
               detectionSource={activity.interval_detection_source}
+              streams={activity.activity_streams}
             />
           )}
           {hasLaps && (
@@ -400,7 +436,7 @@ export function ActivityDetailPage() {
                   </h2>
                   <Badge variant="emerald">{activity.garmin_laps!.length} laps</Badge>
                 </div>
-                <LapsTable laps={activity.garmin_laps!} sportType={activity.sport_type} />
+                <LapsTable laps={activity.garmin_laps!} sportType={activity.sport_type} streams={activity.activity_streams} />
               </CardContent>
             </Card>
           )}

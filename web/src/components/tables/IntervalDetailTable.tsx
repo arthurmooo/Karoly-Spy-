@@ -5,23 +5,22 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { SlidingTabs } from "@/components/ui/SlidingTabs";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
-import type { BlockGroupedIntervals, ActivityInterval, RepWindow } from "@/types/activity";
+import type { BlockGroupedIntervals, ActivityInterval, RepWindow, StreamPoint } from "@/types/activity";
 import { formatDuration, formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
-import { isSwimSport } from "@/services/activity.service";
+import { formatPowerWatts, getStreamPowerForRange, isBikeSport, isSwimSport } from "@/services/activity.service";
 import { cn } from "@/lib/cn";
 
 interface Props {
   intervalsByBlock: BlockGroupedIntervals[];
   sportType: string;
   repWindowsByBlock: Record<number, RepWindow[]>;
+  streams?: StreamPoint[] | null;
   hasManualWindows?: boolean;
   expandedBlocks?: Set<number>;
   onToggleBlock?: (blockIndex: number) => void;
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
 }
-
-const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
 // ── Interval view types ──
 
@@ -101,7 +100,12 @@ export type ViewMode = "intervals" | "windows";
 
 // ── Computation helpers ──
 
-function computeRows(intervals: ActivityInterval[], isBike: boolean, isSwim: boolean): RowData[] {
+function computeRows(
+  intervals: ActivityInterval[],
+  isBike: boolean,
+  isSwim: boolean,
+  streams?: StreamPoint[] | null
+): RowData[] {
   const active = intervals.filter((i) => i.type === "work" || i.type === "active");
   if (active.length === 0) return [];
   const firstHr = active[0]!.avg_hr;
@@ -111,6 +115,9 @@ function computeRows(intervals: ActivityInterval[], isBike: boolean, isSwim: boo
       : intv.avg_speed && intv.avg_speed > 0
         ? (isSwim ? speedToSwimPaceDecimal(intv.avg_speed) : speedToPaceDecimal(intv.avg_speed))
         : null;
+    const paceOrPowerLast = isBike
+      ? getStreamPowerForRange(streams, intv.start_time, intv.end_time, "elapsed_t", true)
+      : null;
     const paHr =
       intv.avg_hr && paceOrPower
         ? isBike
@@ -123,13 +130,13 @@ function computeRows(intervals: ActivityInterval[], isBike: boolean, isSwim: boo
         : null;
     return {
       index: i + 1, duration: intv.duration ?? null, paceOrPower,
-      paceOrPowerLast: null, hr: intv.avg_hr != null ? Math.round(intv.avg_hr) : null,
+      paceOrPowerLast, hr: intv.avg_hr != null ? Math.round(intv.avg_hr) : null,
       hrLast: null, paHr, driftPercent, costBadge: getCostBadge(driftPercent),
     };
   });
 }
 
-function computeSummary(rows: RowData[]): SummaryData | null {
+function computeSummary(rows: RowData[], isBike: boolean): SummaryData | null {
   if (rows.length === 0) return null;
   const count = rows.length;
   const durValues = rows.filter((r) => r.duration != null).map((r) => r.duration!);
@@ -153,30 +160,59 @@ function computeSummary(rows: RowData[]): SummaryData | null {
   const avgPaHr = paHrValues.length > 0 ? paHrValues.reduce((a, b) => a + b, 0) / paHrValues.length : null;
   const lastRow = rows[rows.length - 1]!;
   const globalDrift = lastRow.driftPercent;
+  let paceOrPowerLast: number | null = null;
+
+  if (isBike && totalDuration && totalDuration > 0) {
+    let ws = 0, wt = 0;
+    for (const r of rows) {
+      if (r.paceOrPowerLast != null && r.duration != null) {
+        ws += r.paceOrPowerLast * r.duration;
+        wt += r.duration;
+      }
+    }
+    if (wt > 0) paceOrPowerLast = ws / wt;
+  } else {
+    paceOrPowerLast = lastRow.paceOrPower;
+  }
 
   return {
     count, totalDuration, avgPaceOrPower, avgHr,
-    paceOrPowerLast: lastRow.paceOrPower, hrLast: lastRow.hr,
+    paceOrPowerLast, hrLast: lastRow.hr,
     avgPaHr, globalDrift, costBadge: getCostBadge(globalDrift),
   };
 }
 
-function computeWindowRows(repWindows: RepWindow[], isBike: boolean, isSwim: boolean): WindowRow[] {
+function computeWindowRows(
+  repWindows: RepWindow[],
+  isBike: boolean,
+  isSwim: boolean,
+  streams?: StreamPoint[] | null
+): WindowRow[] {
   if (!repWindows || repWindows.length === 0) return [];
   const firstHr = repWindows[0]!.hr_raw;
   return repWindows.map((w) => {
-    const pace = w.output != null && w.output > 0
-      ? isBike ? Math.round(w.output) : isSwim ? 6 / w.output : 60 / w.output
+    const powerWithoutZeros = isBike
+      ? getStreamPowerForRange(streams, w.start_sec, w.end_sec, "elapsed_t", false)
       : null;
+    const powerWithZeros = isBike
+      ? getStreamPowerForRange(streams, w.start_sec, w.end_sec, "elapsed_t", true)
+      : null;
+    const pace = isBike
+      ? powerWithoutZeros
+      : w.output != null && w.output > 0
+        ? isSwim ? 6 / w.output : 60 / w.output
+        : null;
+    const output = isBike ? powerWithZeros : (w.output ?? null);
     const hrRef = w.hr_corr ?? w.hr_raw;
-    const paHr = w.output != null && hrRef != null && hrRef > 0 ? w.output / hrRef : null;
+    const outputForPaHr = isBike ? powerWithoutZeros : output;
+    const paHr = outputForPaHr != null && hrRef != null && hrRef > 0 ? outputForPaHr / hrRef : null;
     const driftPercent = firstHr != null && firstHr > 0 && w.hr_raw != null
       ? ((w.hr_raw - firstHr) / firstHr) * 100 : null;
     return {
       index: w.rep_index, duration: w.duration_sec ?? null, pace,
       hr: w.hr_raw != null ? Math.round(w.hr_raw) : null,
       hrCorr: w.hr_corr != null ? Math.round(w.hr_corr) : null,
-      output: w.output ?? null, ea: w.ea ?? null, paHr, driftPercent,
+      output, ea: w.ea ?? null, paHr, driftPercent,
       costBadge: getCostBadge(driftPercent),
     };
   });
@@ -230,13 +266,14 @@ export function IntervalDetailTable({
   intervalsByBlock,
   sportType,
   repWindowsByBlock,
+  streams,
   hasManualWindows,
   expandedBlocks: externalExpanded,
   onToggleBlock,
   view,
   onViewChange,
 }: Props) {
-  const isBike = BIKE_SPORTS.has(sportType);
+  const isBike = isBikeSport(sportType);
   const isSwim = isSwimSport(sportType);
   const [sortBy, setSortBy] = useState<SortCol>("index");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
@@ -247,22 +284,22 @@ export function IntervalDetailTable({
   // ── Per-block interval data ──
   const blockData = useMemo(() =>
     intervalsByBlock.map((group) => {
-      const rows = computeRows(group.intervals, isBike, isSwim);
-      const summary = computeSummary(rows);
+      const rows = computeRows(group.intervals, isBike, isSwim, streams);
+      const summary = computeSummary(rows, isBike);
       return { blockIndex: group.blockIndex, label: group.label, rows, summary };
     }),
-    [intervalsByBlock, isBike, isSwim]
+    [intervalsByBlock, isBike, isSwim, streams]
   );
 
   // ── Per-block window data ──
   const blockWindowData = useMemo(() =>
     intervalsByBlock.map((group) => {
       const windows = repWindowsByBlock[group.blockIndex] ?? [];
-      const rows = computeWindowRows(windows, isBike, isSwim);
+      const rows = computeWindowRows(windows, isBike, isSwim, streams);
       const summary = computeWindowSummary(rows);
       return { blockIndex: group.blockIndex, label: group.label, rows, summary };
     }),
-    [intervalsByBlock, repWindowsByBlock, isBike, isSwim]
+    [intervalsByBlock, repWindowsByBlock, isBike, isSwim, streams]
   );
 
   const hasAnyIntervals = blockData.some((b) => b.summary != null);
@@ -284,13 +321,13 @@ export function IntervalDetailTable({
 
   function formatPace(val: number | null): string {
     if (val == null) return "--";
-    if (isBike) return `${Math.round(val)} W`;
+    if (isBike) return formatPowerWatts(val);
     return isSwim ? formatSwimPaceDecimal(val) : formatPaceDecimal(val);
   }
 
   function formatOutput(val: number | null): string {
     if (val == null) return "--";
-    if (isBike) return `${Math.round(val)} W`;
+    if (isBike) return formatPowerWatts(val);
     if (!val || val <= 0) return "--";
     return isSwim ? formatSwimPaceDecimal(6 / val) : formatPaceDecimal(60 / val);
   }
@@ -453,8 +490,8 @@ function IntervalBlockView({
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
           <SortableHeader label="#" active={sortBy === "index"} direction={sortDir} onToggle={() => handleSort("index")} className="px-3 py-2" />
           <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} className="px-3 py-2" />
-          <SortableHeader label={isBike ? "Puiss. Moy" : "Allure Moy"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
-          <SortableHeader label={isBike ? "Puiss. Last" : "Allure Last"} active={sortBy === "paceOrPowerLast"} direction={sortDir} onToggle={() => handleSort("paceOrPowerLast")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P sans 0" : "Allure Moy"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P avec 0" : "Allure Last"} active={sortBy === "paceOrPowerLast"} direction={sortDir} onToggle={() => handleSort("paceOrPowerLast")} className="px-3 py-2" />
           <SortableHeader label="FC Moy" active={sortBy === "hr"} direction={sortDir} onToggle={() => handleSort("hr")} className="px-3 py-2" />
           <SortableHeader label="FC Last" active={sortBy === "hrLast"} direction={sortDir} onToggle={() => handleSort("hrLast")} className="px-3 py-2" />
           <SortableHeader label="Pa:HR" active={sortBy === "paHr"} direction={sortDir} onToggle={() => handleSort("paHr")} className="px-3 py-2" />
@@ -530,7 +567,9 @@ function IntervalBlockView({
                         <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs font-semibold text-accent-blue">
                           {formatPace(row.paceOrPower)}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-1.5" />
+                        <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs font-semibold text-accent-blue">
+                          {isBike ? formatPace(row.paceOrPowerLast) : ""}
+                        </td>
                         <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-accent-orange">
                           {row.hr != null ? `${row.hr} bpm` : "--"}
                         </td>
@@ -601,10 +640,10 @@ function WindowBlockView({
         <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
           <SortableHeader label="#" active={sortBy === "index"} direction={sortDir} onToggle={() => handleSort("index")} className="px-3 py-2" />
           <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} className="px-3 py-2" />
-          <SortableHeader label={isBike ? "Puissance" : "Allure"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P sans 0" : "Allure"} active={sortBy === "paceOrPower"} direction={sortDir} onToggle={() => handleSort("paceOrPower")} className="px-3 py-2" />
           <SortableHeader label="FC" active={sortBy === "hr"} direction={sortDir} onToggle={() => handleSort("hr")} className="px-3 py-2" />
           <SortableHeader label="HR Corr" active={sortBy === "hrCorr"} direction={sortDir} onToggle={() => handleSort("hrCorr")} className="px-3 py-2" />
-          <SortableHeader label="Output" active={sortBy === "output"} direction={sortDir} onToggle={() => handleSort("output")} className="px-3 py-2" />
+          <SortableHeader label={isBike ? "P avec 0" : "Output"} active={sortBy === "output"} direction={sortDir} onToggle={() => handleSort("output")} className="px-3 py-2" />
           <SortableHeader label="EA" active={sortBy === "ea"} direction={sortDir} onToggle={() => handleSort("ea")} className="px-3 py-2" />
           <SortableHeader label="Pa:HR" active={sortBy === "paHr"} direction={sortDir} onToggle={() => handleSort("paHr")} className="px-3 py-2" />
           <SortableHeader label="Dérive FC" active={sortBy === "drift"} direction={sortDir} onToggle={() => handleSort("drift")} className="px-3 py-2" />

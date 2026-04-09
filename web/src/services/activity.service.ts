@@ -1,6 +1,6 @@
 import { speedToPace, speedToSwimPace, formatDuration, formatDistance } from "./format.service";
 import { sanitizeRpe } from "@/lib/rpe";
-import type { ActivitySourceJson } from "@/types/activity";
+import type { ActivitySourceJson, StreamPoint } from "@/types/activity";
 
 const SPORT_LABELS: Record<string, string> = {
   CAP: "Course",
@@ -128,6 +128,31 @@ export function getBikePowerMetrics(source: BikePowerSource): BikePowerMetrics {
 
 export function formatPowerWatts(value: number | null): string {
   return value != null ? `${Math.round(value)} W` : "--";
+}
+
+type StreamTimeField = "t" | "elapsed_t";
+
+export function getStreamPowerForRange(
+  streams: StreamPoint[] | null | undefined,
+  startSec: number | null | undefined,
+  endSec: number | null | undefined,
+  timeField: StreamTimeField,
+  includeZeros: boolean
+): number | null {
+  if (startSec == null || endSec == null || endSec <= startSec) return null;
+
+  const powers = (streams ?? [])
+    .filter((point) => {
+      const time = point[timeField];
+      return typeof time === "number" && Number.isFinite(time) && time >= startSec && time < endSec;
+    })
+    .map((point) => point.pwr)
+    .filter((value): value is number =>
+      typeof value === "number" && Number.isFinite(value) && (includeZeros || value > 0)
+    );
+
+  if (powers.length === 0) return null;
+  return powers.reduce((sum, value) => sum + value, 0) / powers.length;
 }
 
 /**

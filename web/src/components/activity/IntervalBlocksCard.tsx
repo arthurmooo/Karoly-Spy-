@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import type { DisplayBlock } from "@/lib/activityBlocks";
+import type { StreamPoint } from "@/types/activity";
 import {
   formatDuration,
   formatPaceDecimal,
@@ -12,20 +13,21 @@ import {
   speedToPace,
   speedToSwimPace,
 } from "@/services/format.service";
-import { isBikeSport, isSwimSport } from "@/services/activity.service";
+import { formatPowerWatts, getStreamPowerForRange, isBikeSport, isSwimSport } from "@/services/activity.service";
 
 interface Props {
   displayBlocks: DisplayBlock[];
   sportType: string;
   hasResolvedBlocks: boolean;
   detectionSource: string | null;
+  streams?: StreamPoint[] | null;
 }
 
 type SortCol = "label" | "duration" | "mean" | "last" | "hr_mean" | "hr_last" | "source";
 const DEFAULT_SORT_BY: SortCol = "label";
 const DEFAULT_DIR: SortDirection = "asc";
 
-export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks, detectionSource }: Props) {
+export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks, detectionSource, streams }: Props) {
   const isBike = isBikeSport(sportType);
   const isSwim = isSwimSport(sportType);
   const [sortBy, setSortBy] = useState<SortCol>(DEFAULT_SORT_BY);
@@ -54,6 +56,33 @@ export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks
     setExpanded((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   };
 
+  const rowPowerWithZeros = new Map(
+    displayBlocks.flatMap((block) =>
+      block.rows.map((row) => [
+        row.id,
+        getStreamPowerForRange(streams, row.startSec, row.endSec, "t", true),
+      ] as const)
+    )
+  );
+
+  function getBlockPowerWithZerosMean(block: DisplayBlock): number | null {
+    let weightedSum = 0;
+    let weight = 0;
+    for (const row of block.rows) {
+      const value = rowPowerWithZeros.get(row.id) ?? null;
+      if (value != null && row.durationSec != null) {
+        weightedSum += value * row.durationSec;
+        weight += row.durationSec;
+      }
+    }
+    return weight > 0 ? weightedSum / weight : null;
+  }
+
+  function getBlockPowerWithZerosLast(block: DisplayBlock): number | null {
+    const lastRow = block.rows[block.rows.length - 1];
+    return lastRow ? (rowPowerWithZeros.get(lastRow.id) ?? null) : null;
+  }
+
   return (
     <Card>
       <CardContent className="overflow-hidden p-0">
@@ -74,8 +103,10 @@ export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks
                 <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                   <SortableHeader label="Bloc" active={sortBy === "label"} direction={sortDir} onToggle={() => handleSort("label")} className="px-6 py-3" />
                   <SortableHeader label="Durée" active={sortBy === "duration"} direction={sortDir} onToggle={() => handleSort("duration")} className="px-6 py-3" />
-                  <SortableHeader label={isBike ? "Puiss. Moy" : "Allure Moy"} active={sortBy === "mean"} direction={sortDir} onToggle={() => handleSort("mean")} className="px-6 py-3 text-accent-orange" />
-                  <SortableHeader label={isBike ? "Puiss. Last" : "Allure Last"} active={sortBy === "last"} direction={sortDir} onToggle={() => handleSort("last")} className="px-6 py-3" />
+                  <SortableHeader label={isBike ? "P sans 0 moy" : "Allure Moy"} active={sortBy === "mean"} direction={sortDir} onToggle={() => handleSort("mean")} className="px-6 py-3 text-accent-orange" />
+                  {isBike && <th className="px-6 py-3 text-accent-orange">P avec 0 moy</th>}
+                  <SortableHeader label={isBike ? "P sans 0 last" : "Allure Last"} active={sortBy === "last"} direction={sortDir} onToggle={() => handleSort("last")} className="px-6 py-3" />
+                  {isBike && <th className="px-6 py-3">P avec 0 last</th>}
                   <SortableHeader label="FC Moy" active={sortBy === "hr_mean"} direction={sortDir} onToggle={() => handleSort("hr_mean")} className="px-6 py-3 text-accent-orange" />
                   <SortableHeader label="FC Last" active={sortBy === "hr_last"} direction={sortDir} onToggle={() => handleSort("hr_last")} className="px-6 py-3" />
                   <SortableHeader label="Source" active={sortBy === "source"} direction={sortDir} onToggle={() => handleSort("source")} className="px-6 py-3" />
@@ -96,8 +127,10 @@ export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks
                           </div>
                         </td>
                         <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{block.durationSec != null ? formatDuration(block.durationSec) : "--"}</td>
-                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">{isBike ? (block.powerMean != null ? `${Math.round(block.powerMean)} W` : "--") : (block.paceMean != null ? (isSwim ? formatSwimPaceDecimal(block.paceMean / 10) : formatPaceDecimal(block.paceMean)) : "--")}</td>
-                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{isBike ? (block.powerLast != null ? `${Math.round(block.powerLast)} W` : "--") : (block.paceLast != null ? (isSwim ? formatSwimPaceDecimal(block.paceLast / 10) : formatPaceDecimal(block.paceLast)) : "--")}</td>
+                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">{isBike ? formatPowerWatts(block.powerMean) : (block.paceMean != null ? (isSwim ? formatSwimPaceDecimal(block.paceMean / 10) : formatPaceDecimal(block.paceMean)) : "--")}</td>
+                        {isBike && <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">{formatPowerWatts(getBlockPowerWithZerosMean(block))}</td>}
+                        <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{isBike ? formatPowerWatts(block.powerLast) : (block.paceLast != null ? (isSwim ? formatSwimPaceDecimal(block.paceLast / 10) : formatPaceDecimal(block.paceLast)) : "--")}</td>
+                        {isBike && <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{formatPowerWatts(getBlockPowerWithZerosLast(block))}</td>}
                         <td className="whitespace-nowrap px-6 py-3 font-mono text-sm font-semibold text-accent-orange">{block.hrMean != null ? `${Math.round(block.hrMean)} bpm` : "--"}</td>
                         <td className="whitespace-nowrap px-6 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{block.hrLast != null ? `${Math.round(block.hrLast)} bpm` : "--"}</td>
                         <td className="whitespace-nowrap px-6 py-3 text-sm text-slate-500">{block.source ?? detectionSource ?? "--"}</td>
@@ -106,8 +139,10 @@ export function IntervalBlocksCard({ displayBlocks, sportType, hasResolvedBlocks
                         <tr key={row.id} className="bg-blue-50/30 dark:bg-slate-800/30">
                           <td className="whitespace-nowrap py-2 pl-14 pr-6 text-xs text-slate-500 dark:text-slate-400">#{i + 1}</td>
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{row.durationSec != null ? formatDuration(row.durationSec) : "--"}</td>
-                          <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{isBike ? (row.avgPower != null ? `${Math.round(row.avgPower)} W` : "--") : (row.avgSpeed ? (isSwim ? speedToSwimPace(row.avgSpeed) : speedToPace(row.avgSpeed)) : "--")}</td>
+                          <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{isBike ? formatPowerWatts(row.avgPower) : (row.avgSpeed ? (isSwim ? speedToSwimPace(row.avgSpeed) : speedToPace(row.avgSpeed)) : "--")}</td>
+                          {isBike && <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{formatPowerWatts(rowPowerWithZeros.get(row.id) ?? null)}</td>}
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-400" />
+                          {isBike && <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-400" />}
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{row.avgHr != null ? `${Math.round(row.avgHr)} bpm` : "--"}</td>
                           <td className="whitespace-nowrap px-6 py-2 font-mono text-xs text-slate-400">{row.avgCadence != null ? `${Math.round(row.avgCadence)} rpm` : ""}</td>
                           <td className="whitespace-nowrap px-6 py-2 text-xs text-slate-400">{row.source ?? ""}</td>

@@ -14,7 +14,7 @@ import {
 import type { StreamPoint, GarminLap } from "@/types/activity";
 import type { DetectedSegment } from "@/services/manualIntervals.service";
 import { speedToPaceDecimal, speedToSwimPaceDecimal, formatPaceDecimal, formatSwimPaceDecimal } from "@/services/format.service";
-import { isSwimSport } from "@/services/activity.service";
+import { getStreamPowerForRange, isBikeSport, isSwimSport } from "@/services/activity.service";
 import { useChartTheme } from "@/hooks/useChartTheme";
 
 interface Props {
@@ -27,8 +27,6 @@ interface Props {
   /** Render prop: receives toggle buttons to place in parent layout */
   renderHeader?: (toggles: ReactNode) => ReactNode;
 }
-
-const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
 function formatTime(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -74,7 +72,7 @@ export function ActivityStreamChart({
   analysisHighlights = [],
   renderHeader,
 }: Props) {
-  const isBike = BIKE_SPORTS.has(sportType);
+  const isBike = isBikeSport(sportType);
   const isSwim = isSwimSport(sportType);
   const ct = useChartTheme();
   const fmtPace = isSwim ? formatSwimPaceDecimal : formatPaceDecimal;
@@ -101,7 +99,7 @@ export function ActivityStreamChart({
   const chartData = useMemo(() => {
     const rawHr = streams.map((pt) => pt.hr ?? null);
     const rawPace = streams.map((pt) => (!isBike && pt.spd ? speedToPaceNum(pt.spd, isSwim) : null));
-    const rawPower = streams.map((pt) => (isBike && pt.pwr ? pt.pwr : null));
+    const rawPower = streams.map((pt) => (isBike && typeof pt.pwr === "number" ? pt.pwr : null));
     const rawAlt = streams.map((pt) => pt.alt ?? null);
 
     const sHr = smooth(rawHr, 3);
@@ -116,7 +114,7 @@ export function ActivityStreamChart({
       alt: rawAlt[i],
       speed: isBike && pt.spd ? Math.round(pt.spd * 3.6 * 10) / 10 : null,
     }));
-  }, [streams, isBike]);
+  }, [streams, isBike, isSwim]);
 
   // Filter data when zoomed
   const displayData = useMemo(() => {
@@ -223,9 +221,9 @@ export function ActivityStreamChart({
     const avgHr = hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null;
 
     if (isBike) {
-      const powers = displayData.map((d) => d.power).filter((v): v is number => v != null);
-      const avgPower = powers.length ? Math.round(powers.reduce((a, b) => a + b, 0) / powers.length) : null;
-      return { duration, avgHr, avgPower, avgPace: null };
+      const avgPowerWithoutZeros = getStreamPowerForRange(streams, zoomWindow.start, zoomWindow.end, "t", false);
+      const avgPowerWithZeros = getStreamPowerForRange(streams, zoomWindow.start, zoomWindow.end, "t", true);
+      return { duration, avgHr, avgPowerWithoutZeros, avgPowerWithZeros, avgPace: null };
     }
     // Run/Swim: distance-weighted pace from speed stream
     const paceToMs = isSwim ? 100 : 1000; // reverse conversion factor
@@ -234,8 +232,8 @@ export function ActivityStreamChart({
       .filter((v): v is number => v != null && v > 0);
     const avgSpeed = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : null;
     const avgPace = avgSpeed ? speedToPaceNum(avgSpeed, isSwim) : null;
-    return { duration, avgHr, avgPower: null, avgPace };
-  }, [zoomWindow, displayData, isBike, isSwim]);
+    return { duration, avgHr, avgPowerWithoutZeros: null, avgPowerWithZeros: null, avgPace };
+  }, [zoomWindow, displayData, isBike, isSwim, streams]);
 
   const toggleButtons: { key: CurveKey; label: string; color: string }[] = [
     { key: "hr", label: "FC", color: "#ef4444" },
@@ -298,8 +296,11 @@ export function ActivityStreamChart({
           {zoomStats.avgPace != null && (
             <span>Allure moy : <span className="font-medium text-blue-500">{fmtPace(zoomStats.avgPace)}</span></span>
           )}
-          {zoomStats.avgPower != null && (
-            <span>Puissance moy : <span className="font-medium text-green-500">{zoomStats.avgPower} W</span></span>
+          {zoomStats.avgPowerWithoutZeros != null && (
+            <span>P sans 0 : <span className="font-medium text-green-500">{Math.round(zoomStats.avgPowerWithoutZeros)} W</span></span>
+          )}
+          {zoomStats.avgPowerWithZeros != null && (
+            <span>P avec 0 : <span className="font-medium text-emerald-600">{Math.round(zoomStats.avgPowerWithZeros)} W</span></span>
           )}
         </div>
       )}
@@ -349,7 +350,7 @@ export function ActivityStreamChart({
               formatter={(value: number, name: string) => {
                 if (name === "hr") return [`${Math.round(value)} bpm`, "FC"];
                 if (name === "pace") return [fmtPace(value), "Allure"];
-                if (name === "power") return [`${Math.round(value)} W`, "Puissance"];
+                if (name === "power") return [`${Math.round(value)} W`, "Puissance instant."];
                 if (name === "speed") return [`${value} km/h`, "Vitesse"];
                 if (name === "alt") return [`${Math.round(value)} m`, "Altitude"];
                 return [value, name];

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildIntervalChartModel } from "./IntervalChart";
-import type { BlockGroupedIntervals, RepWindow } from "@/types/activity";
+import type { BlockGroupedIntervals, RepWindow, StreamPoint } from "@/types/activity";
 
 const intervalsByBlock: BlockGroupedIntervals[] = [
   {
@@ -70,9 +70,18 @@ const repWindowsByBlock: Record<number, RepWindow[]> = {
   ],
 };
 
+const bikeStreams: StreamPoint[] = [
+  { t: 10, elapsed_t: 10, pwr: 250 },
+  { t: 25, elapsed_t: 25, pwr: 0 },
+  { t: 40, elapsed_t: 40, pwr: 250 },
+  { t: 55, elapsed_t: 55, pwr: 0 },
+  { t: 160, elapsed_t: 160, pwr: 300 },
+  { t: 175, elapsed_t: 175, pwr: 0 },
+];
+
 describe("buildIntervalChartModel", () => {
   it("keeps interval mode behavior on work intervals only", () => {
-    const model = buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, false, "intervals");
+    const model = buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, null, false, "intervals");
 
     expect(model.title).toBe("Évolution par intervalle");
     expect(model.xAxisLabel).toBe("N° intervalle");
@@ -83,7 +92,7 @@ describe("buildIntervalChartModel", () => {
   });
 
   it("switches to stabilized windows data in windows mode", () => {
-    const model = buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, false, "windows");
+    const model = buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, null, false, "windows");
 
     expect(model.title).toBe("Évolution par fenêtre stabilisée");
     expect(model.xAxisLabel).toBe("N° fenêtre");
@@ -95,7 +104,8 @@ describe("buildIntervalChartModel", () => {
       hrRaw: 158,
       hrCorr: 156,
       pace: 60 / 4.8,
-      output: 4.8,
+      powerWithoutZeros: null,
+      powerWithZeros: null,
       ea: 0.95,
     });
     expect(model.data[2]).toMatchObject({
@@ -104,9 +114,43 @@ describe("buildIntervalChartModel", () => {
       hrRaw: 166,
       hrCorr: 164,
       pace: 60 / 5.1,
-      output: 5.1,
+      powerWithoutZeros: null,
+      powerWithZeros: null,
       ea: 0.98,
     });
     expect(model.blockBoundaries).toEqual([{ index: 2.5, label: "Bloc 2" }]);
+  });
+
+  it("exposes bike power without and with zeros for charted intervals", () => {
+    const bikeIntervalsByBlock: BlockGroupedIntervals[] = [
+      {
+        blockIndex: 1,
+        label: "Bloc 1",
+        intervals: [
+          {
+            id: "bike-1",
+            activity_id: "activity-1",
+            type: "work",
+            start_time: 10,
+            end_time: 55,
+            duration: 45,
+            avg_speed: null,
+            avg_power: 250,
+            avg_hr: 160,
+            avg_cadence: 90,
+            detection_source: "manual",
+            respect_score: null,
+          },
+        ],
+      },
+    ];
+
+    const model = buildIntervalChartModel(bikeIntervalsByBlock, {}, bikeStreams, true, "intervals");
+
+    expect(model.data).toHaveLength(1);
+    expect(model.data[0]).toMatchObject({
+      powerWithoutZeros: 250,
+      powerWithZeros: 250 / 3 * 2,
+    });
   });
 });

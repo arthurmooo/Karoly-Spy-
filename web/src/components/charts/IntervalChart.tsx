@@ -9,23 +9,22 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
-import type { BlockGroupedIntervals, RepWindow } from "@/types/activity";
+import type { BlockGroupedIntervals, RepWindow, StreamPoint } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
 import { formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
-import { isSwimSport } from "@/services/activity.service";
+import { getStreamPowerForRange, isBikeSport, isSwimSport } from "@/services/activity.service";
 import { useChartTheme } from "@/hooks/useChartTheme";
 import type { ViewMode } from "@/components/tables/IntervalDetailTable";
 
 interface Props {
   intervalsByBlock: BlockGroupedIntervals[];
   repWindowsByBlock: Record<number, RepWindow[]>;
+  streams?: StreamPoint[] | null;
   viewMode: ViewMode;
   physioProfile: PhysioProfile | null;
   sportType: string;
   hideTitle?: boolean;
 }
-
-const BIKE_SPORTS = new Set(["VELO", "VTT", "Bike", "bike"]);
 
 interface IntervalChartPoint {
   index: number;
@@ -33,8 +32,8 @@ interface IntervalChartPoint {
   hrRaw?: number | null;
   hrCorr?: number | null;
   pace: number | null;
-  power: number | null;
-  output?: number | null;
+  powerWithoutZeros: number | null;
+  powerWithZeros: number | null;
   ea?: number | null;
 }
 
@@ -49,6 +48,7 @@ interface IntervalChartModel {
 export function buildIntervalChartModel(
   intervalsByBlock: BlockGroupedIntervals[],
   repWindowsByBlock: Record<number, RepWindow[]>,
+  streams: StreamPoint[] | null | undefined,
   isBike: boolean,
   viewMode: ViewMode,
   isSwim = false,
@@ -80,8 +80,12 @@ export function buildIntervalChartModel(
           hrRaw: window.hr_raw != null ? Math.round(window.hr_raw) : null,
           hrCorr: window.hr_corr != null ? Math.round(window.hr_corr) : null,
           pace: !isBike && window.output && window.output > 0 ? (isSwim ? 6 / window.output : 60 / window.output) : null,
-          power: isBike && window.output != null ? Math.round(window.output) : null,
-          output: window.output ?? null,
+          powerWithoutZeros: isBike
+            ? getStreamPowerForRange(streams, window.start_sec, window.end_sec, "elapsed_t", false)
+            : null,
+          powerWithZeros: isBike
+            ? getStreamPowerForRange(streams, window.start_sec, window.end_sec, "elapsed_t", true)
+            : null,
           ea: window.ea ?? null,
         });
       }
@@ -94,7 +98,10 @@ export function buildIntervalChartModel(
           pace: !isBike && intv.avg_speed && intv.avg_speed > 0
             ? (isSwim ? speedToSwimPaceDecimal(intv.avg_speed) : speedToPaceDecimal(intv.avg_speed))
             : null,
-          power: isBike && intv.avg_power ? Math.round(intv.avg_power) : null,
+          powerWithoutZeros: isBike ? (intv.avg_power != null ? Math.round(intv.avg_power) : null) : null,
+          powerWithZeros: isBike
+            ? getStreamPowerForRange(streams, intv.start_time, intv.end_time, "elapsed_t", true)
+            : null,
         });
       }
     }
@@ -112,20 +119,21 @@ export function buildIntervalChartModel(
 export function IntervalChart({
   intervalsByBlock,
   repWindowsByBlock,
+  streams,
   viewMode,
   physioProfile,
   sportType,
   hideTitle,
 }: Props) {
-  const isBike = BIKE_SPORTS.has(sportType);
+  const isBike = isBikeSport(sportType);
   const isSwim = isSwimSport(sportType);
   const ct = useChartTheme();
   const fmtPace = isSwim ? formatSwimPaceDecimal : formatPaceDecimal;
 
   // Flatten all active intervals across blocks, tracking block boundaries
   const { data, blockBoundaries, title, xAxisLabel, labelPrefix } = useMemo(
-    () => buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, isBike, viewMode, isSwim),
-    [intervalsByBlock, repWindowsByBlock, isBike, viewMode, isSwim]
+    () => buildIntervalChartModel(intervalsByBlock, repWindowsByBlock, streams, isBike, viewMode, isSwim),
+    [intervalsByBlock, repWindowsByBlock, streams, isBike, viewMode, isSwim]
   );
 
   if (data.length === 0) return null;
@@ -134,8 +142,9 @@ export function IntervalChart({
   const hrMin = hrValues.length ? Math.floor(Math.min(...hrValues) / 10) * 10 - 10 : 80;
   const hrMax = hrValues.length ? Math.ceil(Math.max(...hrValues) / 10) * 10 + 10 : 200;
 
-  const secondaryKey = isBike ? "power" : "pace";
-  const secValues = data.map((d) => d[secondaryKey]).filter((v): v is number => v != null);
+  const secValues = isBike
+    ? data.flatMap((d) => [d.powerWithoutZeros, d.powerWithZeros]).filter((v): v is number => v != null)
+    : data.map((d) => d.pace).filter((v): v is number => v != null);
   const secMin = secValues.length ? Math.min(...secValues) : 0;
   const secMax = secValues.length ? Math.max(...secValues) : 10;
   const secPadding = isBike ? 20 : 0.3;
@@ -184,8 +193,8 @@ export function IntervalChart({
                 if (name === "hrRaw") return [`${value} bpm`, "FC brute"];
                 if (name === "hrCorr") return [`${value} bpm`, "FC corrigée"];
                 if (name === "pace") return [fmtPace(value), "Allure"];
-                if (name === "power") return [`${value} W`, "Puissance"];
-                if (name === "output") return [isBike ? `${Math.round(value)} W` : fmtPace(isSwim ? 6 / value : 60 / value), "Output"];
+                if (name === "powerWithoutZeros") return [`${Math.round(value)} W`, "P sans 0"];
+                if (name === "powerWithZeros") return [`${Math.round(value)} W`, "P avec 0"];
                 if (name === "ea") return [value.toFixed(3), "EA"];
                 return [value, name];
               }}
@@ -237,17 +246,45 @@ export function IntervalChart({
             />
 
             {/* Pace/Power dots */}
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey={secondaryKey}
-              stroke="#2563EB"
-              strokeWidth={2}
-              dot={{ r: 5, fill: "#2563EB", strokeWidth: 0 }}
-              activeDot={{ r: 7 }}
-              connectNulls
-              isAnimationActive={false}
-            />
+            {isBike ? (
+              <>
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="powerWithoutZeros"
+                  stroke="#2563EB"
+                  strokeWidth={2}
+                  dot={{ r: 5, fill: "#2563EB", strokeWidth: 0 }}
+                  activeDot={{ r: 7 }}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="powerWithZeros"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  dot={{ r: 5, fill: "#10b981", strokeWidth: 0 }}
+                  activeDot={{ r: 7 }}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+              </>
+            ) : (
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="pace"
+                stroke="#2563EB"
+                strokeWidth={2}
+                dot={{ r: 5, fill: "#2563EB", strokeWidth: 0 }}
+                activeDot={{ r: 7 }}
+                connectNulls
+                isAnimationActive={false}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
