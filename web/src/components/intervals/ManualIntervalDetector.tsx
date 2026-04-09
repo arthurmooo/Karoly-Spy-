@@ -10,13 +10,16 @@ import type { Activity } from "@/types/activity";
 import {
   buildManualBlockPayload,
   detectBestSegments,
+  getExcludedSegmentsForBlock,
   getBlockDefaults,
   hasManualBlockOverride,
   isBikeSport,
+  overlapsExcludedSegments,
   speedToPaceDecimal,
   type DetectedSegment,
   type ManualDetectionMetric,
   type ManualDetectionMode,
+  type SegmentTimeRange,
 } from "@/services/manualIntervals.service";
 import { formatDistance, formatDuration, formatPaceDecimal, formatSwimPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
 import { isSwimSport } from "@/services/activity.service";
@@ -159,6 +162,10 @@ export function ManualIntervalDetector({
     () => segments.filter((segment) => selectedIds.includes(segment.id)),
     [segments, selectedIds]
   );
+  const excludedSegments = useMemo<SegmentTimeRange[]>(
+    () => getExcludedSegmentsForBlock(activity.manual_interval_segments, selectedBlock),
+    [activity.manual_interval_segments, selectedBlock]
+  );
 
   const sortedSegments = useMemo(
     () =>
@@ -252,6 +259,7 @@ export function ManualIntervalDetector({
       repetitions: repetitionCount,
       targetDurationSec,
       targetDistanceM,
+      excludedSegments,
     });
 
     setSegments(detected);
@@ -293,6 +301,11 @@ export function ManualIntervalDetector({
   async function handleInject() {
     if (selectedSegments.length === 0) {
       setError("Sélectionne au moins un segment à injecter.");
+      return;
+    }
+
+    if (selectedSegments.some((segment) => overlapsExcludedSegments(segment, excludedSegments))) {
+      setError(`Le bloc ${selectedBlock} ne peut pas chevaucher les segments déjà injectés dans l'autre bloc.`);
       return;
     }
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildManualBlockPayload, type DetectedSegment } from "./manualIntervals.service";
-import type { Activity } from "@/types/activity";
+import {
+  buildManualBlockPayload,
+  detectBestSegments,
+  getExcludedSegmentsForBlock,
+  type DetectedSegment,
+} from "./manualIntervals.service";
+import type { Activity, StreamPoint } from "@/types/activity";
 
 function makeActivity(overrides: Partial<Activity> = {}): Activity {
   return {
@@ -69,6 +74,128 @@ function makeSegment(startSec: number, endSec: number, avgHr: number): DetectedS
     avgPower: null,
   };
 }
+
+function makeStreamsFromSpeeds(speeds: number[], stepSec = 1): StreamPoint[] {
+  return speeds.map((spd, index) => ({
+    t: index * stepSec,
+    spd,
+    hr: 140 + index,
+  }));
+}
+
+describe("detectBestSegments", () => {
+  it("ignores candidates that overlap excluded ranges while allowing touching boundaries", () => {
+    const streams = makeStreamsFromSpeeds([9, 9, 9, 8, 8, 8], 1);
+
+    const detected = detectBestSegments({
+      streams,
+      mode: "duration",
+      metric: "speed",
+      repetitions: 1,
+      targetDurationSec: 3,
+      excludedSegments: [{ startSec: 0, endSec: 3 }],
+    });
+
+    expect(detected).toHaveLength(1);
+    expect(detected[0]).toMatchObject({
+      startSec: 3,
+      endSec: 6,
+      avgSpeed: 8,
+    });
+  });
+
+  it("keeps the historical behavior when no excluded range is provided", () => {
+    const streams = makeStreamsFromSpeeds([4, 6, 5, 1], 1);
+
+    const withoutExcludedSegments = detectBestSegments({
+      streams,
+      mode: "duration",
+      metric: "speed",
+      repetitions: 1,
+      targetDurationSec: 2,
+    });
+    const withEmptyExcludedSegments = detectBestSegments({
+      streams,
+      mode: "duration",
+      metric: "speed",
+      repetitions: 1,
+      targetDurationSec: 2,
+      excludedSegments: [],
+    });
+
+    expect(withEmptyExcludedSegments).toEqual(withoutExcludedSegments);
+    expect(withoutExcludedSegments[0]).toMatchObject({
+      startSec: 1,
+      endSec: 3,
+    });
+  });
+
+  it("prevents the long block from reusing the fast 3 km already assigned to the other block", () => {
+    const streams = makeStreamsFromSpeeds(
+      [...Array(25).fill(1000), ...Array(3).fill(1100)],
+      1
+    );
+
+    const fastBlock = detectBestSegments({
+      streams,
+      mode: "distance",
+      metric: "speed",
+      repetitions: 1,
+      targetDistanceM: 3000,
+    });
+    const longBlockWithoutExclusion = detectBestSegments({
+      streams,
+      mode: "distance",
+      metric: "speed",
+      repetitions: 1,
+      targetDistanceM: 25000,
+    });
+    const longBlockWithExclusion = detectBestSegments({
+      streams,
+      mode: "distance",
+      metric: "speed",
+      repetitions: 1,
+      targetDistanceM: 25000,
+      excludedSegments: fastBlock.map((segment) => ({
+        startSec: segment.startSec,
+        endSec: segment.endSec,
+      })),
+    });
+
+    expect(fastBlock).toHaveLength(1);
+    expect(fastBlock[0]!.startSec).toBeCloseTo(25, 5);
+
+    expect(longBlockWithoutExclusion).toHaveLength(1);
+    expect(longBlockWithoutExclusion[0]!.startSec).toBeGreaterThan(0);
+    expect(longBlockWithoutExclusion[0]!.endSec).toBeGreaterThan(fastBlock[0]!.startSec);
+
+    expect(longBlockWithExclusion).toHaveLength(1);
+    expect(longBlockWithExclusion[0]!.startSec).toBeCloseTo(0, 5);
+    expect(longBlockWithExclusion[0]!.endSec).toBeLessThanOrEqual(fastBlock[0]!.startSec);
+  });
+});
+
+describe("getExcludedSegmentsForBlock", () => {
+  it("returns only the segments from the opposite manual block", () => {
+    const manualBlocks: NonNullable<Activity["manual_interval_segments"]> = [
+      {
+        block_index: 1,
+        segments: [
+          { start_sec: 10, end_sec: 20, duration_sec: 10, distance_m: 1000, avg_speed: 5, avg_power: null, avg_hr: 150 },
+        ],
+      },
+      {
+        block_index: 2,
+        segments: [
+          { start_sec: 40, end_sec: 50, duration_sec: 10, distance_m: 1000, avg_speed: 6, avg_power: null, avg_hr: 160 },
+        ],
+      },
+    ];
+
+    expect(getExcludedSegmentsForBlock(manualBlocks, 1)).toEqual([{ startSec: 40, endSec: 50 }]);
+    expect(getExcludedSegmentsForBlock(manualBlocks, 2)).toEqual([{ startSec: 10, endSec: 20 }]);
+  });
+});
 
 describe("buildManualBlockPayload", () => {
   it("persists the injected segments as canonical manual interval blocks", () => {

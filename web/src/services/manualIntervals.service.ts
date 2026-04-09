@@ -59,6 +59,12 @@ interface DetectionOptions {
   repetitions: number;
   targetDurationSec?: number;
   targetDistanceM?: number;
+  excludedSegments?: SegmentTimeRange[];
+}
+
+export interface SegmentTimeRange {
+  startSec: number;
+  endSec: number;
 }
 
 interface PreparedSample {
@@ -292,12 +298,40 @@ function buildWindowStats(
   };
 }
 
-function rangesOverlap(a: DetectedSegment, b: DetectedSegment): boolean {
+function rangesOverlap(a: SegmentTimeRange, b: SegmentTimeRange): boolean {
   return a.startSec < b.endSec && a.endSec > b.startSec;
 }
 
+export function overlapsExcludedSegments(
+  candidate: SegmentTimeRange,
+  excludedSegments: SegmentTimeRange[]
+): boolean {
+  return excludedSegments.some((segment) => rangesOverlap(candidate, segment));
+}
+
+export function getExcludedSegmentsForBlock(
+  manualBlocks: ManualIntervalSegmentsBlock[] | null | undefined,
+  activeBlockIndex: 1 | 2
+): SegmentTimeRange[] {
+  const blockedIndex = activeBlockIndex === 1 ? 2 : 1;
+  const blocked = manualBlocks?.find((block) => block.block_index === blockedIndex);
+
+  return (blocked?.segments ?? []).map((segment) => ({
+    startSec: segment.start_sec,
+    endSec: segment.end_sec,
+  }));
+}
+
 export function detectBestSegments(options: DetectionOptions): DetectedSegment[] {
-  const { streams, mode, metric, repetitions, targetDurationSec, targetDistanceM } = options;
+  const {
+    streams,
+    mode,
+    metric,
+    repetitions,
+    targetDurationSec,
+    targetDistanceM,
+    excludedSegments = [],
+  } = options;
   const targetValue = mode === "duration" ? targetDurationSec : targetDistanceM;
 
   if (!streams.length || !targetValue || repetitions <= 0) return [];
@@ -330,6 +364,7 @@ export function detectBestSegments(options: DetectionOptions): DetectedSegment[]
   const selected: DetectedSegment[] = [];
   for (const candidate of candidates) {
     if (selected.length >= repetitions) break;
+    if (overlapsExcludedSegments(candidate, excludedSegments)) continue;
     if (selected.some((current) => rangesOverlap(current, candidate))) continue;
     selected.push(candidate);
   }
