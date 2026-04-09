@@ -414,7 +414,7 @@ export function DashboardPage() {
             </h2>
           </div>
           <CardContent className="p-0 flex-1 min-h-0 overflow-x-auto overflow-y-auto">
-            <div className="min-w-[500px]">
+            <div className="sm:min-w-[500px]">
               {loadLoading || !heatmapData ? (
                 <div className="flex items-center justify-center py-12 text-slate-400">
                   <Icon name="progress_activity" className="text-2xl animate-spin mr-2" />
@@ -432,14 +432,14 @@ export function DashboardPage() {
                         className="flex items-center gap-4 w-full text-left rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
                       >
                         {athleteMatch ? (
-                          <Link to={`/athletes/${athleteMatch.id}/trends`} className="w-28 flex items-center gap-2 shrink-0 cursor-pointer">
-                            <AthleteAvatar name={athlete} avatarUrl={getAvatarUrl(athlete)} size="xs" />
-                            <span className="text-xs font-medium truncate">{athlete}</span>
+                          <Link to={`/athletes/${athleteMatch.id}/trends`} className="w-20 sm:w-28 flex items-center gap-1 sm:gap-2 shrink-0 cursor-pointer">
+                            <span className="hidden sm:block"><AthleteAvatar name={athlete} avatarUrl={getAvatarUrl(athlete)} size="xs" /></span>
+                            <span className="text-[10px] sm:text-xs font-medium truncate">{athlete}</span>
                           </Link>
                         ) : (
-                          <div className="w-28 flex items-center gap-2 shrink-0">
-                            <AthleteAvatar name={athlete} avatarUrl={getAvatarUrl(athlete)} size="xs" />
-                            <span className="text-xs font-medium truncate">{athlete}</span>
+                          <div className="w-20 sm:w-28 flex items-center gap-1 sm:gap-2 shrink-0">
+                            <span className="hidden sm:block"><AthleteAvatar name={athlete} avatarUrl={getAvatarUrl(athlete)} size="xs" /></span>
+                            <span className="text-[10px] sm:text-xs font-medium truncate">{athlete}</span>
                           </div>
                         )}
                         <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${heatmapData.weeks.length}, minmax(0, 1fr))` }}>

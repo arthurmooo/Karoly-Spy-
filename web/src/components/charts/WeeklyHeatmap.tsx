@@ -94,8 +94,8 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-7 gap-2">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {data.days.map((day, index) => {
             const style = LEVEL_STYLES[day.level];
             const tooltip = [
@@ -119,29 +119,29 @@ export function WeeklyHeatmap({ data, isLoading = false }: WeeklyHeatmapProps) {
                 key={day.date}
                 tabIndex={0}
                 title={tooltip}
-                className={`group relative flex min-h-28 flex-col justify-between rounded-xl border px-3 py-3 transition-transform focus:outline-none focus:ring-2 focus:ring-primary/50 ${style.bgClass} ${style.borderClass}`}
+                className={`group relative flex min-h-20 sm:min-h-28 flex-col justify-between rounded-lg sm:rounded-xl border px-1.5 py-1.5 sm:px-3 sm:py-3 transition-transform focus:outline-none focus:ring-2 focus:ring-primary/50 ${style.bgClass} ${style.borderClass}`}
               >
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {day.label}
                     </span>
-                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${style.textClass}`}>
+                    <span className={`hidden sm:inline text-[10px] font-semibold uppercase tracking-wide ${style.textClass}`}>
                       {style.label}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
                     {format(parseISO(day.date), "d MMM", { locale: fr })}
                   </p>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-xl font-semibold font-mono text-slate-900 dark:text-white">
+                  <p className="text-base sm:text-xl font-semibold font-mono text-slate-900 dark:text-white">
                     {Math.round(day.mls).toLocaleString("fr-FR")}
                   </p>
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                  <div className="flex items-center justify-between gap-1 text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-300">
                     <span>{formatDuration(day.durationSec)}</span>
-                    <span>{day.sessionCount} seance{day.sessionCount > 1 ? "s" : ""}</span>
+                    <span className="hidden sm:inline">{day.sessionCount} seance{day.sessionCount > 1 ? "s" : ""}</span>
                   </div>
                 </div>
 

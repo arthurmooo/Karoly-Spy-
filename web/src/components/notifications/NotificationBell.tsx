@@ -59,7 +59,7 @@ export function NotificationBell() {
 
       {open && (
         <div className={cn(
-          "absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl shadow-xl",
+          "absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl shadow-xl",
           "border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
         )}>
           {/* Header */}

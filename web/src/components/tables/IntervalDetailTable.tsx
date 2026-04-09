@@ -9,6 +9,7 @@ import type { BlockGroupedIntervals, ActivityInterval, RepWindow, StreamPoint } 
 import { formatDuration, formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
 import { formatPowerWatts, getStreamPowerForRange, isBikeSport, isSwimSport } from "@/services/activity.service";
 import { cn } from "@/lib/cn";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Props {
   intervalsByBlock: BlockGroupedIntervals[];
@@ -422,7 +423,7 @@ export function IntervalDetailTable({
 
   return (
     <Card>
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-3 sm:px-5 sm:py-4 dark:border-slate-800">
         <div className="flex items-center gap-2">
           <Icon name="table_chart" className="text-base text-slate-400" />
           <span className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -548,7 +549,110 @@ const IntervalColGroup = () => (
   </colgroup>
 );
 
-function IntervalBlockView({
+function IntervalBlockView(props: {
+  blockIndex: number;
+  label: string;
+  summary: SummaryData;
+  sorted: RowData[];
+  expanded: boolean;
+  onToggle: () => void;
+  sortBy: SortCol;
+  sortDir: SortDirection;
+  handleSort: (col: SortCol) => void;
+  isBike: boolean;
+  formatPace: (v: number | null) => string;
+  multiBlock: boolean;
+}) {
+  const isMobile = useIsMobile();
+  if (isMobile) return <IntervalBlockMobileView {...props} />;
+  return <IntervalBlockDesktopView {...props} />;
+}
+
+// ── Mobile card layout for intervals ──
+
+function IntervalBlockMobileView({
+  blockIndex, label, summary, sorted, expanded, onToggle,
+  formatPace, multiBlock,
+}: {
+  blockIndex: number;
+  label: string;
+  summary: SummaryData;
+  sorted: RowData[];
+  expanded: boolean;
+  onToggle: () => void;
+  sortBy: SortCol;
+  sortDir: SortDirection;
+  handleSort: (col: SortCol) => void;
+  isBike: boolean;
+  formatPace: (v: number | null) => string;
+  multiBlock: boolean;
+}) {
+  return (
+    <div className="border-b border-slate-200 dark:border-slate-800">
+      {/* Summary — tappable */}
+      <button
+        type="button"
+        className="w-full text-left px-3 py-3 bg-slate-50/70 dark:bg-slate-800/40 active:bg-slate-100 dark:active:bg-slate-800/60 transition-all duration-150"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-200/70 dark:bg-slate-700/50">
+            <Icon name="expand_more" className={cn("text-sm text-slate-500 transition-transform duration-200", expanded && "rotate-180")} />
+          </span>
+          {multiBlock && <Badge variant="primary">{label}</Badge>}
+          <Badge variant="slate">{summary.count} reps</Badge>
+          <span className="ml-auto font-mono text-xs text-slate-500 dark:text-slate-400">
+            {summary.totalDuration != null ? formatDuration(summary.totalDuration) : ""}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-7 text-xs">
+          <span className="font-mono font-semibold text-accent-blue">{formatPace(summary.avgPaceOrPower)}</span>
+          {summary.avgHr != null && (
+            <span className="font-mono text-accent-orange">{summary.avgHr} bpm</span>
+          )}
+          {summary.globalDrift != null && (
+            <span className="font-mono text-slate-500 dark:text-slate-400">
+              Dérive {summary.globalDrift > 0 ? "+" : ""}{summary.globalDrift.toFixed(1)}%
+            </span>
+          )}
+          <CostBadge level={summary.costBadge} size="xs" />
+        </div>
+      </button>
+
+      {/* Expanded rows */}
+      <div className={cn(
+        "grid transition-all duration-300 ease-in-out",
+        expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+      )}>
+        <div className="overflow-hidden">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {sorted.map((row) => (
+              <div key={`${blockIndex}-${row.index}`} className="flex items-center gap-2 px-3 py-2 bg-slate-50/40 dark:bg-slate-800/20">
+                <span className="w-7 text-right text-[11px] font-medium text-slate-400 shrink-0">#{row.index}</span>
+                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 w-12 shrink-0">
+                  {row.duration != null ? formatDuration(row.duration) : "--"}
+                </span>
+                <span className="font-mono text-[11px] font-semibold text-accent-blue flex-1 min-w-0">
+                  {formatPace(row.paceOrPower)}
+                </span>
+                <span className="font-mono text-[11px] text-accent-orange w-16 text-right shrink-0">
+                  {row.hr != null ? `${row.hr} bpm` : "--"}
+                </span>
+                <span className="w-10 text-right shrink-0">
+                  <CostBadge level={row.costBadge} size="xs" />
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Desktop table layout for intervals ──
+
+function IntervalBlockDesktopView({
   blockIndex, label, summary, sorted, expanded, onToggle,
   sortBy, sortDir, handleSort, isBike, formatPace, multiBlock,
 }: {
@@ -697,7 +801,110 @@ const WindowColGroup = () => (
   </colgroup>
 );
 
-function WindowBlockView({
+function WindowBlockView(props: {
+  blockIndex: number;
+  label: string;
+  summary: WindowSummary;
+  sorted: WindowRow[];
+  expanded: boolean;
+  onToggle: () => void;
+  sortBy: SortCol;
+  sortDir: SortDirection;
+  handleSort: (col: SortCol) => void;
+  isBike: boolean;
+  formatPace: (v: number | null) => string;
+  formatOutput: (v: number | null) => string;
+  multiBlock: boolean;
+}) {
+  const isMobile = useIsMobile();
+  if (isMobile) return <WindowBlockMobileView {...props} />;
+  return <WindowBlockDesktopView {...props} />;
+}
+
+// ── Mobile card layout for windows ──
+
+function WindowBlockMobileView({
+  blockIndex, label, summary, sorted, expanded, onToggle,
+  formatPace, multiBlock,
+}: {
+  blockIndex: number;
+  label: string;
+  summary: WindowSummary;
+  sorted: WindowRow[];
+  expanded: boolean;
+  onToggle: () => void;
+  sortBy: SortCol;
+  sortDir: SortDirection;
+  handleSort: (col: SortCol) => void;
+  isBike: boolean;
+  formatPace: (v: number | null) => string;
+  formatOutput: (v: number | null) => string;
+  multiBlock: boolean;
+}) {
+  return (
+    <div className="border-b border-slate-200 dark:border-slate-800">
+      <button
+        type="button"
+        className="w-full text-left px-3 py-3 bg-slate-50/70 dark:bg-slate-800/40 active:bg-slate-100 dark:active:bg-slate-800/60 transition-all duration-150"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-200/70 dark:bg-slate-700/50">
+            <Icon name="expand_more" className={cn("text-sm text-slate-500 transition-transform duration-200", expanded && "rotate-180")} />
+          </span>
+          {multiBlock && <Badge variant="primary">{label}</Badge>}
+          <Badge variant="slate">{summary.count} reps</Badge>
+          <span className="ml-auto font-mono text-xs text-slate-500 dark:text-slate-400">
+            {summary.totalDuration != null ? formatDuration(summary.totalDuration) : ""}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-7 text-xs">
+          <span className="font-mono font-semibold text-accent-blue">{formatPace(summary.avgPace)}</span>
+          {summary.avgHr != null && (
+            <span className="font-mono text-accent-orange">{summary.avgHr} bpm</span>
+          )}
+          {summary.globalDrift != null && (
+            <span className="font-mono text-slate-500 dark:text-slate-400">
+              Dérive {summary.globalDrift > 0 ? "+" : ""}{summary.globalDrift.toFixed(1)}%
+            </span>
+          )}
+          <CostBadge level={summary.costBadge} size="xs" />
+        </div>
+      </button>
+
+      <div className={cn(
+        "grid transition-all duration-300 ease-in-out",
+        expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+      )}>
+        <div className="overflow-hidden">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {sorted.map((row) => (
+              <div key={`${blockIndex}-w-${row.index}`} className="flex items-center gap-2 px-3 py-2 bg-slate-50/40 dark:bg-slate-800/20">
+                <span className="w-7 text-right text-[11px] font-medium text-slate-400 shrink-0">#{row.index}</span>
+                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 w-12 shrink-0">
+                  {row.duration != null ? formatDuration(row.duration) : "--"}
+                </span>
+                <span className="font-mono text-[11px] font-semibold text-accent-blue flex-1 min-w-0">
+                  {formatPace(row.pace)}
+                </span>
+                <span className="font-mono text-[11px] text-accent-orange w-16 text-right shrink-0">
+                  {row.hr != null ? `${row.hr} bpm` : "--"}
+                </span>
+                <span className="w-10 text-right shrink-0">
+                  <CostBadge level={row.costBadge} size="xs" />
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Desktop table layout for windows ──
+
+function WindowBlockDesktopView({
   blockIndex, label, summary, sorted, expanded, onToggle,
   sortBy, sortDir, handleSort, isBike, formatPace, formatOutput, multiBlock,
 }: {

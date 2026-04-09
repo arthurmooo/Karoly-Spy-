@@ -134,10 +134,10 @@ export function CoachLayout() {
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-xl bg-accent-blue px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm active:scale-95 transition-all duration-150"
             data-testid="coach-mobile-menu-button"
           >
-            <Icon name="menu" className="text-lg" />
+            <Icon name="menu" className="text-xl" />
             Menu
           </button>
           <img src="/ks-logo.png" alt="KS Endurance Training" className="h-8 w-auto dark:brightness-90" />
