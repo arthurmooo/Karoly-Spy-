@@ -25,7 +25,7 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
   const testId = event.activityId ? `calendar-event-${event.activityId}` : undefined;
 
   if (view === "month") {
-    const monthClassName = `flex items-center gap-1 px-1.5 py-1 mb-1 rounded-r-lg border-l-2 ${
+    const monthClassName = `flex items-center gap-1 px-1.5 py-1 mb-1 rounded-md border ${
       event.type === "planned"
         ? "border-dashed bg-slate-100/50 dark:bg-slate-800/30 border-slate-400 opacity-70 cursor-default"
         : `${config.bgLight} ${config.textColor} ${config.border} cursor-pointer hover:opacity-80`
@@ -54,7 +54,7 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({ event, view }) => 
   }
 
   if (view === "week") {
-    const weekClassName = `bg-white dark:bg-slate-900 rounded-xl border shadow-sm p-3 mb-2 border-l-4 ${
+    const weekClassName = `bg-white dark:bg-slate-900 rounded-xl border shadow-sm p-3 mb-2 ${
       event.type === "planned"
         ? "border-dashed border-slate-400 opacity-70 cursor-default"
         : `${config.border} cursor-pointer hover:border-slate-300 dark:hover:border-slate-700`

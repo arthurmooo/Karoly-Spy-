@@ -1,7 +1,10 @@
+export type PhysioProfileState = "fresh" | "semi_fatigued" | "fatigued";
+
 export interface PhysioProfile {
   id: string;
   athlete_id: string;
   sport: string;
+  profile_state: PhysioProfileState;
   lt1_hr: number | null;
   lt2_hr: number | null;
   lt1_power_pace: number | null;

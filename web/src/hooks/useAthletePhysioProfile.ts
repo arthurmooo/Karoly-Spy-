@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getProfiles } from "@/repositories/physio.repository";
 import type { PhysioProfile } from "@/types/physio";
-import { normalizePhysioSport } from "@/services/physio.service";
+import { isFreshPhysioProfileState, normalizePhysioSport } from "@/services/physio.service";
 
 export function useAthletePhysioProfile(
   athleteId: string | undefined,
@@ -30,6 +30,7 @@ export function useAthletePhysioProfile(
         // Find the profile valid at activityDate for this sport
         const match = profiles.find((p) => {
           if (normalizePhysioSport(p.sport) !== normalizedSport) return false;
+          if (!isFreshPhysioProfileState(p.profile_state)) return false;
           const validFrom = new Date(p.valid_from);
           if (validFrom > date) return false;
           if (p.valid_to && new Date(p.valid_to) <= date) return false;

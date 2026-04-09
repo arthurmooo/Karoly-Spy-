@@ -25,6 +25,7 @@ def check_profiles():
         # Check if they have at least one profile entry
         p_query = db.client.table("physio_profiles").select("id")
         p_query = p_query.eq("athlete_id", ath["id"])
+        p_query = p_query.eq("profile_state", "fresh")
         p_query = p_query.limit(1)
         prof_res = p_query.execute()
             

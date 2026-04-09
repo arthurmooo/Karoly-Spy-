@@ -11,10 +11,17 @@ class ProfileManager:
     def __init__(self, db_connector: Optional[DBConnector] = None):
         self.db = db_connector or DBConnector()
 
-    def get_profile_for_date(self, athlete_id: str, sport: str, date: datetime) -> Optional[PhysioProfile]:
+    def get_profile_for_date(
+        self,
+        athlete_id: str,
+        sport: str,
+        date: datetime,
+        profile_state: str = "fresh",
+    ) -> Optional[PhysioProfile]:
         """
         Fetch the physiological profile valid at a specific timestamp.
         Logic: valid_from <= date AND (valid_to > date OR valid_to IS NULL)
+        Defaults to the canonical `fresh` profile state used by MLS.
         """
         date_str = date.isoformat()
         
@@ -22,6 +29,7 @@ class ProfileManager:
             .select("*") \
             .eq("athlete_id", athlete_id) \
             .eq("sport", sport) \
+            .eq("profile_state", profile_state) \
             .lte("valid_from", date_str) \
             .or_(f"valid_to.gt.{date_str},valid_to.is.null") \
             .order("valid_from", desc=True) \

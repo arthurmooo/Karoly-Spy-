@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getProfiles, insertProfile, triggerBatchReprocess } from "@/repositories/physio.repository";
-import { normalizePhysioSport } from "@/services/physio.service";
+import { isFreshPhysioProfileState, normalizePhysioSport } from "@/services/physio.service";
 import { toast } from "sonner";
 import type { PhysioProfile } from "@/types/physio";
 
@@ -27,14 +27,16 @@ export function usePhysio(athleteId: string | null) {
 
   const activeProfiles = profiles.filter((p) => !p.valid_to);
   const archivedProfiles = profiles.filter((p) => !!p.valid_to);
+  const freshActiveProfiles = activeProfiles.filter((p) => isFreshPhysioProfileState(p.profile_state));
 
   const MLS_SPORTS = ["Run", "Bike"];
 
   const addProfile = async (profile: Omit<PhysioProfile, "id">) => {
-    const { hadPreviousProfile } = await insertProfile(profile);
+    await insertProfile(profile);
     const sport = normalizePhysioSport(profile.sport);
+    const isFreshProfile = isFreshPhysioProfileState(profile.profile_state);
 
-    if (!hadPreviousProfile && MLS_SPORTS.includes(sport)) {
+    if (isFreshProfile && MLS_SPORTS.includes(sport)) {
       try {
         await triggerBatchReprocess(profile.athlete_id, sport);
         toast.success(
@@ -51,5 +53,5 @@ export function usePhysio(athleteId: string | null) {
     await fetch();
   };
 
-  return { profiles, activeProfiles, archivedProfiles, addProfile, isLoading };
+  return { profiles, activeProfiles, archivedProfiles, freshActiveProfiles, addProfile, isLoading };
 }

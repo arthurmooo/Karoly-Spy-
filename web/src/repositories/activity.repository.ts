@@ -4,6 +4,7 @@ import type {
   Activity,
   ActivityInterval,
   ActivityComparisonCandidate,
+  ActivityComparisonLibraryFilters,
   ActivityFilters,
   FormAnalysisComparableActivity,
   GarminLap,
@@ -333,7 +334,7 @@ export async function getComparableActivities(baseActivity: Activity): Promise<A
     .from("activities")
     .select(
       `id, athlete_id, session_date, sport_type, activity_name, manual_activity_name,
-       duration_sec, moving_time_sec, distance_m, avg_hr, avg_power, decoupling_index`
+       work_type, duration_sec, moving_time_sec, distance_m, avg_hr, avg_power, decoupling_index`
     )
     .eq("athlete_id", baseActivity.athlete_id)
     .in("sport_type", getSportFilterValues(sportKey))
@@ -355,6 +356,54 @@ export async function getComparableActivities(baseActivity: Activity): Promise<A
       return new Date(right.session_date).getTime() - new Date(left.session_date).getTime();
     })
     .slice(0, 20) as ActivityComparisonCandidate[];
+}
+
+export async function getSportActivitiesForComparison(
+  baseActivity: Activity,
+  filters: ActivityComparisonLibraryFilters = {}
+): Promise<ActivityComparisonCandidate[]> {
+  if (!baseActivity.athlete_id) return [];
+
+  const sportKey = normalizeSportKey(baseActivity.sport_type ?? "");
+
+  let query = supabase
+    .from("activities")
+    .select(
+      `id, athlete_id, session_date, sport_type, work_type, activity_name, manual_activity_name,
+       duration_sec, moving_time_sec, distance_m, avg_hr, avg_power, decoupling_index`
+    )
+    .eq("athlete_id", baseActivity.athlete_id)
+    .in("sport_type", getSportFilterValues(sportKey))
+    .neq("id", baseActivity.id);
+
+  if (filters.work_type) {
+    query = query.eq("work_type", filters.work_type);
+  }
+  if (filters.date_from) {
+    query = query.gte("session_date", toUtcDayBoundary(filters.date_from, "start"));
+  }
+  if (filters.date_to) {
+    query = query.lte("session_date", toUtcDayBoundary(filters.date_to, "end"));
+  }
+  if (filters.duration_min != null) {
+    query = query.gte("duration_sec", filters.duration_min);
+  }
+  if (filters.duration_max != null) {
+    query = query.lte("duration_sec", filters.duration_max);
+  }
+  if (filters.search) {
+    const term = filters.search.trim();
+    if (term) {
+      query = query.or(`activity_name.ilike.%${term}%,manual_activity_name.ilike.%${term}%`);
+    }
+  }
+
+  const { data, error } = await query
+    .order("session_date", { ascending: false })
+    .limit(300);
+
+  if (error) throw error;
+  return (data ?? []) as ActivityComparisonCandidate[];
 }
 
 export async function getFormAnalysisComparableActivities(baseActivity: Activity): Promise<FormAnalysisComparableActivity[]> {

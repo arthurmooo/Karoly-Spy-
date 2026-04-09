@@ -68,7 +68,7 @@ export function SectionCoachComment({ sectionKey, comment, isCoach, onSave }: Pr
   if (!isCoach) {
     if (!hasComment) return null;
     return (
-      <div className="mt-3 flex gap-2.5 rounded-lg border-l-[3px] border-blue-500 bg-blue-50/60 py-2.5 pr-3 pl-3.5 dark:border-blue-400 dark:bg-blue-950/30">
+      <div className="mt-3 flex gap-2.5 rounded-xl border border-blue-200 bg-blue-50/60 p-3 dark:border-blue-800 dark:bg-blue-950/30">
         <Icon
           name="sports"
           className="mt-0.5 shrink-0 text-[16px] text-blue-500 dark:text-blue-400"
@@ -88,7 +88,7 @@ export function SectionCoachComment({ sectionKey, comment, isCoach, onSave }: Pr
   // ── Coach: editing mode ───────────────────────────────
   if (isEditing) {
     return (
-      <div className="mt-3 rounded-lg border-l-[3px] border-blue-500 bg-blue-50/40 p-3 dark:border-blue-400 dark:bg-blue-950/20">
+      <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-800 dark:bg-blue-950/20">
         <textarea
           ref={textareaRef}
           className="h-20 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] leading-relaxed text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:ring-blue-500"
@@ -143,7 +143,7 @@ export function SectionCoachComment({ sectionKey, comment, isCoach, onSave }: Pr
   // ── Coach: display mode (has comment) ─────────────────
   if (hasComment) {
     return (
-      <div className="group/comment mt-3 flex gap-2.5 rounded-lg border-l-[3px] border-blue-500 bg-blue-50/40 py-2.5 pr-3 pl-3.5 dark:border-blue-400 dark:bg-blue-950/20">
+      <div className="group/comment mt-3 flex gap-2.5 rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-800 dark:bg-blue-950/20">
         <Icon
           name="comment"
           className="mt-0.5 shrink-0 text-[16px] text-blue-500/60 dark:text-blue-400/60"

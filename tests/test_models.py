@@ -39,6 +39,33 @@ def test_athlete_profile_history():
     # Date avant tout profil -> None ou erreur ? Disons None pour l'instant
     assert athlete.get_profile_for_date(datetime(2022, 1, 1)) is None
 
+def test_athlete_profile_history_defaults_to_fresh_state():
+    """Fresh remains the canonical state when several profile variants coexist."""
+    athlete = Athlete(id="123", name="Test Runner")
+
+    fresh = PhysioProfile(
+        lt1_hr=140,
+        lt2_hr=160,
+        cp=250,
+        sport="run",
+        profile_state="fresh",
+        valid_from=datetime(2024, 1, 1),
+    )
+    fatigued = PhysioProfile(
+        lt1_hr=133,
+        lt2_hr=153,
+        cp=240,
+        sport="run",
+        profile_state="fatigued",
+        valid_from=datetime(2024, 1, 1),
+    )
+
+    athlete.add_profile(fresh)
+    athlete.add_profile(fatigued)
+
+    assert athlete.get_profile_for_date(datetime(2024, 2, 1), sport="run").profile_state == "fresh"
+    assert athlete.get_profile_for_date(datetime(2024, 2, 1), sport="run", profile_state="fatigued").profile_state == "fatigued"
+
 def test_activity_structure():
     """Test l'initialisation d'une activité avec DataFrame."""
     df = pd.DataFrame({'timestamp': [], 'power': []})

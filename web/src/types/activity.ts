@@ -145,6 +145,7 @@ export interface ActivityComparisonCandidate {
   athlete_id: string;
   session_date: string;
   sport_type: string;
+  work_type?: string | null;
   activity_name: string;
   manual_activity_name?: string | null;
   duration_sec: number | null;
@@ -185,6 +186,15 @@ export interface ActivityFilters {
   per_page?: number;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
+}
+
+export interface ActivityComparisonLibraryFilters {
+  work_type?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+  duration_min?: number;
+  duration_max?: number;
 }
 
 export interface ActivitySourceJson {
@@ -274,6 +284,14 @@ export interface ComparisonSummary {
   metricUnitLabel: string;
   rows: ComparisonDeltaRow[];
   alert: ComparisonAlert;
+  isSegmentComparison: boolean;
+  currentRangeLabel: string;
+  referenceRangeLabel: string;
+}
+
+export interface ComparisonRangeSelection {
+  startKm: number;
+  endKm: number;
 }
 
 export type FormAnalysisModule = "continuous_tempo" | "intervals";

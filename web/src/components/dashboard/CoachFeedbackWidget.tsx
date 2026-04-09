@@ -42,7 +42,7 @@ export function CoachFeedbackWidget({ athleteId }: Props) {
               {mapSportLabel(activity.sport_type ?? "")} · {formatDate(activity.session_date)}
             </span>
           </div>
-          <blockquote className="border-l-2 border-accent-blue pl-3 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+          <blockquote className="rounded-lg bg-slate-50 px-3 py-2 text-sm italic text-slate-700 dark:bg-slate-800/50 dark:text-slate-300 leading-relaxed">
             {comment}
           </blockquote>
         </Link>
