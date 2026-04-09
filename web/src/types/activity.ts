@@ -1,5 +1,15 @@
 export type WorkTypeValue = "endurance" | "intervals" | "competition";
 
+export type SectionCommentKey =
+  | "form_analysis"
+  | "zone_distribution"
+  | "decoupling"
+  | "intervals_chart"
+  | "intervals_detail"
+  | "target_vs_actual"
+  | "segment_analysis"
+  | "phase_comparison";
+
 export interface StreamPoint {
   t: number;      // active seconds on the chart axis
   elapsed_t?: number; // elapsed seconds since activity start
@@ -43,6 +53,7 @@ export interface Activity {
   avg_power: number | null;
   rpe: number | null;
   coach_comment?: string | null;
+  section_comments?: Record<string, string> | null;
   athlete_comment?: string | null;
   athlete_feedback_rating?: number | null;  // 1-5
   athlete_feedback_text?: string | null;

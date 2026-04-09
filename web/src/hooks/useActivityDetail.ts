@@ -7,6 +7,7 @@ import {
   updateActivityType,
   updateAthleteFeedback,
   updateCoachComment,
+  updateSectionComment,
   updateManualIntervalOverrides,
 } from "@/repositories/activity.repository";
 import type { Activity, ActivityInterval, WorkTypeValue } from "@/types/activity";
@@ -184,6 +185,37 @@ export function useActivityDetail(id: string | undefined) {
     [id]
   );
 
+  const saveSectionComment = useCallback(
+    async (sectionKey: string, comment: string) => {
+      if (!id) return;
+
+      // Optimistic update
+      setActivity((prev) => {
+        if (!prev) return prev;
+        const current = { ...(prev.section_comments ?? {}) };
+        const trimmed = comment.trim();
+        if (trimmed) {
+          current[sectionKey] = trimmed;
+        } else {
+          delete current[sectionKey];
+        }
+        return {
+          ...prev,
+          section_comments: Object.keys(current).length > 0 ? current : null,
+        };
+      });
+
+      try {
+        await updateSectionComment(id, sectionKey, comment);
+      } catch (err) {
+        // Revert optimistic update
+        await refresh();
+        throw err;
+      }
+    },
+    [id, refresh]
+  );
+
   const saveAthleteFeedback = useCallback(
     async (rating: number | null, text: string) => {
       if (!id) return;
@@ -323,6 +355,7 @@ export function useActivityDetail(id: string | undefined) {
     saveError,
     nolioSynced,
     saveCoachComment,
+    saveSectionComment,
     saveManualDetectorOverride,
     saveWorkType,
     handleReprocess,

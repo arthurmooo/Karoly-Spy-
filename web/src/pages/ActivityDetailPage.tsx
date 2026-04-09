@@ -57,7 +57,7 @@ export function ActivityDetailPage() {
 
   const {
     activity, intervals, isLoading, isLoadingStreams,
-    isSaving, saveError, nolioSynced, saveCoachComment,
+    isSaving, saveError, nolioSynced, saveCoachComment, saveSectionComment,
     saveManualDetectorOverride, handleReprocess, isReprocessing,
     saveWorkType, isSavingWorkType, workTypeSaveError, workTypeWarning,
     isSavingFeedback, feedbackSaveError, saveAthleteFeedback,
@@ -367,6 +367,9 @@ export function ActivityDetailPage() {
           expandedBlocks={expandedBlocks}
           onToggleBlock={handleToggleBlock}
           onAnalysisHighlightsChange={setAnalysisHighlights}
+          isCoach={isCoach}
+          sectionComments={activity.section_comments}
+          onSaveSectionComment={saveSectionComment}
         />
       )}
 

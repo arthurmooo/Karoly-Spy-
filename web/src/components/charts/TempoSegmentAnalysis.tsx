@@ -219,6 +219,65 @@ export function TempoSegmentAnalysis({ splits4, sportType, phaseLabels, hideTitl
         )}
       </div>
 
+      {/* Tableau récapitulatif des valeurs absolues (partageable en screenshot) */}
+      {chartData.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-700">
+                <th className="pb-1.5 pl-1 text-left font-medium text-slate-500 dark:text-slate-400" />
+                {chartData.map((d) => (
+                  <th key={d.label} className="pb-1.5 text-center font-medium text-slate-500 dark:text-slate-400">
+                    {d.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tr>
+                <td className="py-1.5 pl-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-sm bg-[#3b82f6]" />
+                    <span className="text-slate-600 dark:text-slate-400">FC</span>
+                  </span>
+                </td>
+                {chartData.map((d) => (
+                  <td key={d.label} className="py-1.5 text-center font-mono font-medium text-slate-900 dark:text-white">
+                    {d.fc_abs}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="py-1.5 pl-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-sm bg-[#f97316]" />
+                    <span className="text-slate-600 dark:text-slate-400">{isBike ? "Puissance" : "Allure"}</span>
+                  </span>
+                </td>
+                {chartData.map((d) => (
+                  <td key={d.label} className="py-1.5 text-center font-mono font-medium text-slate-900 dark:text-white">
+                    {d.allure_abs}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="py-1.5 pl-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-sm bg-[#22c55e]" />
+                    <span className="text-slate-600 dark:text-slate-400">Ratio</span>
+                  </span>
+                </td>
+                {chartData.map((d) => (
+                  <td key={d.label} className="py-1.5 text-center font-mono font-medium text-slate-900 dark:text-white">
+                    {d.ratio_abs}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {degradationSegment != null && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800/50 dark:bg-amber-900/20">
           <Icon name="warning" className="mt-0.5 text-amber-600 dark:text-amber-400" />

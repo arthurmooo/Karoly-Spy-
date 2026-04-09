@@ -11,7 +11,8 @@ import { TargetVsActualChart } from "@/components/charts/TargetVsActualChart";
 import { TempoSegmentAnalysis } from "@/components/charts/TempoSegmentAnalysis";
 import { TempoPhaseComparison } from "@/components/charts/TempoPhaseComparison";
 import { FormAnalysisPanel } from "@/components/activity/FormAnalysisPanel";
-import type { Activity, ActivityInterval, BlockGroupedIntervals, RepWindow } from "@/types/activity";
+import { SectionCoachComment } from "@/components/activity/SectionCoachComment";
+import type { Activity, ActivityInterval, BlockGroupedIntervals, RepWindow, SectionCommentKey } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
 import { isTempo } from "@/services/activity.service";
 
@@ -25,6 +26,9 @@ interface Props {
   expandedBlocks?: Set<number>;
   onToggleBlock?: (blockIndex: number) => void;
   onAnalysisHighlightsChange?: (highlights: AnalysisHighlightRange[]) => void;
+  isCoach?: boolean;
+  sectionComments?: Record<string, string> | null;
+  onSaveSectionComment?: (sectionKey: string, comment: string) => Promise<void>;
 }
 
 const COMPETITION_LABELS = ["Q1 (Départ)", "Q2 (Mise en place)", "Q3 (Gestion)", "Q4 (Finish)"];
@@ -68,6 +72,9 @@ export function ActivityAnalysisSection({
   expandedBlocks,
   onToggleBlock,
   onAnalysisHighlightsChange,
+  isCoach,
+  sectionComments,
+  onSaveSectionComment,
 }: Props) {
   const segmented = activity.segmented_metrics;
   const formAnalysis = activity.form_analysis ?? null;
@@ -93,6 +100,16 @@ export function ActivityAnalysisSection({
     return null;
   })();
 
+  const renderComment = (key: SectionCommentKey) =>
+    onSaveSectionComment ? (
+      <SectionCoachComment
+        sectionKey={key}
+        comment={sectionComments?.[key]}
+        isCoach={isCoach ?? false}
+        onSave={onSaveSectionComment}
+      />
+    ) : null;
+
   return (
     <Card>
       <Disclosure defaultOpen={false}>
@@ -101,7 +118,12 @@ export function ActivityAnalysisSection({
         </DisclosureTrigger>
         <DisclosureContent>
           <div className="space-y-5 px-6 pt-2 pb-6">
-            {formAnalysis ? <FormAnalysisPanel activity={activity} formAnalysis={formAnalysis} /> : null}
+            {formAnalysis ? (
+              <>
+                <FormAnalysisPanel activity={activity} formAnalysis={formAnalysis} />
+                {renderComment("form_analysis")}
+              </>
+            ) : null}
 
             {/* Zone Distribution — always shown if streams + physio */}
             {hasStreams && (
@@ -112,6 +134,7 @@ export function ActivityAnalysisSection({
                   lt2Hr={physioProfile?.lt2_hr ?? null}
                   hideTitle
                 />
+                {renderComment("zone_distribution")}
               </CollapsibleSection>
             )}
 
@@ -125,6 +148,7 @@ export function ActivityAnalysisSection({
                   sportType={activity.sport_type}
                   hideTitle
                 />
+                {renderComment("decoupling")}
               </CollapsibleSection>
             )}
 
@@ -141,6 +165,7 @@ export function ActivityAnalysisSection({
                 expandedBlocks={expandedBlocks}
                 onToggleBlock={onToggleBlock}
                 onAnalysisHighlightsChange={onAnalysisHighlightsChange}
+                renderSectionComment={renderComment}
               />
             )}
 
@@ -153,6 +178,7 @@ export function ActivityAnalysisSection({
                     sportType={activity.sport_type}
                     hideTitle
                   />
+                  {renderComment("segment_analysis")}
                 </CollapsibleSection>
                 <CollapsibleSection title="Comparaison 1re vs 2e moitié">
                   <TempoPhaseComparison
@@ -160,6 +186,7 @@ export function ActivityAnalysisSection({
                     sportType={activity.sport_type}
                     hideTitle
                   />
+                  {renderComment("phase_comparison")}
                 </CollapsibleSection>
               </div>
             )}
@@ -174,6 +201,7 @@ export function ActivityAnalysisSection({
                     phaseLabels={COMPETITION_LABELS}
                     hideTitle
                   />
+                  {renderComment("segment_analysis")}
                 </CollapsibleSection>
                 <CollapsibleSection title="Comparaison 1re vs 2e moitié">
                   <TempoPhaseComparison
@@ -181,6 +209,7 @@ export function ActivityAnalysisSection({
                     sportType={activity.sport_type}
                     hideTitle
                   />
+                  {renderComment("phase_comparison")}
                 </CollapsibleSection>
                 <CollapsibleSection title="Découplage aérobie">
                   <div className="flex flex-wrap items-stretch gap-3">
@@ -217,6 +246,7 @@ export function ActivityAnalysisSection({
                       </div>
                     )}
                   </div>
+                  {renderComment("decoupling")}
                 </CollapsibleSection>
                 <FeatureNotice
                   title="Module 4 — Race Analysis"
@@ -258,6 +288,7 @@ function IntervalsSection({
   expandedBlocks,
   onToggleBlock,
   onAnalysisHighlightsChange,
+  renderSectionComment,
 }: {
   intervals: ActivityInterval[];
   intervalsByBlock: BlockGroupedIntervals[];
@@ -269,6 +300,7 @@ function IntervalsSection({
   expandedBlocks?: Set<number>;
   onToggleBlock?: (blockIndex: number) => void;
   onAnalysisHighlightsChange?: (highlights: AnalysisHighlightRange[]) => void;
+  renderSectionComment?: (key: SectionCommentKey) => React.ReactNode;
 }) {
   const [selectedBlock, setSelectedBlock] = useState<number | "all">("all");
   const [detailViewMode, setDetailViewMode] = useState<ViewMode>("intervals");
@@ -363,6 +395,7 @@ function IntervalsSection({
           sportType={activity.sport_type}
           hideTitle
         />
+        {renderSectionComment?.("intervals_chart")}
       </CollapsibleSection>
       <IntervalDetailTable
         intervalsByBlock={filteredByBlock}
@@ -374,6 +407,7 @@ function IntervalsSection({
         view={detailViewMode}
         onViewChange={setDetailViewMode}
       />
+      {renderSectionComment?.("intervals_detail")}
       <CollapsibleSection title="Prévu vs Réalisé">
         <TargetVsActualChart
           intervalsByBlock={filteredByBlock}
@@ -381,6 +415,7 @@ function IntervalsSection({
           sportType={activity.sport_type}
           hideTitle
         />
+        {renderSectionComment?.("target_vs_actual")}
       </CollapsibleSection>
       <IntervalAlerts intervals={filteredFlatIntervals} />
     </div>

@@ -137,12 +137,14 @@ const DETAIL_COLUMNS_CORE = `id, athlete_id, session_date, sport_type, work_type
 const DETAIL_COLUMNS_WORK_TYPE_OVERRIDE = "manual_work_type, detected_work_type, analysis_dirty";
 const DETAIL_COLUMNS_FORM_ANALYSIS = "form_analysis";
 const DETAIL_COLUMNS_FEEDBACK = "athlete_feedback_rating, athlete_feedback_text";
+const DETAIL_COLUMNS_SECTION_COMMENTS = "section_comments";
 const DETAIL_COLUMNS_ATHLETES = "athletes(first_name, last_name)";
 const DETAIL_COLUMNS_STREAMS_AND_LAPS = "activity_streams, garmin_laps";
 
 type DetailSelectAttempt = {
   includeStreamsAndLaps: boolean;
   includeFeedback: boolean;
+  includeSectionComments: boolean;
   includeWorkTypeOverride: boolean;
   includeFormAnalysis: boolean;
 };
@@ -151,30 +153,42 @@ const DETAIL_SELECT_ATTEMPTS: DetailSelectAttempt[] = [
   {
     includeStreamsAndLaps: true,
     includeFeedback: true,
+    includeSectionComments: true,
     includeWorkTypeOverride: true,
     includeFormAnalysis: true,
   },
   {
     includeStreamsAndLaps: false,
     includeFeedback: true,
+    includeSectionComments: true,
+    includeWorkTypeOverride: true,
+    includeFormAnalysis: true,
+  },
+  {
+    includeStreamsAndLaps: false,
+    includeFeedback: true,
+    includeSectionComments: false,
     includeWorkTypeOverride: true,
     includeFormAnalysis: true,
   },
   {
     includeStreamsAndLaps: false,
     includeFeedback: false,
+    includeSectionComments: false,
     includeWorkTypeOverride: true,
     includeFormAnalysis: true,
   },
   {
     includeStreamsAndLaps: false,
     includeFeedback: false,
+    includeSectionComments: false,
     includeWorkTypeOverride: false,
     includeFormAnalysis: true,
   },
   {
     includeStreamsAndLaps: false,
     includeFeedback: false,
+    includeSectionComments: false,
     includeWorkTypeOverride: false,
     includeFormAnalysis: false,
   },
@@ -191,6 +205,9 @@ function buildActivityDetailSelect(attempt: DetailSelectAttempt): string {
   }
   if (attempt.includeFeedback) {
     columns.push(DETAIL_COLUMNS_FEEDBACK);
+  }
+  if (attempt.includeSectionComments) {
+    columns.push(DETAIL_COLUMNS_SECTION_COMMENTS);
   }
   if (attempt.includeStreamsAndLaps) {
     columns.push(DETAIL_COLUMNS_STREAMS_AND_LAPS);
@@ -272,6 +289,19 @@ export async function updateCoachComment(activityId: string, comment: string) {
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
   return { success: true, nolio_synced: data?.nolio_synced ?? false };
+}
+
+export async function updateSectionComment(
+  activityId: string,
+  sectionKey: string,
+  comment: string
+) {
+  const { data, error } = await supabase.functions.invoke("update-section-comment", {
+    body: { activity_id: activityId, section_key: sectionKey, comment },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return { success: true };
 }
 
 export async function updateAthleteFeedback(activityId: string, rating: number | null, text: string) {
