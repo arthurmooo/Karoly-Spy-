@@ -169,9 +169,9 @@ export function ActivityAnalysisSection({
               />
             )}
 
-            {/* Tempo: 4-segment analysis */}
+            {/* Tempo: 4-segment analysis + half comparison side by side */}
             {isTempoActivity && workType !== "competition" && (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <CollapsibleSection title="Analyse par segments">
                   <TempoSegmentAnalysis
                     splits4={segmented?.splits_4}
@@ -194,23 +194,25 @@ export function ActivityAnalysisSection({
             {/* Competition: 4-segment with competition labels + 1re/2e moitié + decoupling */}
             {workType === "competition" && (
               <div className="space-y-4">
-                <CollapsibleSection title="Analyse par segments">
-                  <TempoSegmentAnalysis
-                    splits4={segmented?.splits_4}
-                    sportType={activity.sport_type}
-                    phaseLabels={COMPETITION_LABELS}
-                    hideTitle
-                  />
-                  {renderComment("segment_analysis")}
-                </CollapsibleSection>
-                <CollapsibleSection title="Comparaison 1re vs 2e moitié">
-                  <TempoPhaseComparison
-                    splits2={segmented?.splits_2}
-                    sportType={activity.sport_type}
-                    hideTitle
-                  />
-                  {renderComment("phase_comparison")}
-                </CollapsibleSection>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <CollapsibleSection title="Analyse par segments">
+                    <TempoSegmentAnalysis
+                      splits4={segmented?.splits_4}
+                      sportType={activity.sport_type}
+                      phaseLabels={COMPETITION_LABELS}
+                      hideTitle
+                    />
+                    {renderComment("segment_analysis")}
+                  </CollapsibleSection>
+                  <CollapsibleSection title="Comparaison 1re vs 2e moitié">
+                    <TempoPhaseComparison
+                      splits2={segmented?.splits_2}
+                      sportType={activity.sport_type}
+                      hideTitle
+                    />
+                    {renderComment("phase_comparison")}
+                  </CollapsibleSection>
+                </div>
                 <CollapsibleSection title="Découplage aérobie">
                   <div className="flex flex-wrap items-stretch gap-3">
                     <DecouplingVisual
@@ -442,15 +444,17 @@ function AnalysisTriggerContent() {
 /** Sub-component: collapsible wrapper for charts/tables */
 function CollapsibleSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Disclosure defaultOpen={true}>
-      <DisclosureTrigger className="flex w-full items-center justify-between rounded-lg bg-slate-50/60 px-3 py-2.5 hover:bg-slate-100/60 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 transition-all duration-150">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
-        <SectionChevron />
-      </DisclosureTrigger>
-      <DisclosureContent>
-        <div className="pt-3">{children}</div>
-      </DisclosureContent>
-    </Disclosure>
+    <div>
+      <Disclosure defaultOpen={true}>
+        <DisclosureTrigger className="flex w-full items-center justify-between rounded-lg bg-slate-50/60 px-3 py-2.5 hover:bg-slate-100/60 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 transition-all duration-150">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
+          <SectionChevron />
+        </DisclosureTrigger>
+        <DisclosureContent>
+          <div className="pt-3">{children}</div>
+        </DisclosureContent>
+      </Disclosure>
+    </div>
   );
 }
 

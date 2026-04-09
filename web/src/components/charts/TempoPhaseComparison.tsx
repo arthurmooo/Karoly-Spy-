@@ -145,13 +145,13 @@ export function TempoPhaseComparison({ splits2, sportType, hideTitle }: Props & 
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {!hideTitle && (
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
           Comparaison 1re vs 2e moitié
         </h3>
       )}
-      <div ref={containerRef} className="relative h-[180px] w-full">
+      <div ref={containerRef} className="relative h-[220px] w-full">
         {chartElement}
 
         {activeSegment && (
