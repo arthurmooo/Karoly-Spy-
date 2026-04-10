@@ -177,7 +177,7 @@ export function MyDashboardPage() {
           {kpiLoading
             ? DASHBOARD_CARDS.map((key) => (
                 <Card key={key}>
-                  <CardContent className="p-4">
+                  <CardContent className="px-4 pb-4 pt-5 sm:pt-5">
                     <div className="flex items-start justify-between">
                       <div className="space-y-2">
                         <div className="h-3 w-16 rounded bg-slate-100 dark:bg-slate-800 skeleton" />
@@ -203,7 +203,7 @@ export function MyDashboardPage() {
                     className="block w-full text-left"
                   >
                     <Card className="cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]">
-                      <CardContent className="p-4">
+                      <CardContent className="px-4 pb-4 pt-5 sm:pt-5">
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">

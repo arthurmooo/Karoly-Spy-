@@ -15,6 +15,7 @@ import { SectionCoachComment } from "@/components/activity/SectionCoachComment";
 import type { Activity, ActivityInterval, BlockGroupedIntervals, RepWindow, SectionCommentKey } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
 import { isTempo } from "@/services/activity.service";
+import { computeTempoBlockSplits, getTempoBlockBoundaries } from "@/services/tempoSegmentation.service";
 
 interface Props {
   activity: Activity;
@@ -81,6 +82,27 @@ export function ActivityAnalysisSection({
   const hasStreams = Boolean(activity.activity_streams?.length);
   const workType = activity.work_type;
   const isTempoActivity = isTempo(activity.manual_activity_name || activity.activity_name);
+  const activityName = activity.manual_activity_name || activity.activity_name;
+  const isRepeatPattern = /\d+\s*[x*]\s*\d+/.test(activityName ?? "");
+
+  // For continuous tempo sessions: compute splits on the tempo block only (not full session)
+  const tempoBlockSplits = useMemo(() => {
+    if (!isTempoActivity || workType === "competition" || isRepeatPattern) return null;
+    if (!activity.activity_streams?.length) return null;
+
+    const boundaries = getTempoBlockBoundaries(intervals, activity.activity_streams);
+    if (!boundaries) return null;
+
+    const splits4 = computeTempoBlockSplits(
+      activity.activity_streams, boundaries.startSec, boundaries.endSec,
+      4, activity.sport_type, activityName ?? "",
+    );
+    const splits2 = computeTempoBlockSplits(
+      activity.activity_streams, boundaries.startSec, boundaries.endSec,
+      2, activity.sport_type, activityName ?? "",
+    );
+    return { splits4, splits2 };
+  }, [isTempoActivity, workType, isRepeatPattern, activity, intervals, activityName]);
 
   useEffect(() => {
     if (workType !== "intervals") onAnalysisHighlightsChange?.([]);
@@ -170,11 +192,11 @@ export function ActivityAnalysisSection({
             )}
 
             {/* Tempo: 4-segment analysis + half comparison side by side */}
-            {isTempoActivity && workType !== "competition" && (
+            {isTempoActivity && workType !== "competition" && tempoBlockSplits && (
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <CollapsibleSection title="Analyse par segments">
                   <TempoSegmentAnalysis
-                    splits4={segmented?.splits_4}
+                    splits4={tempoBlockSplits.splits4}
                     sportType={activity.sport_type}
                     hideTitle
                   />
@@ -182,7 +204,7 @@ export function ActivityAnalysisSection({
                 </CollapsibleSection>
                 <CollapsibleSection title="Comparaison 1re vs 2e moitié">
                   <TempoPhaseComparison
-                    splits2={segmented?.splits_2}
+                    splits2={tempoBlockSplits.splits2}
                     sportType={activity.sport_type}
                     hideTitle
                   />

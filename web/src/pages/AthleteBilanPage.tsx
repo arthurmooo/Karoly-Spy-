@@ -417,7 +417,7 @@ export function AthleteBilanPage({ athleteId: propAthleteId }: AthleteBilanPageP
               Découplage par sport
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0 sm:pt-0">
             {report.sportDecoupling.length === 0 ? (
               <FeatureNotice
                 title="Découplage par sport"

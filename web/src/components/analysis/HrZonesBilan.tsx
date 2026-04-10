@@ -85,7 +85,7 @@ export function HrZonesBilan({ hrZones, hrZonesBySport }: HrZonesBilanProps) {
           </div>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0 sm:pt-0">
         {activeZones === null ? (
           <FeatureNotice
             title="Zones FC"

@@ -51,7 +51,7 @@ export const INTERVAL_TYPE_LABELS: Record<string, string> = {
 
 // ── Helpers ────────────────────────────────────────────────
 
-interface StreamTimeMapPoint {
+export interface StreamTimeMapPoint {
   chartSec: number;
   elapsedSec: number;
 }
@@ -60,7 +60,7 @@ function warnInDev(message: string, details: Record<string, unknown>) {
   if (import.meta.env.DEV) console.warn(message, details);
 }
 
-function getStreamTimeMap(streams: StreamPoint[] | null | undefined): StreamTimeMapPoint[] {
+export function getStreamTimeMap(streams: StreamPoint[] | null | undefined): StreamTimeMapPoint[] {
   return (streams ?? [])
     .filter(
       (pt): pt is StreamPoint & { elapsed_t: number } =>
@@ -70,7 +70,7 @@ function getStreamTimeMap(streams: StreamPoint[] | null | undefined): StreamTime
     .sort((a, b) => a.elapsedSec - b.elapsedSec);
 }
 
-function mapElapsedToChartSec(
+export function mapElapsedToChartSec(
   elapsedSec: number | null,
   timeMap: StreamTimeMapPoint[],
   chartMaxSec: number | null

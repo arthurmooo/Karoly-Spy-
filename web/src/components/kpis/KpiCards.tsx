@@ -58,7 +58,7 @@ export function KpiCards({ cards, onCardClick }: KpiCardsProps) {
             tabIndex={clickable ? 0 : undefined}
             onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onCardClick(card.key); } } : undefined}
           >
-            <CardContent className="p-5">
+            <CardContent className="px-5 pb-5 pt-6 sm:pt-6">
               <div
                 className={`w-8 h-8 rounded-full ${meta.iconBg} flex items-center justify-center mb-3`}
               >

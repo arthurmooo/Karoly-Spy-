@@ -320,7 +320,7 @@ export function DashboardPage() {
         <Card
           className="h-full cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
         >
-          <CardContent className="p-4">
+          <CardContent className="px-4 pb-4 pt-5 sm:pt-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Athlètes actifs</p>
@@ -338,7 +338,7 @@ export function DashboardPage() {
         <Card
           className="h-full cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
         >
-          <CardContent className="p-4">
+          <CardContent className="px-4 pb-4 pt-5 sm:pt-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Séances du jour</p>
@@ -356,7 +356,7 @@ export function DashboardPage() {
         <Card
           className="h-full cursor-pointer transition-all duration-150 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
         >
-          <CardContent className="p-4">
+          <CardContent className="px-4 pb-4 pt-5 sm:pt-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Alertes SWC</p>
@@ -379,7 +379,7 @@ export function DashboardPage() {
           onClick={() => setShowAcwrDialog(true)}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowAcwrDialog(true); } }}
         >
-          <CardContent className="p-4">
+          <CardContent className="px-4 pb-4 pt-5 sm:pt-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">ACWR alertes</p>
