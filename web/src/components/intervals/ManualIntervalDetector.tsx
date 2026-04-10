@@ -29,6 +29,7 @@ interface Props {
   isLoadingStreams: boolean;
   onSave: (payload: ReturnType<typeof buildManualBlockPayload>) => Promise<void>;
   onDetectedSegmentsChange?: (segments: DetectedSegment[]) => void;
+  chartZoomWindow?: { start: number; end: number } | null;
 }
 
 interface MetricOption {
@@ -59,12 +60,30 @@ function formatMetricValue(
   return formatPaceDecimal(speedToPaceDecimal(segment.avgSpeed) ?? 0);
 }
 
+function parseTimeInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const hms = trimmed.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (hms) return Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3]);
+  const ms = trimmed.match(/^(\d{1,3}):(\d{2})$/);
+  if (ms) return Number(ms[1]) * 60 + Number(ms[2]);
+  return null;
+}
+
+function formatTimeInput(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.round(sec % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 function formatDetectorDistance(distanceM: number) {
   if (distanceM < 1000) return `${Math.round(distanceM)} m`;
   return formatDistance(distanceM);
 }
 
-function formatBlockSubtitle(activity: Activity, blockIndex: 1 | 2) {
+function formatBlockSubtitle(activity: Activity, blockIndex: 1 | 2 | 3) {
   const block = activity.segmented_metrics?.interval_blocks?.[blockIndex - 1];
   if (!block) return "Bloc manuel";
 
@@ -83,12 +102,13 @@ export function ManualIntervalDetector({
   isLoadingStreams,
   onSave,
   onDetectedSegmentsChange,
+  chartZoomWindow,
 }: Props) {
   const isBike = isBikeSport(activity.sport_type);
   const isSwim = isSwimSport(activity.sport_type);
   const streams = activity.activity_streams ?? [];
   const justInjectedRef = useRef(false);
-  const [selectedBlock, setSelectedBlock] = useState<1 | 2>(1);
+  const [selectedBlock, setSelectedBlock] = useState<1 | 2 | 3>(1);
   const [mode, setMode] = useState<ManualDetectionMode>("duration");
   const [metric, setMetric] = useState<ManualDetectionMetric>(isBike ? "power" : "speed");
   const [repetitions, setRepetitions] = useState("5");
@@ -101,6 +121,14 @@ export function ManualIntervalDetector({
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [timeRangeStart, setTimeRangeStart] = useState("");
+  const [timeRangeEnd, setTimeRangeEnd] = useState("");
+
+  const parsedTimeRange = useMemo(() => ({
+    start: parseTimeInput(timeRangeStart),
+    end: parseTimeInput(timeRangeEnd),
+  }), [timeRangeStart, timeRangeEnd]);
+  const hasTimeRange = parsedTimeRange.start != null || parsedTimeRange.end != null;
 
   const metricOptions = useMemo<MetricOption[]>(() => {
     const hasHr = streams.some((point) => point.hr != null);
@@ -155,6 +183,8 @@ export function ManualIntervalDetector({
     setSelectedIds([]);
     setError(null);
     setStatus(null);
+    setTimeRangeStart("");
+    setTimeRangeEnd("");
     onDetectedSegmentsChange?.([]);
   }, [activity.segmented_metrics?.interval_blocks, onDetectedSegmentsChange, selectedBlock]);
 
@@ -233,6 +263,17 @@ export function ManualIntervalDetector({
     return Number(match[1]) * 60 + Number(match[2]);
   }
 
+  function handleImportZoom() {
+    if (!chartZoomWindow) return;
+    setTimeRangeStart(formatTimeInput(chartZoomWindow.start));
+    setTimeRangeEnd(formatTimeInput(chartZoomWindow.end));
+  }
+
+  function handleClearTimeRange() {
+    setTimeRangeStart("");
+    setTimeRangeEnd("");
+  }
+
   function handleSearch() {
     setError(null);
     setStatus(null);
@@ -252,6 +293,15 @@ export function ManualIntervalDetector({
       return;
     }
 
+    if (
+      parsedTimeRange.start != null &&
+      parsedTimeRange.end != null &&
+      parsedTimeRange.start >= parsedTimeRange.end
+    ) {
+      setError("Plage temporelle invalide (début ≥ fin).");
+      return;
+    }
+
     const detected = detectBestSegments({
       streams,
       mode,
@@ -260,6 +310,8 @@ export function ManualIntervalDetector({
       targetDurationSec,
       targetDistanceM,
       excludedSegments,
+      timeRangeStartSec: parsedTimeRange.start ?? undefined,
+      timeRangeEndSec: parsedTimeRange.end ?? undefined,
     });
 
     setSegments(detected);
@@ -361,7 +413,7 @@ export function ManualIntervalDetector({
 
       {/* Bloc selector — tabs */}
       <div className="flex border-b border-slate-200 dark:border-slate-700">
-        {([1, 2] as const).map((blockIndex) => {
+        {([1, 2, 3] as const).map((blockIndex) => {
           const active = selectedBlock === blockIndex;
           return (
             <button
@@ -468,6 +520,60 @@ export function ManualIntervalDetector({
               />
             )}
           </div>
+        </div>
+
+        {/* Plage temporelle (optionnelle) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              Plage temporelle
+            </label>
+            <div className="flex items-center gap-2">
+              {chartZoomWindow && (
+                <button
+                  type="button"
+                  onClick={handleImportZoom}
+                  className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                >
+                  <Icon name="zoom_in" className="text-xs" />
+                  Importer le zoom
+                </button>
+              )}
+              {hasTimeRange && (
+                <button
+                  type="button"
+                  onClick={handleClearTimeRange}
+                  className="flex items-center gap-1 text-[10px] font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                >
+                  <Icon name="close" className="text-xs" />
+                  Effacer
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              placeholder="Début (MM:SS)"
+              value={timeRangeStart}
+              onChange={(e) => setTimeRangeStart(e.target.value)}
+            />
+            <Input
+              placeholder="Fin (MM:SS)"
+              value={timeRangeEnd}
+              onChange={(e) => setTimeRangeEnd(e.target.value)}
+            />
+          </div>
+          {hasTimeRange && (
+            <div className="flex items-center gap-2 rounded-md border border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1.5">
+              <Icon name="schedule" className="text-xs text-blue-500 shrink-0" />
+              <span className="text-[11px] text-blue-700 dark:text-blue-300">
+                Recherche limitée :{" "}
+                {parsedTimeRange.start != null ? formatTimeInput(parsedTimeRange.start) : "0:00"}
+                {" → "}
+                {parsedTimeRange.end != null ? formatTimeInput(parsedTimeRange.end) : "fin"}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* CTA principal — orange */}

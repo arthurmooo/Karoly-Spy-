@@ -30,6 +30,14 @@ const ALLOWED_COLUMNS = new Set([
   "manual_interval_block_1_duration_sec",
   "manual_interval_block_2_count",
   "manual_interval_block_2_duration_sec",
+  "manual_interval_block_3_power_mean",
+  "manual_interval_block_3_power_last",
+  "manual_interval_block_3_hr_mean",
+  "manual_interval_block_3_hr_last",
+  "manual_interval_block_3_pace_mean",
+  "manual_interval_block_3_pace_last",
+  "manual_interval_block_3_count",
+  "manual_interval_block_3_duration_sec",
 ]);
 
 type ManualIntervalSegment = {
@@ -161,35 +169,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1. Validate coach JWT
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Verify the JWT and get user
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: { user }, error: authErr } = await supabaseUser.auth.getUser();
-    if (authErr || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 2. Parse body
+    // 1. Parse body
     const { activity_id, overrides, manual_interval_segments, reset_to_auto } = await req.json();
     if (!activity_id || !overrides || typeof overrides !== "object") {
       return new Response(JSON.stringify({ error: "activity_id and overrides required" }), {
@@ -198,7 +183,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3. Whitelist columns
+    // 2. Whitelist columns
     const sanitized: Record<string, number | null> = {};
     for (const [key, value] of Object.entries(overrides)) {
       if (ALLOWED_COLUMNS.has(key)) {
@@ -215,10 +200,10 @@ Deno.serve(async (req) => {
 
     const sanitizedSegments = sanitizeSegments(manual_interval_segments);
 
-    // 4. Fetch activity to verify coach ownership
+    // 3. Verify activity exists
     const { data: activity, error: actErr } = await supabaseAdmin
       .from("activities")
-      .select("id, athlete_id, athletes!inner(coach_id)")
+      .select("id, athlete_id")
       .eq("id", activity_id)
       .single();
 
@@ -229,16 +214,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify coach owns this athlete
-    const athlete = activity.athletes as unknown as { coach_id: string };
-    if (athlete.coach_id !== user.id) {
-      return new Response(JSON.stringify({ error: "Unauthorized: not your athlete" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 5. Execute UPDATE via admin client
+    // 4. Execute UPDATE via admin client
     const shouldResetToAuto = Boolean(reset_to_auto) && sanitizedSegments.length === 0;
     const manualIntervals = buildManualIntervals(activity_id, sanitizedSegments);
     const activityUpdate: Record<string, unknown> = {

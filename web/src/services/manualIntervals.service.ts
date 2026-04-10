@@ -44,6 +44,14 @@ export interface ManualBlockOverridePayload {
   manual_interval_block_2_pace_last: number | null;
   manual_interval_block_2_count: number | null;
   manual_interval_block_2_duration_sec: number | null;
+  manual_interval_block_3_power_mean: number | null;
+  manual_interval_block_3_power_last: number | null;
+  manual_interval_block_3_hr_mean: number | null;
+  manual_interval_block_3_hr_last: number | null;
+  manual_interval_block_3_pace_mean: number | null;
+  manual_interval_block_3_pace_last: number | null;
+  manual_interval_block_3_count: number | null;
+  manual_interval_block_3_duration_sec: number | null;
 }
 
 export interface ManualIntervalsUpdatePayload {
@@ -60,6 +68,8 @@ interface DetectionOptions {
   targetDurationSec?: number;
   targetDistanceM?: number;
   excludedSegments?: SegmentTimeRange[];
+  timeRangeStartSec?: number;
+  timeRangeEndSec?: number;
 }
 
 export interface SegmentTimeRange {
@@ -90,7 +100,7 @@ interface WindowStats {
 }
 
 interface ResolvedBlockMetrics {
-  blockIndex: 1 | 2;
+  blockIndex: 1 | 2 | 3;
   count: number | null;
   representativeDurationSec: number | null;
   paceMean: number | null;
@@ -124,7 +134,7 @@ function readManualSegmentBlocks(activity: Activity): ManualIntervalSegmentsBloc
 
 function mergeManualSegmentBlocks(
   activity: Activity,
-  blockIndex: 1 | 2,
+  blockIndex: 1 | 2 | 3,
   segments: DetectedSegment[] | null
 ): ManualIntervalSegmentsBlock[] {
   const next = new Map<number, ManualIntervalSegmentsBlock>(
@@ -311,15 +321,16 @@ export function overlapsExcludedSegments(
 
 export function getExcludedSegmentsForBlock(
   manualBlocks: ManualIntervalSegmentsBlock[] | null | undefined,
-  activeBlockIndex: 1 | 2
+  activeBlockIndex: 1 | 2 | 3
 ): SegmentTimeRange[] {
-  const blockedIndex = activeBlockIndex === 1 ? 2 : 1;
-  const blocked = manualBlocks?.find((block) => block.block_index === blockedIndex);
-
-  return (blocked?.segments ?? []).map((segment) => ({
-    startSec: segment.start_sec,
-    endSec: segment.end_sec,
-  }));
+  return (manualBlocks ?? [])
+    .filter((block) => block.block_index !== activeBlockIndex)
+    .flatMap((block) =>
+      (block.segments ?? []).map((segment) => ({
+        startSec: segment.start_sec,
+        endSec: segment.end_sec,
+      }))
+    );
 }
 
 export function detectBestSegments(options: DetectionOptions): DetectedSegment[] {
@@ -331,15 +342,30 @@ export function detectBestSegments(options: DetectionOptions): DetectedSegment[]
     targetDurationSec,
     targetDistanceM,
     excludedSegments = [],
+    timeRangeStartSec,
+    timeRangeEndSec,
   } = options;
   const targetValue = mode === "duration" ? targetDurationSec : targetDistanceM;
 
   if (!streams.length || !targetValue || repetitions <= 0) return [];
 
   const samples = prepareSamples(streams);
-  const candidates: DetectedSegment[] = [];
 
-  for (let i = 0; i < samples.length; i += 1) {
+  const startIdx = timeRangeStartSec != null
+    ? samples.findIndex((s) => s.t >= timeRangeStartSec)
+    : 0;
+  let endIdx = samples.length - 1;
+  if (timeRangeEndSec != null) {
+    endIdx = -1;
+    for (let i = samples.length - 1; i >= 0; i -= 1) {
+      if (samples[i]!.t <= timeRangeEndSec) { endIdx = i; break; }
+    }
+  }
+  if (startIdx < 0 || endIdx < 0 || startIdx > endIdx) return [];
+
+  let candidates: DetectedSegment[] = [];
+
+  for (let i = startIdx; i <= endIdx; i += 1) {
     const stats = buildWindowStats(samples, i, mode, metric, targetValue);
     if (!stats || stats.avgValue == null) continue;
 
@@ -354,6 +380,10 @@ export function detectBestSegments(options: DetectionOptions): DetectedSegment[]
       avgSpeed: stats.avgSpeed,
       avgPower: stats.avgPower,
     });
+  }
+
+  if (timeRangeEndSec != null) {
+    candidates = candidates.filter((c) => c.endSec <= timeRangeEndSec + 0.5);
   }
 
   candidates.sort((a, b) => {
@@ -388,7 +418,7 @@ export function getBlockDefaults(block: IntervalBlock | undefined) {
 
 export function resolveBlockMetrics(
   activity: Activity,
-  blockIndex: 1 | 2
+  blockIndex: 1 | 2 | 3
 ): ResolvedBlockMetrics {
   const baseBlock = activity.segmented_metrics?.interval_blocks?.[blockIndex - 1];
   const prefix = `manual_interval_block_${blockIndex}_` as const;
@@ -417,7 +447,7 @@ export function resolveBlockMetrics(
   };
 }
 
-export function hasManualBlockOverride(activity: Activity, blockIndex: 1 | 2): boolean {
+export function hasManualBlockOverride(activity: Activity, blockIndex: 1 | 2 | 3): boolean {
   const prefix = `manual_interval_block_${blockIndex}_` as const;
   return (
     activity.manual_interval_segments?.some(
@@ -435,7 +465,7 @@ export function hasManualBlockOverride(activity: Activity, blockIndex: 1 | 2): b
 
 function buildBlockMetricUpdate(
   activity: Activity,
-  blockIndex: 1 | 2,
+  blockIndex: 1 | 2 | 3,
   segments: DetectedSegment[] | null
 ) {
   const payload: Partial<ManualBlockOverridePayload> = {};
@@ -526,7 +556,7 @@ function resolveLegacyFromBlocks(
     Object.assign(mergedActivity, override);
   }
 
-  const resolvedBlocks = ([1, 2] as const)
+  const resolvedBlocks = ([1, 2, 3] as const)
     .map((blockIndex) => resolveBlockMetrics(mergedActivity as Activity, blockIndex))
     .filter((block) =>
       block.hrMean != null ||
@@ -600,86 +630,30 @@ function resolveLegacyFromBlocks(
 
 export function buildManualBlockPayload(
   activity: Activity,
-  blockIndex: 1 | 2,
+  blockIndex: 1 | 2 | 3,
   segments: DetectedSegment[] | null
 ): ManualIntervalsUpdatePayload {
   const blockUpdate = buildBlockMetricUpdate(activity, blockIndex, segments);
   const legacy = resolveLegacyFromBlocks(activity, [blockUpdate]);
   const manualIntervalSegments = mergeManualSegmentBlocks(activity, blockIndex, segments);
 
+  const overrides = { ...legacy } as ManualBlockOverridePayload;
+
+  const SUFFIXES = [
+    "power_mean", "power_last", "hr_mean", "hr_last",
+    "pace_mean", "pace_last", "count", "duration_sec",
+  ] as const;
+
+  for (const bi of [1, 2, 3] as const) {
+    const source = bi === blockIndex ? blockUpdate : activity;
+    for (const suffix of SUFFIXES) {
+      const key = `manual_interval_block_${bi}_${suffix}` as keyof ManualBlockOverridePayload;
+      overrides[key] = ((source as Record<string, unknown>)[key] as number | null) ?? null;
+    }
+  }
+
   return {
-    overrides: {
-      manual_interval_power_mean: legacy.manual_interval_power_mean,
-      manual_interval_power_last: legacy.manual_interval_power_last,
-      manual_interval_hr_mean: legacy.manual_interval_hr_mean,
-      manual_interval_hr_last: legacy.manual_interval_hr_last,
-      manual_interval_pace_mean: legacy.manual_interval_pace_mean,
-      manual_interval_pace_last: legacy.manual_interval_pace_last,
-      manual_interval_block_1_power_mean:
-        blockIndex === 1
-          ? blockUpdate.manual_interval_block_1_power_mean ?? null
-          : activity.manual_interval_block_1_power_mean ?? null,
-      manual_interval_block_1_power_last:
-        blockIndex === 1
-          ? blockUpdate.manual_interval_block_1_power_last ?? null
-          : activity.manual_interval_block_1_power_last ?? null,
-      manual_interval_block_1_hr_mean:
-        blockIndex === 1
-          ? blockUpdate.manual_interval_block_1_hr_mean ?? null
-          : activity.manual_interval_block_1_hr_mean ?? null,
-      manual_interval_block_1_hr_last:
-        blockIndex === 1
-          ? blockUpdate.manual_interval_block_1_hr_last ?? null
-          : activity.manual_interval_block_1_hr_last ?? null,
-      manual_interval_block_1_pace_mean:
-        blockIndex === 1
-          ? blockUpdate.manual_interval_block_1_pace_mean ?? null
-          : activity.manual_interval_block_1_pace_mean ?? null,
-      manual_interval_block_1_pace_last:
-        blockIndex === 1
-          ? blockUpdate.manual_interval_block_1_pace_last ?? null
-          : activity.manual_interval_block_1_pace_last ?? null,
-      manual_interval_block_1_count:
-        blockIndex === 1
-          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_1_count as number | null) ?? null
-          : activity.manual_interval_block_1_count ?? null,
-      manual_interval_block_1_duration_sec:
-        blockIndex === 1
-          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_1_duration_sec as number | null) ?? null
-          : activity.manual_interval_block_1_duration_sec ?? null,
-      manual_interval_block_2_power_mean:
-        blockIndex === 2
-          ? blockUpdate.manual_interval_block_2_power_mean ?? null
-          : activity.manual_interval_block_2_power_mean ?? null,
-      manual_interval_block_2_power_last:
-        blockIndex === 2
-          ? blockUpdate.manual_interval_block_2_power_last ?? null
-          : activity.manual_interval_block_2_power_last ?? null,
-      manual_interval_block_2_hr_mean:
-        blockIndex === 2
-          ? blockUpdate.manual_interval_block_2_hr_mean ?? null
-          : activity.manual_interval_block_2_hr_mean ?? null,
-      manual_interval_block_2_hr_last:
-        blockIndex === 2
-          ? blockUpdate.manual_interval_block_2_hr_last ?? null
-          : activity.manual_interval_block_2_hr_last ?? null,
-      manual_interval_block_2_pace_mean:
-        blockIndex === 2
-          ? blockUpdate.manual_interval_block_2_pace_mean ?? null
-          : activity.manual_interval_block_2_pace_mean ?? null,
-      manual_interval_block_2_pace_last:
-        blockIndex === 2
-          ? blockUpdate.manual_interval_block_2_pace_last ?? null
-          : activity.manual_interval_block_2_pace_last ?? null,
-      manual_interval_block_2_count:
-        blockIndex === 2
-          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_2_count as number | null) ?? null
-          : activity.manual_interval_block_2_count ?? null,
-      manual_interval_block_2_duration_sec:
-        blockIndex === 2
-          ? ((blockUpdate as Record<string, unknown>).manual_interval_block_2_duration_sec as number | null) ?? null
-          : activity.manual_interval_block_2_duration_sec ?? null,
-    },
+    overrides,
     manual_interval_segments: manualIntervalSegments,
     reset_to_auto: manualIntervalSegments.length === 0,
   };
