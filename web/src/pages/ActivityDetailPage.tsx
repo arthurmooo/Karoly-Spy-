@@ -70,11 +70,13 @@ export function ActivityDetailPage() {
   const [reprocessLaunched, setReprocessLaunched] = useState(false);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set());
   const [analysisHighlights, setAnalysisHighlights] = useState<AnalysisHighlightRange[]>([]);
+  const [chartZoomWindow, setChartZoomWindow] = useState<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     setHighlightedSegments([]);
     setExpandedBlocks(new Set());
     setAnalysisHighlights([]);
+    setChartZoomWindow(null);
   }, [activity?.id]);
 
   // ── Derived state ───────────────────────────────────────
@@ -300,6 +302,7 @@ export function ActivityDetailPage() {
               sportType={activity.sport_type}
               highlightedSegments={highlightedSegments}
               analysisHighlights={analysisHighlights}
+              onZoomWindowChange={setChartZoomWindow}
               renderHeader={(toggles) => (
                 <div className="mb-4 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
@@ -462,6 +465,7 @@ export function ActivityDetailPage() {
                   isLoadingStreams={isLoadingStreams}
                   onSave={saveManualDetectorOverride}
                   onDetectedSegmentsChange={setHighlightedSegments}
+                  chartZoomWindow={chartZoomWindow}
                 />
               )}
             </div>

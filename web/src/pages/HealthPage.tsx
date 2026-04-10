@@ -15,9 +15,6 @@ import { SortableHeader } from "@/components/tables/SortableHeader";
 import { sortRows, type SortDirection } from "@/lib/tableSort";
 import { useReadiness } from "@/hooks/useReadiness";
 import { useAthletes } from "@/hooks/useAthletes";
-import { useAthleteKpis } from "@/hooks/useAthleteKpis";
-import { useExportBilan } from "@/hooks/useExportBilan";
-import { useAcwr } from "@/hooks/useAcwr";
 import { getReadinessSeries, insertHrvBatch } from "@/repositories/readiness.repository";
 import type { DailyReadiness } from "@/types/readiness";
 import {
@@ -121,10 +118,6 @@ export function HealthPage() {
   const { healthData, isLoading, refresh } = useReadiness();
   const { athletes } = useAthletes();
   const { getAvatarUrl } = useAvatarMap();
-  const hasSelectedAthlete = selectedAthleteId !== "all";
-  const { report: kpiReport } = useAthleteKpis(hasSelectedAthlete ? selectedAthleteId : null, "week");
-  const { detail: acwrDetail } = useAcwr({ athleteId: hasSelectedAthlete ? selectedAthleteId : null, enabled: hasSelectedAthlete });
-  const { exportPdf, isExporting } = useExportBilan();
 
   const [readinessSeries, setReadinessSeries] = useState<DailyReadiness[]>([]);
   const [isKpiLoading, setIsKpiLoading] = useState(false);
@@ -369,32 +362,6 @@ export function HealthPage() {
           <Icon name="analytics" className="text-slate-400" />
           Suivi Biometrique & Readiness
         </h2>
-        <div className="flex items-center gap-4">
-          <button className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all duration-150">
-            <Icon name="notifications" className="text-2xl" />
-            {alertCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-accent-orange rounded-full border-2 border-white dark:border-slate-900" />
-            )}
-          </button>
-          <Button
-            disabled={!hasSelectedAthlete || !kpiReport || isExporting}
-            title={hasSelectedAthlete ? "Exporter le bilan PDF de l'athlète sélectionné" : "Sélectionnez un athlète pour exporter"}
-            onClick={() => {
-              if (!kpiReport || !selectedAthlete) return;
-              const name = `${selectedAthlete.first_name} ${selectedAthlete.last_name}`;
-              const acwrMetrics = acwrDetail
-                ? [acwrDetail.external, acwrDetail.internal, acwrDetail.global]
-                : undefined;
-              exportPdf(kpiReport, name, acwrMetrics);
-            }}
-          >
-            <Icon
-              name={isExporting ? "progress_activity" : "download"}
-              className={isExporting ? "animate-spin" : ""}
-            />
-            {isExporting ? "Export..." : "Exporter PDF"}
-          </Button>
-        </div>
       </div>
 
       <FeatureNotice

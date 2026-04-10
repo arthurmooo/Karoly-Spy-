@@ -86,6 +86,14 @@ export interface Activity {
   manual_interval_block_1_duration_sec?: number | null;
   manual_interval_block_2_count?: number | null;
   manual_interval_block_2_duration_sec?: number | null;
+  manual_interval_block_3_power_mean?: number | null;
+  manual_interval_block_3_power_last?: number | null;
+  manual_interval_block_3_hr_mean?: number | null;
+  manual_interval_block_3_hr_last?: number | null;
+  manual_interval_block_3_pace_mean?: number | null;
+  manual_interval_block_3_pace_last?: number | null;
+  manual_interval_block_3_count?: number | null;
+  manual_interval_block_3_duration_sec?: number | null;
   manual_interval_segments?: ManualIntervalSegmentsBlock[] | null;
   interval_detection_source: string | null;
   decoupling_index: number | null;

@@ -53,6 +53,18 @@ export function SectionCoachComment({ sectionKey, comment, isCoach, onSave }: Pr
     setError(null);
   };
 
+  const handleDelete = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onSave(sectionKey, "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors de la suppression");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       handleCancel();
@@ -153,14 +165,25 @@ export function SectionCoachComment({ sectionKey, comment, isCoach, onSave }: Pr
             {comment}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsEditing(true)}
-          className="shrink-0 self-start rounded-md p-1 text-slate-400 opacity-0 transition-all duration-150 hover:bg-slate-100 hover:text-blue-600 group-hover/comment:opacity-100 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-blue-400"
-          aria-label="Modifier le commentaire"
-        >
-          <Icon name="edit" className="text-[16px]" />
-        </button>
+        <div className="flex shrink-0 gap-0.5 self-start opacity-0 transition-all duration-150 group-hover/comment:opacity-100">
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-blue-400"
+            aria-label="Modifier le commentaire"
+          >
+            <Icon name="edit" className="text-[16px]" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isSaving}
+            className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 disabled:pointer-events-none disabled:opacity-50 dark:text-slate-500 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+            aria-label="Supprimer le commentaire"
+          >
+            <Icon name="delete" className="text-[16px]" />
+          </button>
+        </div>
       </div>
     );
   }

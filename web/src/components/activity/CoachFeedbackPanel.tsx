@@ -35,6 +35,9 @@ export function CoachFeedbackPanel({
   onSaveComment,
 }: Props) {
   const [coachNote, setCoachNote] = useState(activity.coach_comment ?? "");
+  const [isEditingCoachNote, setIsEditingCoachNote] = useState(
+    !Boolean(activity.coach_comment?.trim())
+  );
   const sourceJson = activity.source_json ?? null;
   const rpe = sanitizeRpe(activity.rpe) ?? sanitizeRpe(sourceJson?.rpe) ?? null;
   const athleteFeedback = activity.athlete_comment?.trim() || getFeedbackText(sourceJson);
@@ -45,6 +48,7 @@ export function CoachFeedbackPanel({
     if (activity.coach_comment != null) {
       setCoachNote(activity.coach_comment);
     }
+    setIsEditingCoachNote(!Boolean(activity.coach_comment?.trim()));
   }, [activity.coach_comment]);
 
   return (
@@ -130,12 +134,15 @@ export function CoachFeedbackPanel({
 
           <div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Commentaire remonté</p>
-            <textarea
-              readOnly
-              className="h-28 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm italic text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-              value={athleteFeedback}
-              placeholder="Aucun commentaire de l'athlète remonté depuis Nolio"
-            />
+            {athleteFeedback ? (
+              <p className="whitespace-pre-wrap rounded-xl bg-slate-100 p-3 text-sm leading-relaxed text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                {athleteFeedback}
+              </p>
+            ) : (
+              <p className="text-sm italic text-slate-400">
+                Aucun commentaire de l'athlète remonté depuis Nolio
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -148,36 +155,80 @@ export function CoachFeedbackPanel({
             Notes du Coach
           </h2>
           {isCoach ? (
-            <>
-              <textarea
-                className="h-24 w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                placeholder="Écrire un feedback à l'athlète..."
-                value={coachNote}
-                onChange={(e) => setCoachNote(e.target.value)}
-                disabled={isSaving}
-                aria-label="Commentaire coach"
-                data-testid="coach-comment-input"
-              />
-              <Button
-                className="w-full"
-                disabled={!isDirty || isSaving}
-                onClick={() => onSaveComment(coachNote)}
-                data-testid="coach-comment-save"
-              >
-                {isSaving ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  <Icon name="send" />
+            isEditingCoachNote ? (
+              <>
+                <textarea
+                  className="h-24 w-full resize-none rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  placeholder="Écrire un feedback à l'athlète..."
+                  value={coachNote}
+                  onChange={(e) => setCoachNote(e.target.value)}
+                  disabled={isSaving}
+                  aria-label="Commentaire coach"
+                  data-testid="coach-comment-input"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    disabled={!isDirty || isSaving}
+                    onClick={() => onSaveComment(coachNote)}
+                    data-testid="coach-comment-save"
+                  >
+                    {isSaving ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Icon name="check" />
+                    )}
+                    {isSaving ? "Envoi..." : "Enregistrer"}
+                  </Button>
+                  {activity.coach_comment?.trim() && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setCoachNote(activity.coach_comment ?? "");
+                        setIsEditingCoachNote(false);
+                      }}
+                      disabled={isSaving}
+                    >
+                      Annuler
+                    </Button>
+                  )}
+                </div>
+                {saveError && (
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400">{saveError}</p>
                 )}
-                {isSaving ? "Envoi..." : "Envoyer"}
-              </Button>
-              {saveError && (
-                <p className="text-xs font-medium text-red-600 dark:text-red-400">{saveError}</p>
-              )}
-              {nolioSynced === true && (
-                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Note enregistrée</p>
-              )}
-            </>
+              </>
+            ) : (
+              <>
+                <p className="whitespace-pre-wrap rounded-xl bg-slate-100 p-3 text-sm leading-relaxed text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {activity.coach_comment}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditingCoachNote(true)}
+                  >
+                    <Icon name="edit" />
+                    Modifier
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCoachNote("");
+                      onSaveComment("");
+                    }}
+                    className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                  >
+                    <Icon name="delete" />
+                    Supprimer
+                  </Button>
+                </div>
+                {nolioSynced === true && (
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Note enregistrée</p>
+                )}
+              </>
+            )
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
               <p className="text-sm text-slate-600 dark:text-slate-400">

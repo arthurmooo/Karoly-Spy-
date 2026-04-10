@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, type ReactNode } from "react";
+import { useMemo, useState, useCallback, useEffect, type ReactNode } from "react";
 import {
   ComposedChart,
   Area,
@@ -26,6 +26,7 @@ interface Props {
   analysisHighlights?: { startSec: number; endSec: number }[];
   /** Render prop: receives toggle buttons to place in parent layout */
   renderHeader?: (toggles: ReactNode) => ReactNode;
+  onZoomWindowChange?: (zoomWindow: { start: number; end: number } | null) => void;
 }
 
 function formatTime(sec: number): string {
@@ -71,6 +72,7 @@ export function ActivityStreamChart({
   highlightedSegments = [],
   analysisHighlights = [],
   renderHeader,
+  onZoomWindowChange,
 }: Props) {
   const isBike = isBikeSport(sportType);
   const isSwim = isSwimSport(sportType);
@@ -86,6 +88,10 @@ export function ActivityStreamChart({
   const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [zoomWindow, setZoomWindow] = useState<{ start: number; end: number } | null>(null);
+
+  useEffect(() => {
+    onZoomWindowChange?.(zoomWindow);
+  }, [zoomWindow, onZoomWindowChange]);
 
   const toggleCurve = (key: CurveKey) => {
     setVisibleCurves((prev) => {

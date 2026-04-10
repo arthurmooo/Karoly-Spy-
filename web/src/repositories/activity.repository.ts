@@ -132,7 +132,11 @@ const DETAIL_COLUMNS_CORE = `id, athlete_id, session_date, sport_type, work_type
        manual_interval_block_2_hr_mean, manual_interval_block_2_hr_last,
        manual_interval_block_2_pace_mean, manual_interval_block_2_pace_last,
        manual_interval_block_1_count, manual_interval_block_1_duration_sec,
-       manual_interval_block_2_count, manual_interval_block_2_duration_sec, manual_interval_segments,
+       manual_interval_block_2_count, manual_interval_block_2_duration_sec,
+       manual_interval_block_3_power_mean, manual_interval_block_3_power_last,
+       manual_interval_block_3_hr_mean, manual_interval_block_3_hr_last,
+       manual_interval_block_3_pace_mean, manual_interval_block_3_pace_last,
+       manual_interval_block_3_count, manual_interval_block_3_duration_sec, manual_interval_segments,
        interval_detection_source, decoupling_index,
        durability_index, temp_avg, elevation_gain, source_json, segmented_metrics, coach_comment, athlete_comment`;
 const DETAIL_COLUMNS_WORK_TYPE_OVERRIDE = "manual_work_type, detected_work_type, analysis_dirty";

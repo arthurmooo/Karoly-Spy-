@@ -413,7 +413,7 @@ export function DashboardPage() {
               Charge MLS
             </h2>
           </div>
-          <CardContent className="p-0 flex-1 min-h-0 overflow-x-auto overflow-y-auto">
+          <CardContent className="p-0 sm:p-0 flex-1 min-h-0 overflow-x-auto overflow-y-auto">
             <div className="sm:min-w-[500px]">
               {loadLoading || !heatmapData ? (
                 <div className="flex items-center justify-center py-12 text-slate-400">
@@ -421,15 +421,15 @@ export function DashboardPage() {
                   Chargement...
                 </div>
               ) : (
-                <div className="px-4 pt-4">
-                  <div className="space-y-2">
+                <div className="px-2 pt-2">
+                  <div className="space-y-1">
                     {heatmapData.athletes.filter((name) => !groupAthleteNames || groupAthleteNames.has(name)).map((athlete) => {
                       const thresholds = heatmapData.getAthleteThresholds(athlete);
                       const athleteMatch = athletes.find((a) => `${a.first_name} ${a.last_name}` === athlete || `${a.last_name} ${a.first_name}` === athlete);
                       return (
                       <div
                         key={athlete}
-                        className="flex items-center gap-4 w-full text-left rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
+                        className="flex items-center gap-2 w-full text-left rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
                       >
                         {athleteMatch ? (
                           <Link to={`/athletes/${athleteMatch.id}/trends`} className="w-20 sm:w-28 flex items-center gap-1 sm:gap-2 shrink-0 cursor-pointer">
@@ -615,7 +615,7 @@ export function DashboardPage() {
 
         {/* Activité récente */}
         <Card className="xl:h-[420px] overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 gap-2 shrink-0">
+          <div className="flex items-center justify-between px-4 h-[52px] border-b border-slate-200 dark:border-slate-800 gap-2 shrink-0">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white shrink-0">
               Activité récente
             </h2>
@@ -649,7 +649,7 @@ export function DashboardPage() {
               />
             </div>
           </div>
-          <CardContent className="p-3 flex-1 min-h-0 overflow-y-auto">
+          <CardContent className="p-3 sm:p-3 flex-1 min-h-0 overflow-y-auto">
             <div className="space-y-1">
               {recentLoading ? (
                 <div className="flex items-center justify-center py-8 text-slate-400">
@@ -706,7 +706,7 @@ export function DashboardPage() {
 
         {/* Alertes SWC */}
         <Card className="xl:h-[420px] overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
+          <div className="flex items-center justify-between px-4 h-[52px] border-b border-slate-200 dark:border-slate-800 gap-2 shrink-0">
             <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
               Alertes d'attention
               {!readinessLoading && alerts.length > 0 && (
@@ -715,7 +715,7 @@ export function DashboardPage() {
             </h2>
             <span className="text-[10px] text-slate-400 hidden sm:inline">Cliquer pour ouvrir</span>
           </div>
-          <CardContent className="p-3 flex-1 min-h-0 overflow-y-auto">
+          <CardContent className="p-3 sm:p-3 flex-1 min-h-0 overflow-y-auto">
             <div className="space-y-2">
               {readinessLoading ? (
                 <div className="flex items-center justify-center py-8 text-slate-400">
