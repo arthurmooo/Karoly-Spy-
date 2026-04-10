@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Refere
 import type { BlockGroupedIntervals, PlannedIntervalBlock } from "@/types/activity";
 import { FeatureNotice } from "@/components/ui/FeatureNotice";
 import { formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
+import { generatePaceTicks, injectFastestPaceTick } from "@/services/chart.service";
 import { isSwimSport } from "@/services/activity.service";
 
 interface Props {
@@ -32,6 +33,8 @@ type PreparedChartModel = {
   yMax: number;
   domainMin: number;
   hasPlannedTargets: boolean;
+  paceTicks?: number[];
+  paceStepSec?: number;
 };
 
 function toPaceFromSpeed(speed: number | null | undefined, isSwim: boolean): number | null {
@@ -154,8 +157,17 @@ function buildTargetVsActualChartModel(
     };
   }
 
-  const maxVal = Math.ceil(Math.max(...allValues) + 0.3);
-  const minVal = Math.floor(Math.min(...allValues) - 0.3);
+  const rawMin = Math.min(...allValues);
+  const rawMax = Math.max(...allValues);
+  const { ticks: paceTicks, domainMin: minVal, domainMax: maxVal, stepSec: paceStepSec } =
+    generatePaceTicks(rawMin - 0.05, rawMax + 0.05);
+
+  // Inject fastest actual pace as extra tick if it doesn't collide
+  const actualPaces = rows.map((r) => r.actual).filter((v): v is number => v != null);
+  const fastestPace = actualPaces.length ? Math.min(...actualPaces) : null;
+  const finalPaceTicks = fastestPace != null
+    ? injectFastestPaceTick(paceTicks, fastestPace, paceStepSec)
+    : paceTicks;
 
   return {
     chartData: rows.map((row) => {
@@ -173,6 +185,8 @@ function buildTargetVsActualChartModel(
     yMax: maxVal,
     domainMin: minVal,
     hasPlannedTargets: true,
+    paceTicks: finalPaceTicks,
+    paceStepSec,
   };
 }
 
@@ -199,20 +213,25 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
     setActiveBar(null);
   }, []);
 
-  const { chartData, yMax, domainMin, hasPlannedTargets } = useMemo(
+  const { chartData, yMax, domainMin, hasPlannedTargets, paceTicks } = useMemo(
     () => buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, isBike, isSwim, fmtPace),
     [intervalsByBlock, plannedBlocks, isBike, isSwim, fmtPace]
   );
 
-  // Compute nice round Y ticks for bike mode
-  const bikeYTicks = useMemo(() => {
-    if (!isBike || chartData.length === 0) return undefined;
-    const range = yMax - domainMin;
-    const step = range <= 30 ? 5 : range <= 80 ? 10 : range <= 200 ? 25 : 50;
-    const ticks: number[] = [];
-    for (let v = domainMin; v <= yMax; v += step) ticks.push(v);
-    return ticks;
-  }, [isBike, yMax, domainMin, chartData.length]);
+  // Compute nice round Y ticks for both bike (watts) and pace modes
+  const yAxisTicks = useMemo(() => {
+    if (chartData.length === 0) return undefined;
+    if (isBike) {
+      const range = yMax - domainMin;
+      const step = range <= 30 ? 5 : range <= 80 ? 10 : range <= 200 ? 25 : 50;
+      const ticks: number[] = [];
+      for (let v = domainMin; v <= yMax; v += step) ticks.push(v);
+      return ticks;
+    }
+    // Pace mode: transform ticks from real pace space to inverted space
+    if (!paceTicks?.length) return undefined;
+    return paceTicks.map((t) => yMax - t);
+  }, [isBike, yMax, domainMin, chartData.length, paceTicks]);
 
   // Build data with range bar base/height for the planned zone
   const barData = useMemo(
@@ -255,8 +274,9 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
           tick={{ fontSize: 11, fill: "#64748b" }}
           tickLine={false}
           axisLine={false}
+          width={70}
           domain={isBike ? [domainMin, yMax] : [0, yMax - domainMin]}
-          ticks={bikeYTicks}
+          ticks={yAxisTicks}
           tickFormatter={
             isBike
               ? (v: number) => `${Math.round(v)}W`
@@ -310,7 +330,7 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
       </BarChart>
     </ResponsiveContainer>
     );
-  }, [barData, bikeYTicks, isBike, yMax, domainMin, fmtPace, handleMouseMove, handleMouseLeave]);
+  }, [barData, yAxisTicks, isBike, yMax, domainMin, fmtPace, handleMouseMove, handleMouseLeave]);
 
   if (!hasPlannedTargets || chartData.length === 0) {
     return (
