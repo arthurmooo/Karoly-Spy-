@@ -10,7 +10,8 @@ import type { StreamPoint, ActivityInterval } from "@/types/activity";
 // ── Helpers ──────────────────────────────────────────────────
 
 function makeStream(overrides: Partial<StreamPoint> & { t: number }): StreamPoint {
-  return { t: overrides.t, hr: 150, spd: 3.5, pwr: 250, ...overrides };
+  const { t, ...rest } = overrides;
+  return { t, hr: 150, spd: 3.5, pwr: 250, ...rest };
 }
 
 function makeStreams(count: number, step = 5, baseT = 0): StreamPoint[] {
