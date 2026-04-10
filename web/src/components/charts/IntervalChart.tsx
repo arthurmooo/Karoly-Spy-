@@ -12,6 +12,7 @@ import {
 import type { BlockGroupedIntervals, RepWindow, StreamPoint } from "@/types/activity";
 import type { PhysioProfile } from "@/types/physio";
 import { formatPaceDecimal, formatSwimPaceDecimal, speedToPaceDecimal, speedToSwimPaceDecimal } from "@/services/format.service";
+import { generatePaceTicks, injectFastestPaceTick } from "@/services/chart.service";
 import { getStreamPowerForRange, isBikeSport, isSwimSport } from "@/services/activity.service";
 import { useChartTheme } from "@/hooks/useChartTheme";
 import type { ViewMode } from "@/components/tables/IntervalDetailTable";
@@ -149,6 +150,16 @@ export function IntervalChart({
   const secMax = secValues.length ? Math.max(...secValues) : 10;
   const secPadding = isBike ? 20 : 0.3;
 
+  // Generate clean pace ticks for the right Y-axis (run/swim only)
+  const paceTicksResult = useMemo(() => {
+    if (isBike || secValues.length === 0) return undefined;
+    const result = generatePaceTicks(secMin - 0.05, secMax + 0.05);
+    // Inject fastest actual pace as extra tick
+    const fastestPace = Math.min(...secValues);
+    const ticks = injectFastestPaceTick(result.ticks, fastestPace, result.stepSec);
+    return { ...result, ticks };
+  }, [isBike, secMin, secMax, secValues.length]);
+
   return (
     <div className="space-y-3">
       {!hideTitle && (
@@ -178,12 +189,19 @@ export function IntervalChart({
             <YAxis
               yAxisId="right"
               orientation="right"
-              domain={[secMin - secPadding, secMax + secPadding]}
+              domain={
+                isBike
+                  ? [secMin - secPadding, secMax + secPadding]
+                  : paceTicksResult
+                    ? [paceTicksResult.domainMin, paceTicksResult.domainMax]
+                    : [secMin - secPadding, secMax + secPadding]
+              }
               reversed={!isBike}
+              ticks={paceTicksResult?.ticks}
               tick={{ fontSize: 11, fill: "#2563EB" }}
               tickLine={false}
               axisLine={false}
-              width={45}
+              width={55}
               tickFormatter={isBike ? (v: number) => `${v}W` : (v: number) => fmtPace(v)}
             />
             <Tooltip
