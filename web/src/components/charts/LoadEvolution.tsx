@@ -89,7 +89,7 @@ export function LoadEvolution({ points }: LoadEvolutionProps) {
         </CardTitle>
         <p className="text-sm text-slate-500 dark:text-slate-400">Somme MLS par semaine calendaire sur les 8 dernières semaines.</p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0 sm:pt-0">
         <div ref={containerRef} className="relative h-[320px]">
           {chartElement}
 

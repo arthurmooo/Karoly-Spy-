@@ -220,10 +220,15 @@ export function ActivityStreamChart({
     const hrs = displayData.map((d) => d.hr).filter((v): v is number => v != null);
     const avgHr = hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null;
 
+    // Distance from cumulative dist_m in streams
+    const zoomedStreams = streams.filter((pt) => pt.t >= zoomWindow.start && pt.t <= zoomWindow.end);
+    const dists = zoomedStreams.map((pt) => pt.dist_m).filter((v): v is number => v != null);
+    const distance = dists.length >= 2 ? dists[dists.length - 1]! - dists[0]! : null;
+
     if (isBike) {
       const avgPowerWithoutZeros = getStreamPowerForRange(streams, zoomWindow.start, zoomWindow.end, "t", false);
       const avgPowerWithZeros = getStreamPowerForRange(streams, zoomWindow.start, zoomWindow.end, "t", true);
-      return { duration, avgHr, avgPowerWithoutZeros, avgPowerWithZeros, avgPace: null };
+      return { duration, avgHr, distance, avgPowerWithoutZeros, avgPowerWithZeros, avgPace: null };
     }
     // Run/Swim: distance-weighted pace from speed stream
     const paceToMs = isSwim ? 100 : 1000; // reverse conversion factor
@@ -232,7 +237,7 @@ export function ActivityStreamChart({
       .filter((v): v is number => v != null && v > 0);
     const avgSpeed = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : null;
     const avgPace = avgSpeed ? speedToPaceNum(avgSpeed, isSwim) : null;
-    return { duration, avgHr, avgPowerWithoutZeros: null, avgPowerWithZeros: null, avgPace };
+    return { duration, avgHr, distance, avgPowerWithoutZeros: null, avgPowerWithZeros: null, avgPace };
   }, [zoomWindow, displayData, isBike, isSwim, streams]);
 
   const toggleButtons: { key: CurveKey; label: string; color: string }[] = [
@@ -290,6 +295,9 @@ export function ActivityStreamChart({
           <span className="font-medium text-blue-700 dark:text-blue-400">
             Zoom : {formatTime(zoomStats.duration)}
           </span>
+          {zoomStats.distance != null && (
+            <span>Dist : <span className="font-medium text-blue-700 dark:text-blue-400">{zoomStats.distance >= 1000 ? `${(zoomStats.distance / 1000).toFixed(2)} km` : `${Math.round(zoomStats.distance)} m`}</span></span>
+          )}
           {zoomStats.avgHr != null && (
             <span>FC moy : <span className="font-medium text-red-500">{zoomStats.avgHr} bpm</span></span>
           )}

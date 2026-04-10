@@ -31,7 +31,7 @@ export function TextInsights({ insights }: TextInsightsProps) {
           Résumé des tendances et alertes sur la période sélectionnée.
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0 sm:pt-0">
         {insights.length === 0 ? (
           <FeatureNotice
             title="Analyse automatique"
