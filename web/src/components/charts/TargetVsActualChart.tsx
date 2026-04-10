@@ -213,7 +213,7 @@ export function TargetVsActualChart({ intervalsByBlock, plannedBlocks, sportType
     setActiveBar(null);
   }, []);
 
-  const { chartData, yMax, domainMin, hasPlannedTargets, paceTicks, paceStepSec } = useMemo(
+  const { chartData, yMax, domainMin, hasPlannedTargets, paceTicks } = useMemo(
     () => buildTargetVsActualChartModel(intervalsByBlock, plannedBlocks, isBike, isSwim, fmtPace),
     [intervalsByBlock, plannedBlocks, isBike, isSwim, fmtPace]
   );
