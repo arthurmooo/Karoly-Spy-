@@ -137,8 +137,6 @@ export function IntervalChart({
     [intervalsByBlock, repWindowsByBlock, streams, isBike, viewMode, isSwim]
   );
 
-  if (data.length === 0) return null;
-
   const hrValues = data.map((d) => d.hr).filter((v): v is number => v != null);
   const hrMin = hrValues.length ? Math.floor(Math.min(...hrValues) / 10) * 10 - 10 : 80;
   const hrMax = hrValues.length ? Math.ceil(Math.max(...hrValues) / 10) * 10 + 10 : 200;
@@ -159,6 +157,8 @@ export function IntervalChart({
     const ticks = injectFastestPaceTick(result.ticks, fastestPace, result.stepSec);
     return { ...result, ticks };
   }, [isBike, secMin, secMax, secValues.length]);
+
+  if (data.length === 0) return null;
 
   return (
     <div className="space-y-3">
