@@ -3,6 +3,7 @@ import sys
 import hashlib
 import tempfile
 import argparse
+import time
 import pandas as pd
 import logging
 from datetime import datetime, timedelta, timezone
@@ -52,6 +53,74 @@ class IngestionRobot:
         self.session_grouper = SessionGrouper(self.db)
         self.plan_parser = NolioPlanParser()
         self.readiness_calc = ReadinessCalculator(self.db)
+
+    def _format_db_error(self, exc: Exception) -> str:
+        """Build a compact error summary without dumping full HTML gateway pages."""
+        payload = exc.args[0] if getattr(exc, "args", None) else None
+
+        if isinstance(payload, dict):
+            parts = []
+            for key in ("code", "message", "hint", "details"):
+                value = payload.get(key)
+                if value:
+                    text = str(value).replace("\n", " ").strip()
+                    if key == "details" and len(text) > 180:
+                        text = text[:177] + "..."
+                    parts.append(f"{key}={text}")
+            if parts:
+                return " | ".join(parts)
+
+        text = str(exc).replace("\n", " ").strip()
+        return text[:200] + "..." if len(text) > 200 else text
+
+    def _is_transient_db_error(self, exc: Exception) -> bool:
+        """Retry only on infrastructure/network errors, not on business/data errors."""
+        payload = exc.args[0] if getattr(exc, "args", None) else None
+        if isinstance(payload, dict):
+            code = payload.get("code")
+            try:
+                if int(code) in {500, 502, 503, 504}:
+                    return True
+            except (TypeError, ValueError):
+                pass
+
+        text = self._format_db_error(exc).lower()
+        transient_markers = (
+            "502",
+            "503",
+            "504",
+            "500",
+            "bad gateway",
+            "gateway",
+            "http_response_incomplete",
+            "connection reset",
+            "connection aborted",
+            "temporarily unavailable",
+            "timed out",
+            "timeout",
+        )
+        return any(marker in text for marker in transient_markers)
+
+    def _execute_db_with_retry(self, operation, context: str, max_attempts: int = 4):
+        """Retry transient Supabase/PostgREST failures with exponential backoff."""
+        last_error = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return operation()
+            except Exception as exc:
+                last_error = exc
+                if not self._is_transient_db_error(exc) or attempt >= max_attempts:
+                    raise
+
+                wait_seconds = min(8.0, 1.0 * (2 ** (attempt - 1)))
+                print(
+                    f"      ⚠️ Transient DB error during {context} "
+                    f"(attempt {attempt}/{max_attempts}): {self._format_db_error(exc)}"
+                )
+                time.sleep(wait_seconds)
+
+        raise last_error
 
     def _fetch_gsheet_physio(self) -> Dict[str, Any]:
         """
@@ -352,7 +421,6 @@ class IngestionRobot:
 
     def sync_planned_workouts(self, athletes: List[Dict[str, Any]]):
         """Sync planned workouts from Nolio for all athletes (today-7d → today+21d)."""
-        import time
         print("📅 Syncing Planned Workouts...")
 
         date_from = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -373,9 +441,16 @@ class IngestionRobot:
             for pw in planned_list:
                 record = self._serialize_planned_workout(pw, athlete_uuid)
                 if record:
-                    self.db.client.table("planned_workouts").upsert(
-                        record, on_conflict="nolio_planned_id"
-                    ).execute()
+                    context = (
+                        f"planned_workout upsert "
+                        f"(athlete_id={athlete_uuid}, nolio_planned_id={record['nolio_planned_id']})"
+                    )
+                    self._execute_db_with_retry(
+                        lambda record=record: self.db.client.table("planned_workouts").upsert(
+                            record, on_conflict="nolio_planned_id"
+                        ).execute(),
+                        context=context,
+                    )
                     total += 1
 
             time.sleep(0.5)
@@ -693,7 +768,7 @@ class IngestionRobot:
             try:
                 pw_res = self.db.client.table("planned_workouts").select(
                     "structured_workout"
-                ).eq("athlete_id", str(athlete_uuid)).eq(
+                ).eq("athlete_id", str(athlete_id)).eq(
                     "planned_date", start_date.strftime("%Y-%m-%d")
                 ).eq("sport", internal_sport).not_.is_(
                     "structured_workout", "null"
